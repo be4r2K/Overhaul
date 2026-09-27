@@ -1,0 +1,6 @@
+{
+  "name": "Overhaul",
+  "description": "Overhaul is your personal health and sports command center with Google account integration, weather insights, 1RM gym tracker, biometrics, and activity highlights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

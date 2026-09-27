@@ -1,0 +1,283 @@
+@import "tailwindcss";
+
+:root {
+  --accent-hex: #10b981;
+  --accent-hover: #34d399;
+  --accent-light: rgba(16, 185, 129, 0.15);
+  --accent-border: rgba(16, 185, 129, 0.4);
+  --ig-gradient: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+}
+
+/* Dynamic Accent Color Engine per data-accent attribute */
+html[data-accent="emerald"],
+body[data-accent="emerald"],
+[data-accent="emerald"] {
+  --accent-hex: #10b981 !important;
+  --accent-hover: #34d399 !important;
+  --accent-light: rgba(16, 185, 129, 0.16) !important;
+  --accent-border: rgba(16, 185, 129, 0.45) !important;
+}
+
+html[data-accent="cyan"],
+body[data-accent="cyan"],
+[data-accent="cyan"] {
+  --accent-hex: #06b6d4 !important;
+  --accent-hover: #22d3ee !important;
+  --accent-light: rgba(6, 182, 212, 0.16) !important;
+  --accent-border: rgba(6, 182, 212, 0.45) !important;
+}
+
+html[data-accent="violet"],
+body[data-accent="violet"],
+[data-accent="violet"] {
+  --accent-hex: #8b5cf6 !important;
+  --accent-hover: #a78bfa !important;
+  --accent-light: rgba(139, 92, 246, 0.16) !important;
+  --accent-border: rgba(139, 92, 246, 0.45) !important;
+}
+
+html[data-accent="amber"],
+body[data-accent="amber"],
+[data-accent="amber"] {
+  --accent-hex: #f59e0b !important;
+  --accent-hover: #fbbf24 !important;
+  --accent-light: rgba(245, 158, 11, 0.16) !important;
+  --accent-border: rgba(245, 158, 11, 0.45) !important;
+}
+
+html[data-accent="rose"],
+body[data-accent="rose"],
+[data-accent="rose"] {
+  --accent-hex: #f43f5e !important;
+  --accent-hover: #fb7185 !important;
+  --accent-light: rgba(244, 63, 94, 0.16) !important;
+  --accent-border: rgba(244, 63, 94, 0.45) !important;
+}
+
+html[data-accent="blue"],
+body[data-accent="blue"],
+[data-accent="blue"] {
+  --accent-hex: #3b82f6 !important;
+  --accent-hover: #60a5fa !important;
+  --accent-light: rgba(59, 130, 246, 0.16) !important;
+  --accent-border: rgba(59, 130, 246, 0.45) !important;
+}
+
+/* Comprehensive Accent Overrides for Instant Color Changes Everywhere across all pages */
+.accent-text,
+.text-emerald-400,
+.text-emerald-300,
+.text-emerald-500,
+.group-hover\:text-emerald-400:hover,
+.group:hover .group-hover\:text-emerald-400 {
+  color: var(--accent-hex) !important;
+}
+
+.accent-bg,
+.bg-emerald-400,
+.bg-emerald-500 {
+  background-color: var(--accent-hex) !important;
+  color: #000000 !important;
+}
+
+.hover\:bg-emerald-300:hover,
+.hover\:bg-emerald-400:hover {
+  background-color: var(--accent-hover) !important;
+}
+
+.accent-bg-light,
+.bg-emerald-500\/10,
+.bg-emerald-500\/15,
+.bg-emerald-500\/20 {
+  background-color: var(--accent-light) !important;
+}
+
+.accent-border,
+.border-emerald-500\/20,
+.border-emerald-500\/30,
+.border-emerald-500\/40,
+.border-emerald-500\/50,
+.border-emerald-400 {
+  border-color: var(--accent-border) !important;
+}
+
+.accent-stroke,
+.stroke-emerald-400,
+.stroke-emerald-500 {
+  stroke: var(--accent-hex) !important;
+}
+
+.accent-fill,
+.fill-emerald-400,
+.fill-emerald-400\/20 {
+  fill: var(--accent-hex) !important;
+}
+
+.ring-emerald-400,
+.ring-emerald-500 {
+  --tw-ring-color: var(--accent-hex) !important;
+}
+
+.shadow-emerald-500\/20 {
+  box-shadow: 0 8px 16px -2px var(--accent-light) !important;
+}
+
+input[type="range"] {
+  accent-color: var(--accent-hex) !important;
+}
+
+[data-font="mono"] {
+  font-family: 'JetBrains Mono', monospace !important;
+}
+[data-font="display"] {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important;
+  letter-spacing: -0.015em;
+}
+[data-font="sans"] {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+}
+
+/* Instagram-style glassmorphism utilities */
+.ig-glass {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.ig-glass-card {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ig-glass-card:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.ig-story-ring {
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+}
+
+.ig-gradient-text {
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 30%, #dc2743 60%, #bc1888 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Smooth zoom transition for the card that becomes big */
+@keyframes cardScaleUp {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-card-expand {
+  animation: cardScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Light Theme overrides with Instagram-grade frosted glass */
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+html[data-theme="light"] body {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+html[data-theme="light"] .ig-glass,
+html[data-theme="light"] .ig-glass-card {
+  background: rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05) !important;
+}
+
+html[data-theme="light"] .ig-glass-card:hover {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+}
+
+html[data-theme="light"] .bg-slate-950 {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+html[data-theme="light"] .bg-slate-900,
+html[data-theme="light"] .bg-slate-900\/80,
+html[data-theme="light"] .bg-slate-900\/70,
+html[data-theme="light"] .bg-slate-900\/60 {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  color: #0f172a !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+}
+
+html[data-theme="light"] .bg-slate-950\/70,
+html[data-theme="light"] .bg-slate-950\/60,
+html[data-theme="light"] .bg-slate-950\/50,
+html[data-theme="light"] .bg-slate-950\/80,
+html[data-theme="light"] .bg-slate-950\/40 {
+  background-color: rgba(241, 245, 249, 0.8) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html[data-theme="light"] .border-slate-800,
+html[data-theme="light"] .border-slate-800\/80,
+html[data-theme="light"] .border-slate-800\/70,
+html[data-theme="light"] .border-slate-800\/60,
+html[data-theme="light"] .border-slate-800\/90 {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html[data-theme="light"] .border-slate-700 {
+  border-color: #cbd5e1 !important;
+}
+
+html[data-theme="light"] .text-white {
+  color: #0f172a !important;
+}
+
+html[data-theme="light"] .text-slate-100 {
+  color: #0f172a !important;
+}
+
+html[data-theme="light"] .text-slate-200 {
+  color: #1e293b !important;
+}
+
+html[data-theme="light"] .text-slate-300 {
+  color: #334155 !important;
+}
+
+html[data-theme="light"] .text-slate-400 {
+  color: #64748b !important;
+}
+
+html[data-theme="light"] .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+html[data-theme="light"] input,
+html[data-theme="light"] select,
+html[data-theme="light"] textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html[data-theme="light"] header {
+  background-color: rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(20px) !important;
+  border-color: rgba(0, 0, 0, 0.06) !important;
+}
