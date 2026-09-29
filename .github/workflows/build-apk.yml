@@ -23,10 +23,8 @@ jobs:
       - name: Build Web Production Bundle
         run: bun run build
 
-      - name: Sync Capacitor Native Android Assets
-        run: |
-          bun add @capacitor/core @capacitor/cli @capacitor/android @capacitor-community/health-connect
-          npx cap sync android || (npx cap add android && npx cap copy android)
+      - name: Sync Capacitor Native Assets
+        run: npx cap sync android || (npx cap add android && npx cap copy android)
 
       - name: Setup Java JDK 21
         uses: actions/setup-java@v4
