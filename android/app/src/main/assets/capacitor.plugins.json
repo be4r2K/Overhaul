@@ -1,0 +1,18 @@
+[
+	{
+		"pkg": "@capacitor-community/contacts",
+		"classpath": "getcapacitor.community.contacts.ContactsPlugin"
+	},
+	{
+		"pkg": "@capacitor/geolocation",
+		"classpath": "com.capacitorjs.plugins.geolocation.GeolocationPlugin"
+	},
+	{
+		"pkg": "@capacitor/toast",
+		"classpath": "com.capacitorjs.plugins.toast.ToastPlugin"
+	},
+	{
+		"pkg": "capacitor-health-connect",
+		"classpath": "com.ubiehealth.capacitor.healthconnect.HealthConnectPlugin"
+	}
+]

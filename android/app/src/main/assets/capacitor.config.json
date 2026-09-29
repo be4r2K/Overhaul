@@ -1,0 +1,6 @@
+{
+	"appId": "com.overhaul.app",
+	"appName": "Overhaul",
+	"webDir": "dist",
+	"bundledWebRuntime": false
+}

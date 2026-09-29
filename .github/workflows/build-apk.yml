@@ -50,6 +50,9 @@ jobs:
       - name: Build Debug APK via Gradle
         run: |
           cd android
+          if [ ! -f "gradlew" ]; then
+            gradle wrapper
+          fi
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
