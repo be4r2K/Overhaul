@@ -11,20 +11,20 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: 18
+          bun-version: latest
 
-      - name: Install Dependencies
-        run: npm install
+      - name: Install Dependencies with Bun
+        run: bun install
 
       - name: Build Web Assets
-        run: npm run build
+        run: bun run build
 
       - name: Add Capacitor Android
         run: |
-          npm install @capacitor/core @capacitor/cli @capacitor/android
+          bun add @capacitor/core @capacitor/cli @capacitor/android
           npx cap init Overhaul com.overhaul.app --web-dir dist
           npx cap add android
           npx cap copy android
