@@ -4,7 +4,20 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { UserProfile, Exercise, LiftRecord, SportActivity, DailyStepLog, DailyNutritionLog, ExerciseCategory, MealItem } from './types/fitness';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  UserProfile, 
+  Exercise, 
+  LiftRecord, 
+  SportActivity, 
+  DailyStepLog, 
+  DailyNutritionLog, 
+  ExerciseCategory, 
+  MealItem, 
+  SleepLog, 
+  Friend, 
+  FriendPost 
+} from './types/fitness';
 import { AIWorkoutAnalysisResult, AppThemeSettings } from './types/aiWorkout';
 import { 
   DEFAULT_PROFILE, 
@@ -13,6 +26,9 @@ import {
   DEFAULT_SPORTS, 
   DEFAULT_STEPS, 
   DEFAULT_NUTRITION, 
+  DEFAULT_SLEEP,
+  DEFAULT_FRIENDS,
+  DEFAULT_FRIEND_POSTS,
   loadFromStorage, 
   saveToStorage 
 } from './utils/storage';
@@ -28,10 +44,12 @@ import { BiometricsView } from './components/BiometricsView';
 import { GymProgressView } from './components/GymProgressView';
 import { SportsTrackerView } from './components/SportsTrackerView';
 import { NutritionView } from './components/NutritionView';
-import { AIWorkoutSection } from './components/AIWorkoutSection';
+import { AICoachHubView } from './components/AICoachHubView';
+import { FriendsView } from './components/FriendsView';
 import { RestTimerWidget } from './components/RestTimerWidget';
 import { QuickLogModal } from './components/QuickLogModal';
 import { SettingsModal } from './components/SettingsModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 export default function App() {
   // Application State backed by localStorage
@@ -79,6 +97,40 @@ export default function App() {
     loadFromStorage('ai_workout_analysis', null)
   );
 
+  const [sleepHistory, setSleepHistory] = useState<SleepLog[]>(() =>
+    loadFromStorage('sleep', DEFAULT_SLEEP)
+  );
+  const [friends, setFriends] = useState<Friend[]>(() => {
+    const stored = loadFromStorage<Friend[]>('friends', DEFAULT_FRIENDS) || [];
+    // Absolute purge of mock athletes (Alex Rivera, Liam Carter, Sophia Martinez, legacy friend-*)
+    const cleanList = stored.filter(
+      (f) =>
+        f &&
+        !['Alex Rivera', 'Liam Carter', 'Sophia Martinez'].includes(f.name) &&
+        !['ATHLETE-A3', 'ATHLETE-L1', 'ATHLETE-S2'].includes(f.friendCode) &&
+        !['friend-1', 'friend-2', 'friend-3', 'friend-4'].includes(f.id) &&
+        !f.id.includes('ATHLETE-A3') &&
+        !f.id.includes('ATHLETE-L1') &&
+        !f.id.includes('ATHLETE-S2')
+    );
+    if (cleanList.length !== stored.length) {
+      saveToStorage('friends', cleanList);
+    }
+    return cleanList;
+  });
+  const [friendPosts, setFriendPosts] = useState<FriendPost[]>(() => {
+    const stored = loadFromStorage<FriendPost[]>('friend_posts', DEFAULT_FRIEND_POSTS);
+    const isLegacyMock = stored.length > 0 && stored.every((p) => ['post-1', 'post-2', 'post-3'].includes(p.id));
+    if (isLegacyMock) {
+      saveToStorage('friend_posts', []);
+      return [];
+    }
+    return stored;
+  });
+  const [language, setLanguage] = useState<string>(() =>
+    loadFromStorage('app_language', 'en')
+  );
+
   // Theme settings (Dark/Light, Accent color, Font)
   const [theme, setTheme] = useState<AppThemeSettings>(() => getStoredTheme());
 
@@ -102,6 +154,12 @@ export default function App() {
     applyThemeToDOM(theme);
   }, [theme]);
 
+  // Sync text direction for RTL languages (Arabic)
+  useEffect(() => {
+    document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.lang = language || 'en';
+  }, [language]);
+
   const handleUpdateTheme = (updated: AppThemeSettings) => {
     setTheme(updated);
     setStoredTheme(updated);
@@ -115,7 +173,7 @@ export default function App() {
       const w = await fetchWeatherForLocation(locationQuery || profile.location, coords || explicitCoords);
       setWeather(w);
     } catch (e) {
-      console.error('Weather load error:', e);
+      console.warn('Weather load non-fatal fallback:', e);
     } finally {
       setWeatherLoading(false);
     }
@@ -169,6 +227,22 @@ export default function App() {
       saveToStorage('ai_workout_analysis', aiWorkoutAnalysis);
     }
   }, [aiWorkoutAnalysis]);
+
+  useEffect(() => {
+    saveToStorage('sleep', sleepHistory);
+  }, [sleepHistory]);
+
+  useEffect(() => {
+    saveToStorage('friends', friends);
+  }, [friends]);
+
+  useEffect(() => {
+    saveToStorage('friend_posts', friendPosts);
+  }, [friendPosts]);
+
+  useEffect(() => {
+    saveToStorage('app_language', language);
+  }, [language]);
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -430,12 +504,11 @@ export default function App() {
     todayStepLog.caloriesBurned + todaySports.reduce((sum, s) => sum + s.caloriesBurned, 0);
 
   return (
-    <div className={`min-h-screen ${theme.mode === 'light' ? 'bg-slate-50 text-slate-900' : 'bg-black text-slate-100'} flex flex-col font-sans selection:bg-emerald-500/20 selection:text-emerald-300 relative transition-colors duration-200`}>
-      {/* Ambient Instagram-style colorful glowing gradient orbs for high-transparency glass shimmer */}
+    <div className={`h-screen max-h-screen flex flex-col justify-between ${theme.mode === 'light' ? 'bg-slate-50 text-slate-900' : 'bg-gradient-to-br from-slate-950 via-slate-900 to-black text-slate-100'} font-sans selection:bg-emerald-500/20 selection:text-emerald-300 relative transition-colors duration-200`}>
+      {/* Ambient background gradient glow spots */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10" aria-hidden="true">
-        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-gradient-to-br from-[#f09433]/20 via-[#dc2743]/20 to-[#bc1888]/20 blur-3xl opacity-75" />
-        <div className="absolute top-1/4 -right-32 w-[28rem] h-[28rem] rounded-full bg-gradient-to-bl from-cyan-500/15 via-violet-500/20 to-rose-500/15 blur-3xl opacity-70" />
-        <div className="absolute -bottom-32 left-1/3 w-[32rem] h-[32rem] rounded-full bg-gradient-to-tr from-emerald-500/15 via-teal-500/15 to-indigo-500/15 blur-3xl opacity-65" />
+        <div className="absolute top-10 right-0 w-96 h-96 rounded-full bg-indigo-600/20 blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-10 left-0 w-96 h-96 rounded-full bg-purple-600/20 blur-[120px] pointer-events-none" />
       </div>
 
       {/* Top Bar with Overhaul title, AI Notes, Google Sync & Settings */}
@@ -444,7 +517,6 @@ export default function App() {
         onSelectTab={setCurrentTab}
         units={profile.units}
         onToggleUnits={handleToggleUnits}
-        onOpenQuickLog={() => setIsQuickLogOpen(true)}
         onResetData={handleResetData}
         onGoogleSignIn={handleGoogleSignIn}
         isAuthenticated={isAuthenticated}
@@ -452,94 +524,163 @@ export default function App() {
         profile={profile}
         onOpenSettings={() => setIsSettingsOpen(true)}
         theme={theme}
+        language={language}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-5 pb-24 md:pb-12">
-        {/* Center / Front Page: Overhaul Main Hub with Hello Christian, Weather, Highlights, Progress, Weight & Goals */}
-        {currentTab === 'dashboard' && (
-          <HomeMainView
-            profile={profile}
-            onUpdateProfile={setProfile}
-            weather={weather}
-            weatherLoading={weatherLoading}
-            onRefreshWeather={() => loadWeather(profile.location, explicitCoords)}
-            onRequestGps={handleAcquirePhoneGps}
-            liftRecords={liftRecords}
-            sportsHistory={sportsHistory}
-            stepsHistory={stepsHistory}
-            nutritionLog={nutritionLog}
-            onNavigateTab={setCurrentTab}
-            onQuickAddSteps={handleQuickAddSteps}
-            onOpenTimer={() => setIsRestTimerOpen(true)}
-            onOpenQuickLog={() => setIsQuickLogOpen(true)}
-            onGoogleSignIn={handleGoogleSignIn}
-            authLoading={authLoading}
-            isAuthenticated={isAuthenticated}
-            onOpenSettings={() => setIsSettingsOpen(true)}
-            theme={theme}
-          />
-        )}
+      {/* Main Content Area wrapped in ErrorBoundary with strict zero-scroll containment */}
+      <main className="flex-1 min-h-0 overflow-hidden max-w-7xl w-full mx-auto px-2 sm:px-4 py-1 flex flex-col justify-between">
+        <ErrorBoundary>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentTab.startsWith('ai-coach') || currentTab === 'ai-workouts' ? 'ai-coach' : currentTab}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18, ease: 'easeInOut' }}
+              className="h-full w-full flex flex-col flex-1 min-h-0 overflow-hidden"
+            >
+              {/* Center / Front Page: Overhaul Main Hub with Hello Christian, Weather, Highlights, Progress, Weight & Goals */}
+              {currentTab === 'dashboard' && (
+            <HomeMainView
+              profile={profile}
+              onUpdateProfile={setProfile}
+              weather={weather}
+              weatherLoading={weatherLoading}
+              onRefreshWeather={() => loadWeather(profile.location, explicitCoords)}
+              onRequestGps={handleAcquirePhoneGps}
+              liftRecords={liftRecords}
+              sportsHistory={sportsHistory}
+              stepsHistory={stepsHistory}
+              sleepHistory={sleepHistory}
+              onUpdateSleep={(s) => setSleepHistory((prev) => [s, ...prev.filter((p) => p.date !== s.date)])}
+              friends={friends}
+              friendPosts={friendPosts}
+              onUpdateFriendPosts={setFriendPosts}
+              nutritionLog={nutritionLog}
+              onNavigateTab={setCurrentTab}
+              onQuickAddSteps={handleQuickAddSteps}
+              onOpenTimer={() => setIsRestTimerOpen(true)}
+              onOpenQuickLog={() => setIsQuickLogOpen(true)}
+              onGoogleSignIn={handleGoogleSignIn}
+              authLoading={authLoading}
+              isAuthenticated={isAuthenticated}
+              onOpenSettings={() => setIsSettingsOpen(true)}
+              theme={theme}
+              language={language}
+            />
+          )}
 
-        {/* AI Workout Intelligence & Notes Split Parser */}
-        {currentTab === 'ai-workouts' && (
-          <AIWorkoutSection
-            profile={profile}
-            cachedAnalysis={aiWorkoutAnalysis}
-            onSaveAnalysis={setAiWorkoutAnalysis}
-            onImportExercisesToGym={handleImportExercisesToGym}
-          />
-        )}
+          {/* Overhaul AI Coach Hub: Dedicated Subpages for Overview, Routines, Body Rating & AI Coach Chat */}
+          {(currentTab === 'ai-coach' || currentTab === 'ai-workouts' || currentTab === 'ai-coach-rating' || currentTab === 'ai-coach-chat') && (
+            <AICoachHubView
+              profile={profile}
+              cachedAnalysis={aiWorkoutAnalysis}
+              onSaveAnalysis={setAiWorkoutAnalysis}
+              onImportExercisesToGym={handleImportExercisesToGym}
+              onAddLift={handleAddLift}
+              liftRecords={liftRecords}
+              sportsHistory={sportsHistory}
+              stepsHistory={stepsHistory}
+              sleepHistory={sleepHistory}
+              nutritionLog={nutritionLog}
+              onOpenTimer={() => setIsRestTimerOpen(true)}
+              language={language}
+              onUpdateLanguage={(l) => {
+                setLanguage(l);
+                saveToStorage('app_language', l);
+              }}
+              initialSubTab={
+                currentTab === 'ai-coach-rating'
+                  ? 'body-rating'
+                  : currentTab === 'ai-coach-chat'
+                  ? 'coach-chat'
+                  : currentTab === 'ai-workouts'
+                  ? 'routine'
+                  : 'overview'
+              }
+            />
+          )}
 
-        {/* Left Section: Biometrics, Age, BMI, BPL, Body Comp */}
-        {currentTab === 'biometrics' && (
-          <BiometricsView
-            profile={profile}
-            onUpdateProfile={setProfile}
-            benchPR1RM={benchPR1RM}
-            squatPR1RM={squatPR1RM}
-            deadliftPR1RM={deadliftPR1RM}
-            weeklyStepsAvg={weeklyStepsAvg}
-            weeklyCardioMinutes={weeklyCardioMinutes}
-          />
-        )}
+          {/* Friends & Social Community Page */}
+          {currentTab === 'friends' && (
+            <FriendsView
+              profile={profile}
+              friends={friends}
+              onUpdateFriends={setFriends}
+              friendPosts={friendPosts}
+              onUpdateFriendPosts={setFriendPosts}
+              liftRecords={liftRecords}
+              sportsHistory={sportsHistory}
+              stepsHistory={stepsHistory}
+              aiWorkoutAnalysis={aiWorkoutAnalysis}
+              language={language}
+            />
+          )}
 
-        {/* Left Section: Daily Calorie Engine, Meals & Hydration */}
-        {currentTab === 'nutrition' && (
-          <NutritionView
-            profile={profile}
-            nutritionLog={nutritionLog}
-            totalCaloriesBurnedToday={totalCaloriesBurnedToday}
-            onAddMeal={handleAddMeal}
-            onDeleteMeal={handleDeleteMeal}
-            onUpdateWater={handleUpdateWater}
-          />
-        )}
+          {/* Left Section: Biometrics, Age, BMI, BPL, Body Comp & Sleep */}
+          {currentTab === 'biometrics' && (
+            <BiometricsView
+              profile={profile}
+              onUpdateProfile={setProfile}
+              benchPR1RM={benchPR1RM}
+              squatPR1RM={squatPR1RM}
+              deadliftPR1RM={deadliftPR1RM}
+              weeklyStepsAvg={weeklyStepsAvg}
+              weeklyCardioMinutes={weeklyCardioMinutes}
+              nutritionLog={nutritionLog}
+              language={language}
+            />
+          )}
 
-        {/* Right Section: Gym Workout 1RM, Max Weight & Reps, PR Trophy Shelf */}
-        {currentTab === 'gym' && (
-          <GymProgressView
-            profile={profile}
-            exercises={exercises}
-            liftRecords={liftRecords}
-            onAddLift={handleAddLift}
-            onDeleteLift={handleDeleteLift}
-            onAddCustomExercise={handleAddCustomExercise}
-            onOpenTimer={() => setIsRestTimerOpen(true)}
-          />
-        )}
+          {/* Left Section: Daily Calorie Engine, Meals & Hydration */}
+          {currentTab === 'nutrition' && (
+            <NutritionView
+              profile={profile}
+              nutritionLog={nutritionLog}
+              totalCaloriesBurnedToday={totalCaloriesBurnedToday}
+              onAddMeal={handleAddMeal}
+              onDeleteMeal={handleDeleteMeal}
+              onUpdateWater={handleUpdateWater}
+              language={language}
+            />
+          )}
 
-        {/* Right Section: Sports, Bicycle Rides, Runs & Steps */}
-        {currentTab === 'sports' && (
-          <SportsTrackerView
-            profile={profile}
-            stepsHistory={stepsHistory}
-            sportsHistory={sportsHistory}
-            onUpdateTodaySteps={handleUpdateTodaySteps}
-            onAddSportActivity={handleAddSportActivity}
-            onDeleteSportActivity={handleDeleteSportActivity}
-          />
-        )}
+          {/* Right Section: Gym Workout 1RM, Max Weight & Reps, PR Trophy Shelf */}
+          {currentTab === 'gym' && (
+            <GymProgressView
+              profile={profile}
+              exercises={exercises}
+              liftRecords={liftRecords}
+              onAddLift={handleAddLift}
+              onDeleteLift={handleDeleteLift}
+              onAddCustomExercise={handleAddCustomExercise}
+              onOpenTimer={() => setIsRestTimerOpen(true)}
+              aiWorkoutAnalysis={aiWorkoutAnalysis}
+              stepsHistory={stepsHistory}
+              sleepHistory={sleepHistory}
+              sportsHistory={sportsHistory}
+              nutritionLog={nutritionLog}
+              totalCaloriesBurnedToday={totalCaloriesBurnedToday}
+              onNavigateToTab={(tab) => setCurrentTab(tab as any)}
+              language={language}
+            />
+          )}
+
+          {/* Right Section: Sports, Bicycle Rides, Runs & Steps */}
+          {currentTab === 'sports' && (
+            <SportsTrackerView
+              profile={profile}
+              stepsHistory={stepsHistory}
+              sportsHistory={sportsHistory}
+              onUpdateTodaySteps={handleUpdateTodaySteps}
+              onAddSportActivity={handleAddSportActivity}
+              onDeleteSportActivity={handleDeleteSportActivity}
+              language={language}
+            />
+          )}
+            </motion.div>
+          </AnimatePresence>
+        </ErrorBoundary>
       </main>
 
       {/* Floating or Docked Gym Rest Timer */}
@@ -552,6 +693,7 @@ export default function App() {
         isOpen={isQuickLogOpen}
         onClose={() => setIsQuickLogOpen(false)}
         profile={profile}
+        onUpdateProfile={setProfile}
         exercises={exercises}
         onAddLift={handleAddLift}
         onAddSportActivity={handleAddSportActivity}

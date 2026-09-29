@@ -110,6 +110,13 @@ export function calculateBMR(weightKg: number, heightCm: number, ageYears: numbe
   harrisBenedict: number;
   katchMcArdle?: number;
 } {
+  if (weightKg <= 0 || heightCm <= 0) {
+    return {
+      mifflinStJeor: 0,
+      harrisBenedict: 0,
+    };
+  }
+
   // Mifflin-St Jeor formula
   let msj = 10 * weightKg + 6.25 * heightCm - 5 * ageYears;
   if (gender === 'male') {
@@ -127,8 +134,8 @@ export function calculateBMR(weightKg: number, heightCm: number, ageYears: numbe
   }
 
   return {
-    mifflinStJeor: Math.round(msj),
-    harrisBenedict: Math.round(hb),
+    mifflinStJeor: Math.max(0, Math.round(msj)),
+    harrisBenedict: Math.max(0, Math.round(hb)),
   };
 }
 
@@ -136,6 +143,8 @@ export function calculateBMR(weightKg: number, heightCm: number, ageYears: numbe
  * Calculates TDEE (Total Daily Energy Expenditure) based on BMR and physical activity factor
  */
 export function calculateTDEE(bmr: number, activityLevel: ActivityLevel): number {
+  if (bmr <= 0) return 0;
+
   const multipliers: Record<ActivityLevel, number> = {
     sedentary: 1.2,        // Desk job, little/no exercise
     light: 1.375,         // 1-3 days gym / moderate walking
@@ -171,6 +180,24 @@ export function calculateNutritionTargets(
   fatsPct: number;
   recommendedWaterMl: number;
 } {
+  if (tdee <= 0 || weightKg <= 0) {
+    return {
+      targetCalories: 0,
+      deficitOrSurplus: 0,
+      goalLabel: 'Log Weight & Height to Calculate',
+      proteinGrams: 0,
+      carbsGrams: 0,
+      fatsGrams: 0,
+      proteinKcal: 0,
+      carbsKcal: 0,
+      fatsKcal: 0,
+      proteinPct: 30,
+      carbsPct: 40,
+      fatsPct: 30,
+      recommendedWaterMl: 0,
+    };
+  }
+
   let targetCalories = tdee;
   let deficitOrSurplus = 0;
   let goalLabel = 'Weight Maintenance';
@@ -435,7 +462,7 @@ export function calculateBPL(
   cardioScore: number;
   compositionScore: number;
 } {
-  if (strengthRatio <= 0 && weeklyStepsAvg <= 0 && weeklyCardioMinutes <= 0 && bmi <= 0) {
+  if (strengthRatio <= 0 && weeklyStepsAvg <= 0 && weeklyCardioMinutes <= 0 && (bmi <= 0 || bodyFatPct <= 0)) {
     return {
       score: 0,
       tier: 'Novice',
@@ -448,31 +475,36 @@ export function calculateBPL(
   }
 
   // 1. Strength Score (0-35 pts)
-  // 1.0x BW = ~15pts, 2.5x BW = 25pts, 3.5x BW = 32pts, 4.5x+ = 35pts
-  const strengthScore = Math.min(35, Math.max(10, Math.round(strengthRatio * 8.5)));
+  const strengthScore = strengthRatio > 0 ? Math.min(35, Math.max(5, Math.round(strengthRatio * 8.5))) : 0;
 
   // 2. Cardio & Steps Score (0-35 pts)
-  // 10,000 steps = 18 pts, +150 min cardio = +17 pts
   const stepComponent = Math.min(18, Math.round((weeklyStepsAvg / 10000) * 18));
   const cardioComponent = Math.min(17, Math.round((weeklyCardioMinutes / 150) * 17));
-  const cardioScore = Math.min(35, stepComponent + cardioComponent);
+  const cardioScore = (weeklyStepsAvg > 0 || weeklyCardioMinutes > 0) ? Math.min(35, stepComponent + cardioComponent) : 0;
 
   // 3. Composition Score (0-30 pts)
-  // Ideal BMI (20-25) -> up to 15 pts, Healthy body fat (10-18% male, 16-24% female) -> up to 15 pts
-  let compBmi = 15 - Math.abs(bmi - 22.5) * 1.8;
-  compBmi = Math.max(5, Math.min(15, compBmi));
+  let compositionScore = 0;
+  if (bmi > 0 && bodyFatPct > 0) {
+    let compBmi = 15 - Math.abs(bmi - 22.5) * 1.8;
+    compBmi = Math.max(0, Math.min(15, compBmi));
 
-  let compFat = 15 - Math.abs(bodyFatPct - 14) * 1.2;
-  compFat = Math.max(5, Math.min(15, compFat));
-  const compositionScore = Math.round(compBmi + compFat);
+    let compFat = 15 - Math.abs(bodyFatPct - 14) * 1.2;
+    compFat = Math.max(0, Math.min(15, compFat));
+    compositionScore = Math.round(compBmi + compFat);
+  }
 
-  const totalScore = Math.min(100, Math.max(25, strengthScore + cardioScore + compositionScore));
+  const rawSum = strengthScore + cardioScore + compositionScore;
+  const totalScore = rawSum > 0 ? Math.min(100, Math.max(0, rawSum)) : 0;
 
-  let tier: 'Novice' | 'Active' | 'Athletic' | 'Advanced' | 'Elite' = 'Athletic';
-  let color = 'text-emerald-400';
-  let summary = 'Strong athletic baseline with balanced conditioning';
+  let tier: 'Novice' | 'Active' | 'Athletic' | 'Advanced' | 'Elite' = 'Novice';
+  let color = 'text-slate-400';
+  let summary = 'Foundational phase - great room for progressive overload and aerobic gains';
 
-  if (totalScore < 45) {
+  if (totalScore === 0) {
+    tier = 'Novice';
+    color = 'text-slate-400';
+    summary = 'Log your lifts, workouts or biometrics to compute your BPL level';
+  } else if (totalScore < 45) {
     tier = 'Novice';
     color = 'text-slate-400';
     summary = 'Foundational phase - great room for progressive overload and aerobic gains';

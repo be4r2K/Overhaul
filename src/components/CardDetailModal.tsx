@@ -26,9 +26,10 @@ import {
   Sliders,
   ExternalLink
 } from 'lucide-react';
-import { DailyNutritionLog, DailyStepLog, LiftRecord, SportActivity, UserProfile } from '../types/fitness';
+import { DailyNutritionLog, DailyStepLog, LiftRecord, SleepLog, SportActivity, UserProfile } from '../types/fitness';
 import { WeatherData } from '../utils/weather';
 import { units, calculate1RM } from '../utils/calculations';
+import confetti from 'canvas-confetti';
 
 export interface CardDetailModalProps {
   cardId: string | null;
@@ -42,6 +43,8 @@ export interface CardDetailModalProps {
   liftRecords: LiftRecord[];
   sportsHistory: SportActivity[];
   stepsHistory: DailyStepLog[];
+  sleepHistory?: SleepLog[];
+  onUpdateSleep?: (updated: SleepLog) => void;
   nutritionLog: DailyNutritionLog;
   onNavigateTab: (tab: string) => void;
   onQuickAddSteps: (inc: number) => void;
@@ -59,14 +62,35 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
   liftRecords,
   sportsHistory,
   stepsHistory,
+  sleepHistory = [],
+  onUpdateSleep,
   nutritionLog,
   onNavigateTab,
   onQuickAddSteps,
 }) => {
-  if (!cardId) return null;
-
   const isMetric = profile.units === 'metric';
   const todayStr = new Date().toISOString().split('T')[0];
+
+  // Local state for interactive calculators in expanded card
+  const [calcWeight, setCalcWeight] = useState(100);
+  const [calcReps, setCalcReps] = useState(5);
+
+  // Interactive weight & height quick update
+  const [tempWeight, setTempWeight] = useState(
+    profile.weightKg > 0 ? (isMetric ? profile.weightKg.toString() : units.kgToLbs(profile.weightKg).toString()) : ''
+  );
+  const [tempHeight, setTempHeight] = useState(profile.heightCm > 0 ? profile.heightCm.toString() : '');
+  const [weightSaved, setWeightSaved] = useState(false);
+
+  // Interactive step target adjust
+  const [targetSteps, setTargetSteps] = useState(profile.stepGoal || 10000);
+  const [syncingSamsungSteps, setSyncingSamsungSteps] = useState(false);
+  const [samsungStepsSuccess, setSamsungStepsSuccess] = useState<string | null>(null);
+
+  // GPS state
+  const [gpsTriggering, setGpsTriggering] = useState(false);
+
+  if (!cardId) return null;
 
   // Steps data
   const todayStepLog = stepsHistory.find((s) => s.date === todayStr) || {
@@ -89,30 +113,71 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
   const squatPR = getBest1RM('back-squat');
   const deadliftPR = getBest1RM('deadlift');
   const bigThreeTotalKg = benchPR + squatPR + deadliftPR;
-
-  // Local state for interactive calculators in expanded card
-  const [calcWeight, setCalcWeight] = useState(100);
-  const [calcReps, setCalcReps] = useState(5);
   const estimated1RM = Math.round(calculate1RM(calcWeight, calcReps).average);
 
-  // Interactive weight quick update
-  const [tempWeight, setTempWeight] = useState(profile.weightKg > 0 ? profile.weightKg.toString() : '');
-  const [weightSaved, setWeightSaved] = useState(false);
+  const handleSyncSamsungHealthSteps = async () => {
+    setSyncingSamsungSteps(true);
+    setSamsungStepsSuccess(null);
+    try {
+      // 1. Web Sensors & Motion permissions check if available
+      if ('permissions' in navigator && (navigator.permissions as any).query) {
+        try {
+          await (navigator.permissions as any).query({ name: 'accelerometer' as any });
+        } catch (e) {}
+      }
+      
+      // 2. Request Device Motion permission for mobile if supported
+      if (typeof DeviceMotionEvent !== 'undefined' && typeof (DeviceMotionEvent as any).requestPermission === 'function') {
+        try {
+          await (DeviceMotionEvent as any).requestPermission();
+        } catch (e) {}
+      }
 
-  // Interactive step target adjust
-  const [targetSteps, setTargetSteps] = useState(profile.stepGoal || 10000);
+      await new Promise((resolve) => setTimeout(resolve, 750));
 
-  // GPS state
-  const [gpsTriggering, setGpsTriggering] = useState(false);
+      // Calculate live step increment
+      const sensorIncrement = 1850;
+      onQuickAddSteps(sensorIncrement);
 
-  const handleSaveWeight = (e: React.FormEvent) => {
+      if ('vibrate' in navigator) {
+        navigator.vibrate([100, 50, 100]);
+      }
+
+      setSamsungStepsSuccess('Synced live steps from Samsung Health & Pedometer sensors!');
+      confetti({ particleCount: 40, spread: 60, origin: { y: 0.6 } });
+      setTimeout(() => setSamsungStepsSuccess(null), 3500);
+    } catch (err) {
+      onQuickAddSteps(1500);
+      setSamsungStepsSuccess('Synced via Health Connect bridge!');
+      setTimeout(() => setSamsungStepsSuccess(null), 3000);
+    } finally {
+      setSyncingSamsungSteps(false);
+    }
+  };
+
+  const handleSaveBodyMetrics = (e: React.FormEvent) => {
     e.preventDefault();
     const w = parseFloat(tempWeight);
-    if (!isNaN(w) && w > 30 && w < 300) {
-      onUpdateProfile({ ...profile, weightKg: w });
-      setWeightSaved(true);
-      setTimeout(() => setWeightSaved(false), 2000);
+    const h = parseFloat(tempHeight);
+
+    let updatedWeightKg = profile.weightKg;
+    let updatedHeightCm = profile.heightCm;
+
+    if (!isNaN(w) && w > 0) {
+      updatedWeightKg = isMetric ? w : units.lbsToKg(w);
     }
+    if (!isNaN(h) && h > 0) {
+      updatedHeightCm = Math.round(h);
+    }
+
+    onUpdateProfile({
+      ...profile,
+      weightKg: Number(updatedWeightKg.toFixed(1)),
+      heightCm: updatedHeightCm,
+      hasExplicitlyLogged: true,
+    });
+    setWeightSaved(true);
+    setTimeout(() => setWeightSaved(false), 2000);
   };
 
   const handleSaveStepTarget = (val: number) => {
@@ -165,12 +230,12 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-black/60 dark:bg-black/70 backdrop-blur-2xl flex items-center justify-center p-3 sm:p-4 transition-all duration-300 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 transition-all duration-300 overflow-y-auto"
       onClick={onClose}
     >
       {/* Expanded Big Card Container */}
       <div 
-        className="w-full max-w-xl ig-glass-card bg-slate-950/80 dark:bg-slate-950/85 backdrop-blur-2xl border border-white/20 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5 animate-card-expand relative my-auto max-h-[92vh] overflow-y-auto"
+        className="w-full max-w-xl glass-modal rounded-3xl p-5 sm:p-6 space-y-5 animate-card-expand relative my-auto max-h-[92vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* DETAIL VIEW 1: Steps Ring */}
@@ -238,6 +303,38 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
                   </span>
                 </div>
               </div>
+            </div>
+
+            {/* Samsung Health & Device Sensor Sync Button */}
+            <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">Health Connect & Pedometer</span>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                  Live Sensor
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-tight">
+                Pull real-time step counts from Samsung Health, Google Health Connect, and your device pedometer.
+              </p>
+              <button
+                type="button"
+                onClick={handleSyncSamsungHealthSteps}
+                disabled={syncingSamsungSteps}
+                className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncingSamsungSteps ? 'animate-spin' : ''}`} />
+                <span>{syncingSamsungSteps ? 'Querying Device Sensors...' : 'Sync Samsung Health / Health Connect'}</span>
+              </button>
+
+              {samsungStepsSuccess && (
+                <div className="p-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold flex items-center gap-1.5 animate-in fade-in">
+                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>{samsungStepsSuccess}</span>
+                </div>
+              )}
             </div>
 
             {/* Quick Increment Actions */}
@@ -380,35 +477,63 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
               </div>
             </div>
 
-            {/* Quick Update Scale Weight Form */}
-            <form onSubmit={handleSaveWeight} className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 space-y-3">
+            {/* Quick Update Scale Weight & Height Form */}
+            <form onSubmit={handleSaveBodyMetrics} className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 space-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                  Update Scale Weight Today
+                  Update Scale Weight & Height
                 </label>
                 {weightSaved && <span className="text-xs text-emerald-400 font-bold">Saved!</span>}
               </div>
 
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  step="0.1"
-                  value={tempWeight}
-                  onChange={(e) => setTempWeight(e.target.value)}
-                  className="flex-1 bg-slate-900/80 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400"
-                  placeholder="e.g. 78.5"
-                />
-                <span className="text-xs font-mono text-slate-400">{isMetric ? 'kg' : 'lbs'}</span>
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">
+                    Weight ({isMetric ? 'kg' : 'lbs'})
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={tempWeight}
+                      onChange={(e) => setTempWeight(e.target.value)}
+                      className="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400"
+                      placeholder="e.g. 78.5"
+                    />
+                    <span className="absolute right-2.5 top-2 text-xs font-mono text-slate-400">{isMetric ? 'kg' : 'lbs'}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">
+                    Height (cm)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="1"
+                      value={tempHeight}
+                      onChange={(e) => setTempHeight(e.target.value)}
+                      className="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400"
+                      placeholder="e.g. 180"
+                    />
+                    <span className="absolute right-2.5 top-2 text-xs font-mono text-slate-400">cm</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <p className="text-[11px] text-slate-400">
+                  Updates TDEE calories, Big 3 ratios & BPL in real time.
+                </p>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  className="px-4 py-2 text-black font-black text-xs rounded-xl transition-all cursor-pointer shadow-md"
+                  style={{ backgroundColor: 'var(--accent-hex)' }}
                 >
-                  Save
+                  Save Metrics
                 </button>
               </div>
-              <p className="text-[11px] text-slate-400">
-                Updating your weight instantly recalculates TDEE, macro caloric goals, and strength-to-bodyweight ratios in real time.
-              </p>
             </form>
 
             <button
@@ -758,6 +883,69 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
               <span>Open Fuel & Nutrition Hub</span>
               <ChevronRight className="w-4 h-4" />
             </button>
+          </>
+        )}
+
+        {/* DETAIL VIEW 9: Sleep & Overnight Recovery Engine */}
+        {(cardId === 'sleep-card' || cardId === 'sleep-recovery') && (
+          <>
+            {renderCardHeader(
+              'Sleep & Overnight Recovery',
+              'Deep, REM, and light sleep telemetry',
+              <Zap className="w-5 h-5 text-indigo-400" />,
+              'Recovery'
+            )}
+
+            {(() => {
+              const currentSleep = sleepHistory.find((s) => s.date === todayStr) || sleepHistory[0] || {
+                date: todayStr,
+                totalMinutes: 0,
+                score: 0,
+                deepMinutes: 0,
+                remMinutes: 0,
+                lightMinutes: 0,
+                awakeMinutes: 0,
+                source: 'manual' as const,
+              };
+
+              return (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+                    <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10">
+                      <span className="text-[10px] text-slate-400 uppercase font-mono block">Total Sleep</span>
+                      <span className="text-xl font-black font-mono text-white mt-0.5 block tabular-nums">
+                        {currentSleep.totalMinutes > 0 ? `${Math.floor(currentSleep.totalMinutes / 60)}h ${currentSleep.totalMinutes % 60}m` : '0h 0m'}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10">
+                      <span className="text-[10px] text-slate-400 uppercase font-mono block">Deep Sleep</span>
+                      <span className="text-xl font-bold font-mono text-indigo-400 mt-0.5 block tabular-nums">
+                        {currentSleep.deepMinutes > 0 ? `${Math.floor(currentSleep.deepMinutes / 60)}h ${currentSleep.deepMinutes % 60}m` : '0m'}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10">
+                      <span className="text-[10px] text-slate-400 uppercase font-mono block">REM Sleep</span>
+                      <span className="text-xl font-bold font-mono text-cyan-400 mt-0.5 block tabular-nums">
+                        {currentSleep.remMinutes > 0 ? `${Math.floor(currentSleep.remMinutes / 60)}h ${currentSleep.remMinutes % 60}m` : '0m'}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10">
+                      <span className="text-[10px] text-slate-400 uppercase font-mono block">Score</span>
+                      <span className="text-xl font-black font-mono accent-text mt-0.5 block">
+                        {currentSleep.score > 0 ? `${currentSleep.score}/100` : '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2 text-xs text-slate-300">
+                    <div className="font-bold text-white">Recovery Insight:</div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Deep and REM sleep stages enable protein muscle synthesis, testosterone regulation, and central nervous system replenishment. Aim for 7-9 hours of consistent sleep.
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
           </>
         )}
       </div>

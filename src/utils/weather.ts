@@ -47,32 +47,68 @@ export async function getAccurateDeviceGPS(): Promise<{ latitude: number; longit
         const longitude = pos.coords.longitude;
 
         let cityName = '';
-        // Reverse geocoding using Open-Meteo reverse geocode or bigdatacloud open endpoint
         try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2000);
           const revRes = await fetch(
-            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
+            { signal: controller.signal }
           );
+          clearTimeout(timeoutId);
           if (revRes.ok) {
             const revData = await revRes.json();
             cityName = revData.city || revData.locality || revData.principalSubdivision || '';
           }
         } catch {
-          // Ignore reverse geocode failures
+          // Graceful fallback if reverse geocode is blocked or offline
         }
 
         resolve({ latitude, longitude, cityName });
       },
-      (err) => {
-        console.warn('GPS location permission denied or timed out:', err);
+      () => {
         resolve(null);
       },
       {
         enableHighAccuracy: true,
-        timeout: 8000,
+        timeout: 4000,
         maximumAge: 60000,
       }
     );
   });
+}
+
+function getFallbackWeather(city?: string): WeatherData {
+  // Check if we have a cached copy
+  try {
+    const cached = localStorage.getItem('app_cached_weather');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && typeof parsed.temperatureC === 'number') {
+        return {
+          ...parsed,
+          city: city || parsed.city || 'London',
+        };
+      }
+    }
+  } catch {}
+
+  const cityName = city && city.trim().length > 0 ? city : 'London';
+  return {
+    city: cityName,
+    country: cityName.toLowerCase() === 'london' ? 'UK' : '',
+    temperatureC: 21,
+    temperatureF: 70,
+    feelsLikeC: 21,
+    feelsLikeF: 70,
+    condition: 'Mainly Clear & Sunny',
+    weatherCode: 1,
+    iconType: 'sun',
+    humidity: 58,
+    windSpeedKmh: 12,
+    windSpeedMph: 7,
+    isOutdoorGood: true,
+    outdoorAdvice: 'Mild & pleasant outdoor running or cycling conditions.',
+  };
 }
 
 export async function fetchWeatherForLocation(
@@ -81,8 +117,8 @@ export async function fetchWeatherForLocation(
 ): Promise<WeatherData> {
   let lat = 51.5074; // London default fallback
   let lon = -0.1278;
-  let cityName = 'London';
-  let countryName = 'UK';
+  let cityName = locationQuery || 'London';
+  let countryName = '';
   let isGpsAccurate = false;
 
   if (explicitCoords) {
@@ -93,9 +129,13 @@ export async function fetchWeatherForLocation(
     isGpsAccurate = true;
   } else if (locationQuery && locationQuery.trim().length > 0) {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
       const geoRes = await fetch(
-        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(locationQuery)}&count=1&language=en&format=json`
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(locationQuery)}&count=1&language=en&format=json`,
+        { signal: controller.signal }
       );
+      clearTimeout(timeoutId);
       if (geoRes.ok) {
         const geoData = await geoRes.json();
         if (geoData.results && geoData.results.length > 0) {
@@ -105,16 +145,20 @@ export async function fetchWeatherForLocation(
           countryName = geoData.results[0].country_code || geoData.results[0].country || '';
         }
       }
-    } catch (e) {
-      console.warn('Geocoding search failed, using fallback', e);
+    } catch {
+      // Non-fatal geocoding network fallback
     }
   }
 
-  // Fetch current weather from Open-Meteo
+  // Fetch current weather from Open-Meteo with timeout
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
     const weatherRes = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&wind_speed_unit=kmh`
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&wind_speed_unit=kmh`,
+      { signal: controller.signal }
     );
+    clearTimeout(timeoutId);
 
     if (weatherRes.ok) {
       const data = await weatherRes.json();
@@ -135,7 +179,7 @@ export async function fetchWeatherForLocation(
       if (tempC > 30) outdoorAdvice = 'High heat — stay hydrated with electrolytes or train indoors.';
       if (code >= 51) outdoorAdvice = 'Rainy conditions — gym session recommended over outdoor cycling.';
 
-      return {
+      const result: WeatherData = {
         city: cityName,
         country: countryName,
         temperatureC: tempC,
@@ -154,26 +198,17 @@ export async function fetchWeatherForLocation(
         longitude: lon,
         isGpsAccurate,
       };
+
+      try {
+        localStorage.setItem('app_cached_weather', JSON.stringify(result));
+      } catch {}
+
+      return result;
     }
-  } catch (err) {
-    console.error('Weather fetch error:', err);
+  } catch {
+    // Non-fatal network fallback
   }
 
-  // Fallback realistic weather
-  return {
-    city: locationQuery || 'London',
-    country: 'UK',
-    temperatureC: 19,
-    temperatureF: 66,
-    feelsLikeC: 19,
-    feelsLikeF: 66,
-    condition: 'Mainly Clear & Sunny',
-    weatherCode: 1,
-    iconType: 'sun',
-    humidity: 62,
-    windSpeedKmh: 14,
-    windSpeedMph: 9,
-    isOutdoorGood: true,
-    outdoorAdvice: 'Mild & pleasant outdoor running or cycling conditions.',
-  };
+  // Gracefully return cached or realistic weather fallback
+  return getFallbackWeather(cityName);
 }

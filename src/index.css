@@ -9,6 +9,87 @@
 }
 
 /* Dynamic Accent Color Engine per data-accent attribute */
+html[data-accent="cyberpunk_pink"],
+body[data-accent="cyberpunk_pink"],
+[data-accent="cyberpunk_pink"] {
+  --accent-hex: #ff2a85 !important;
+  --accent-hover: #ff5c9f !important;
+  --accent-light: rgba(255, 42, 133, 0.16) !important;
+  --accent-border: rgba(255, 42, 133, 0.45) !important;
+}
+
+html[data-accent="electric_teal"],
+body[data-accent="electric_teal"],
+[data-accent="electric_teal"] {
+  --accent-hex: #00f0ff !important;
+  --accent-hover: #4df3ff !important;
+  --accent-light: rgba(0, 240, 255, 0.16) !important;
+  --accent-border: rgba(0, 240, 255, 0.45) !important;
+}
+
+html[data-accent="inferno_orange"],
+body[data-accent="inferno_orange"],
+[data-accent="inferno_orange"] {
+  --accent-hex: #ff4500 !important;
+  --accent-hover: #ff6733 !important;
+  --accent-light: rgba(255, 69, 0, 0.16) !important;
+  --accent-border: rgba(255, 69, 0, 0.45) !important;
+}
+
+html[data-accent="acid_green"],
+body[data-accent="acid_green"],
+[data-accent="acid_green"] {
+  --accent-hex: #76ff03 !important;
+  --accent-hover: #99ff33 !important;
+  --accent-light: rgba(118, 255, 3, 0.16) !important;
+  --accent-border: rgba(118, 255, 3, 0.45) !important;
+}
+
+html[data-accent="solar_yellow"],
+body[data-accent="solar_yellow"],
+[data-accent="solar_yellow"] {
+  --accent-hex: #FFD700 !important;
+  --accent-hover: #FFE44D !important;
+  --accent-light: rgba(255, 215, 0, 0.16) !important;
+  --accent-border: rgba(255, 215, 0, 0.45) !important;
+}
+
+html[data-accent="toxic_green"],
+body[data-accent="toxic_green"],
+[data-accent="toxic_green"] {
+  --accent-hex: #39FF14 !important;
+  --accent-hover: #66FF47 !important;
+  --accent-light: rgba(57, 255, 20, 0.16) !important;
+  --accent-border: rgba(57, 255, 20, 0.45) !important;
+}
+
+html[data-accent="deep_sapphire"],
+body[data-accent="deep_sapphire"],
+[data-accent="deep_sapphire"] {
+  --accent-hex: #0F52BA !important;
+  --accent-hover: #256CEC !important;
+  --accent-light: rgba(15, 82, 186, 0.16) !important;
+  --accent-border: rgba(15, 82, 186, 0.45) !important;
+}
+
+html[data-accent="crimson_red"],
+body[data-accent="crimson_red"],
+[data-accent="crimson_red"] {
+  --accent-hex: #DC143C !important;
+  --accent-hover: #E8415F !important;
+  --accent-light: rgba(220, 20, 60, 0.16) !important;
+  --accent-border: rgba(220, 20, 60, 0.45) !important;
+}
+
+html[data-accent="ultra_violet"],
+body[data-accent="ultra_violet"],
+[data-accent="ultra_violet"] {
+  --accent-hex: #7928ca !important;
+  --accent-hover: #9b4de8 !important;
+  --accent-light: rgba(121, 40, 202, 0.16) !important;
+  --accent-border: rgba(121, 40, 202, 0.45) !important;
+}
+
 html[data-accent="emerald"],
 body[data-accent="emerald"],
 [data-accent="emerald"] {
@@ -61,6 +142,33 @@ body[data-accent="blue"],
   --accent-hover: #60a5fa !important;
   --accent-light: rgba(59, 130, 246, 0.16) !important;
   --accent-border: rgba(59, 130, 246, 0.45) !important;
+}
+
+html[data-accent="cyber_violet"],
+body[data-accent="cyber_violet"],
+[data-accent="cyber_violet"] {
+  --accent-hex: #d946ef !important;
+  --accent-hover: #e879f9 !important;
+  --accent-light: rgba(217, 70, 239, 0.16) !important;
+  --accent-border: rgba(217, 70, 239, 0.45) !important;
+}
+
+html[data-accent="acid_lime"],
+body[data-accent="acid_lime"],
+[data-accent="acid_lime"] {
+  --accent-hex: #84cc16 !important;
+  --accent-hover: #a3e635 !important;
+  --accent-light: rgba(132, 204, 22, 0.16) !important;
+  --accent-border: rgba(132, 204, 22, 0.45) !important;
+}
+
+html[data-accent="blood_orange"],
+body[data-accent="blood_orange"],
+[data-accent="blood_orange"] {
+  --accent-hex: #ff5722 !important;
+  --accent-hover: #ff7043 !important;
+  --accent-light: rgba(255, 87, 34, 0.16) !important;
+  --accent-border: rgba(255, 87, 34, 0.45) !important;
 }
 
 /* Comprehensive Accent Overrides for Instant Color Changes Everywhere across all pages */
@@ -126,36 +234,127 @@ input[type="range"] {
   accent-color: var(--accent-hex) !important;
 }
 
+[data-font="inter"] {
+  font-family: 'Inter', sans-serif !important;
+}
+[data-font="space_grotesk"] {
+  font-family: 'Space Grotesk', sans-serif !important;
+}
+[data-font="cinzel"] {
+  font-family: 'Cinzel', serif !important;
+}
+[data-font="rubik"] {
+  font-family: 'Rubik', sans-serif !important;
+}
 [data-font="mono"] {
   font-family: 'JetBrains Mono', monospace !important;
 }
 [data-font="display"] {
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important;
+  font-family: 'Space Grotesk', system-ui, sans-serif !important;
   letter-spacing: -0.015em;
 }
 [data-font="sans"] {
   font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
-/* Instagram-style glassmorphism utilities */
+/* iOS-Style Liquid Glassmorphism Utilities with raw WebKit support */
+.liquid-glass,
+.glass-card,
+.glass-panel,
+.ig-glass-card,
+.glass-popup,
+.glass-modal,
 .ig-glass {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.15), 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-.ig-glass-card {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
+.liquid-glass:hover,
+.glass-card:hover,
 .ig-glass-card:hover {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+.glass-pill {
+  background-color: rgba(255, 255, 255, 0.07) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Graceful degradation rules for Dark OLED mode */
+html[data-theme="dark"] .glass-panel,
+html[data-theme="dark"] .glass-card,
+html[data-theme="dark"] .ig-glass-card,
+html[data-theme="dark"] .ig-glass,
+html[data-theme="dark"] .liquid-glass {
+  background-color: #09090b !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="dark"] .glass-modal,
+html[data-theme="dark"] .glass-popup {
+  background-color: #000000 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9) !important;
+}
+
+html[data-theme="dark"] .glass-pill {
+  background-color: #18181b !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Translucent Glass Appearance Theme Option */
+html[data-theme="glass"],
+body[data-theme="glass"],
+.glass-theme {
+  background: linear-gradient(135deg, #09090b 0%, #020617 50%, #0f172a 100%) !important;
+  background-attachment: fixed !important;
+  color: #f8fafc !important;
+}
+
+html[data-theme="glass"] .glass-card,
+html[data-theme="glass"] .ig-glass-card,
+body[data-theme="glass"] .glass-card,
+body[data-theme="glass"] .ig-glass-card,
+.glass-theme .glass-card,
+.glass-theme .ig-glass-card,
+html[data-theme="glass"] .glass-popup,
+html[data-theme="glass"] .glass-modal,
+html[data-theme="glass"] .ig-glass,
+body[data-theme="glass"] .glass-popup,
+body[data-theme="glass"] .glass-modal,
+body[data-theme="glass"] .ig-glass,
+.glass-theme .glass-popup,
+.glass-theme .glass-modal,
+.glass-theme .ig-glass,
+html[data-theme="glass"] .liquid-glass,
+body[data-theme="glass"] .liquid-glass,
+.glass-theme .liquid-glass {
+  background: rgba(255, 255, 255, 0.06) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.15), 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
+}
+
+html[data-theme="glass"] .glass-card:hover,
+html[data-theme="glass"] .ig-glass-card:hover,
+html[data-theme="glass"] .liquid-glass:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
 }
 
 .ig-story-ring {

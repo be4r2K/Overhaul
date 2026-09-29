@@ -32,9 +32,11 @@ import {
   Smartphone, 
   Sliders, 
   ArrowUpRight, 
-  MoreHorizontal 
+  MoreHorizontal,
+  Moon,
+  Users
 } from 'lucide-react';
-import { DailyNutritionLog, DailyStepLog, LiftRecord, SportActivity, UserProfile } from '../types/fitness';
+import { DailyNutritionLog, DailyStepLog, Friend, FriendPost, LiftRecord, SleepLog, SportActivity, UserProfile } from '../types/fitness';
 import { WeatherData } from '../utils/weather';
 import { 
   calculateAge, 
@@ -46,7 +48,10 @@ import {
   units 
 } from '../utils/calculations';
 import { CardDetailModal } from './CardDetailModal';
+import { SleepCard } from './SleepCard';
+import { AthleteProfileModal } from './AthleteProfileModal';
 import { AppThemeSettings } from '../types/aiWorkout';
+
 
 interface HomeMainViewProps {
   profile: UserProfile;
@@ -58,6 +63,11 @@ interface HomeMainViewProps {
   liftRecords: LiftRecord[];
   sportsHistory: SportActivity[];
   stepsHistory: DailyStepLog[];
+  sleepHistory?: SleepLog[];
+  onUpdateSleep?: (updated: SleepLog) => void;
+  friends?: Friend[];
+  friendPosts?: FriendPost[];
+  onUpdateFriendPosts?: (posts: FriendPost[]) => void;
   nutritionLog: DailyNutritionLog;
   onNavigateTab: (tab: string) => void;
   onQuickAddSteps: (inc: number) => void;
@@ -68,6 +78,7 @@ interface HomeMainViewProps {
   isAuthenticated: boolean;
   onOpenSettings?: () => void;
   theme?: AppThemeSettings;
+  language?: string;
 }
 
 export const HomeMainView: React.FC<HomeMainViewProps> = ({
@@ -80,6 +91,11 @@ export const HomeMainView: React.FC<HomeMainViewProps> = ({
   liftRecords,
   sportsHistory,
   stepsHistory,
+  sleepHistory = [],
+  onUpdateSleep,
+  friends = [],
+  friendPosts = [],
+  onUpdateFriendPosts,
   nutritionLog,
   onNavigateTab,
   onQuickAddSteps,
@@ -90,11 +106,14 @@ export const HomeMainView: React.FC<HomeMainViewProps> = ({
   isAuthenticated,
   onOpenSettings,
   theme,
+  language = 'en',
 }) => {
   const isMetric = profile.units === 'metric';
   const todayStr = new Date().toISOString().split('T')[0];
   const [gpsAcquiring, setGpsAcquiring] = useState(false);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [showAthleteModal, setShowAthleteModal] = useState(false);
 
   // Core biometrics calculations: If unlogged (weight 0 or height 0), keep at 0!
   const hasLoggedWeight = profile.weightKg > 0;
@@ -207,10 +226,14 @@ export const HomeMainView: React.FC<HomeMainViewProps> = ({
   );
 
   return (
-    <div className="space-y-3 pb-24 md:pb-16 max-w-7xl mx-auto">
+    <div className="h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden p-2 sm:p-3 max-w-7xl mx-auto w-full gap-2 select-none">
       {/* COMPACT 1-PAGE HERO BAR: Minimalist, clean, Instagram glass */}
-      <div className="ig-glass-card rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm border border-white/10 relative overflow-hidden">
-        <div className="flex items-center gap-3">
+      <div className="ig-glass-card rounded-2xl p-2.5 sm:p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-sm border border-white/10 relative overflow-hidden shrink-0">
+        <div 
+          onClick={() => setShowAthleteModal(true)}
+          className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity"
+          title="Tap to open Athlete Profile & Career Stats"
+        >
           {/* Instagram Story Gradient Ring around Profile */}
           <div className="p-[2px] rounded-full ig-story-ring shrink-0 shadow-md">
             <div className="w-10 h-10 rounded-full bg-slate-950 flex items-center justify-center text-white font-black text-base">
@@ -234,9 +257,11 @@ export const HomeMainView: React.FC<HomeMainViewProps> = ({
               </button>
             </div>
 
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-1.5 mt-0.5">
-              <span>{profile.name || 'Athlete'}{profile.familyName ? ` ${profile.familyName}` : ''}</span>
-              <span className="inline-block animate-pulse text-amber-400">⚡</span>
+            <h1 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-1.5 mt-0.5">
+              <span className="truncate max-w-[170px] sm:max-w-xs md:max-w-sm" title={`${profile.name || 'Athlete'}${profile.familyName ? ` ${profile.familyName}` : ''}`}>
+                {profile.name || 'Athlete'}{profile.familyName ? ` ${profile.familyName}` : ''}
+              </span>
+              <span className="inline-block animate-pulse text-amber-400 shrink-0">⚡</span>
             </h1>
           </div>
         </div>
@@ -260,33 +285,36 @@ export const HomeMainView: React.FC<HomeMainViewProps> = ({
           ) : (
             <div className="flex items-center gap-1.5 bg-white/10 border border-white/15 px-2.5 py-1 rounded-xl text-xs font-semibold text-emerald-300">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span className="truncate max-w-[85px]">{profile.name}</span>
+              <span className="text-[11px] font-mono uppercase tracking-wider">Synced</span>
             </div>
           )}
-
-          {onOpenSettings && (
-            <button
-              onClick={onOpenSettings}
-              title="Theme, accent color, font & GPS settings"
-              className="p-2 text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 rounded-xl border border-white/15 transition-all cursor-pointer"
-            >
-              <Sliders className="w-3.5 h-3.5 text-cyan-400" />
-            </button>
-          )}
-
-          <button
-            onClick={onOpenQuickLog}
-            className="px-3 py-1.5 accent-bg text-black font-black text-xs rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-1 cursor-pointer"
-            style={{ backgroundColor: 'var(--accent-hex)', color: '#000000' }}
-          >
-            <Plus className="w-3.5 h-3.5 stroke-[3]" />
-            <span>Log</span>
-          </button>
         </div>
       </div>
 
+      {/* Prompt to Log Weight & Height if unlogged */}
+      {(!hasLoggedWeight || !hasLoggedHeight) && (
+        <div 
+          onClick={onOpenQuickLog}
+          className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-cyan-500/15 to-violet-500/15 border border-emerald-500/30 flex items-center justify-between gap-3 shadow-md animate-in fade-in duration-300 cursor-pointer hover:border-emerald-500/50 transition-all"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center font-black shrink-0 shadow-sm" style={{ backgroundColor: 'var(--accent-hex)', color: '#000000' }}>
+              <Scale className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs sm:text-sm font-black text-white flex items-center gap-1.5">
+                <span>Enter your Weight & Height</span>
+                <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30 font-bold">Action Needed</span>
+              </h3>
+              <p className="text-[11px] text-slate-300">Tap to unlock real-time TDEE calories, Big 3 strength ratios, and BPL athletic scores.</p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-emerald-400 shrink-0" />
+        </div>
+      )}
+
       {/* COMPACT BENTO GRID (1-PAGE VIEWPORT PRESENCE) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
         {/* CIRCLE 1: Steps Ring (Square card with circular progress gauge) */}
         <div 
           onClick={() => setExpandedCard('steps-ring')}
@@ -392,8 +420,20 @@ export const HomeMainView: React.FC<HomeMainViewProps> = ({
             </div>
           </div>
 
-          <div className="text-[10px] text-slate-400 pt-1 border-t border-white/10 truncate">
-            {hasLoggedHeight ? `Height: ${profile.heightCm}cm` : 'Height: 0cm'} · Lean: {bodyComp.leanBodyMassKg > 0 ? `${bodyComp.leanBodyMassKg}kg` : '0kg'}
+          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/10">
+            <span className="truncate">{hasLoggedHeight ? `Height: ${profile.heightCm}cm` : 'Height: 0cm'}</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenQuickLog();
+              }}
+              className="text-[10px] font-bold accent-text hover:underline flex items-center gap-0.5 cursor-pointer shrink-0 ml-1"
+              title="Quickly log or update weight and height"
+            >
+              <span>{hasLoggedWeight ? 'Update' : '+ Log'}</span>
+              <ChevronRight className="w-2.5 h-2.5" />
+            </button>
           </div>
         </div>
 
@@ -425,116 +465,209 @@ export const HomeMainView: React.FC<HomeMainViewProps> = ({
           </div>
         </div>
 
-        {/* RECTANGLE 1: Live Weather & Hyper-local GPS (Col-span 2) */}
+        {/* RECTANGLE 1: Live Weather & Hyper-local GPS (Col-span 2) - Compact Single-Line Widget */}
         <div 
           onClick={() => setExpandedCard('weather-gps')}
-          className="col-span-2 ig-glass-card rounded-2xl p-3 flex flex-col justify-between shadow-sm hover:scale-[1.01] transition-all cursor-pointer border border-white/10 relative"
+          className="col-span-2 ig-glass-card rounded-2xl p-2.5 flex items-center justify-between gap-2 shadow-sm hover:scale-[1.01] transition-all cursor-pointer border border-white/10 relative overflow-hidden"
         >
-          <div className="flex items-center justify-between border-b border-white/10 pb-1 mb-1">
-            <div className="flex items-center gap-1.5 text-sky-400">
-              <Compass className="w-3.5 h-3.5" />
-              <span className="text-[10px] font-bold uppercase tracking-wider">Live Weather & GPS</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-1 rounded-lg bg-white/10 border border-white/10 shrink-0 flex items-center justify-center">
+              {weather ? renderWeatherIcon(weather.iconType) : <Compass className="w-3.5 h-3.5 text-sky-400" />}
             </div>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleTriggerGps();
-                }}
-                disabled={gpsAcquiring}
-                className="text-[9px] text-cyan-300 hover:text-white bg-white/10 px-1.5 py-0.5 rounded border border-white/15 flex items-center gap-1 cursor-pointer"
-              >
-                <Smartphone className="w-2.5 h-2.5" />
-                <span>GPS</span>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRefreshWeather();
-                }}
-                disabled={weatherLoading}
-                className="text-slate-400 hover:text-white cursor-pointer p-0.5"
-                title="Refresh weather"
-              >
-                <RefreshCw className={`w-2.5 h-2.5 ${weatherLoading ? 'animate-spin' : ''}`} />
-              </button>
-              {renderMoreIcon('weather-gps', 'Live Weather & GPS')}
+            
+            <div className="flex items-center gap-2 min-w-0 flex-wrap">
+              <span className="text-sm font-black font-mono text-white tabular-nums shrink-0">
+                {weather ? (isMetric ? `${weather.temperatureC}°C` : `${weather.temperatureF}°F`) : '--°'}
+              </span>
+              <span className="text-xs text-slate-300 font-semibold truncate max-w-[90px] sm:max-w-[130px]">
+                {weather?.city || profile.location || 'Local GPS'}
+              </span>
+              {weather && (
+                <span className="text-[10px] text-slate-400 font-mono hidden sm:inline-block">
+                  · {weather.outdoorAdvice.slice(0, 32)}...
+                </span>
+              )}
             </div>
           </div>
 
-          {weather ? (
-            <div className="grid grid-cols-12 gap-2 items-center">
-              <div className="col-span-5 flex items-center gap-2">
-                <div className="p-1 rounded-xl bg-white/10 border border-white/10 shrink-0">
-                  {renderWeatherIcon(weather.iconType)}
-                </div>
-                <div>
-                  <div className="text-base font-black font-mono text-white tabular-nums leading-tight">
-                    {isMetric ? `${weather.temperatureC}°C` : `${weather.temperatureF}°F`}
-                  </div>
-                  <div className="text-[10px] text-slate-300 font-semibold truncate max-w-[80px]">
-                    {weather.city || 'Local'}
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-span-7 bg-white/[0.04] p-1.5 rounded-xl border border-white/10 text-[9px] text-emerald-300 leading-snug line-clamp-2">
-                <span className="font-bold text-sky-300 block">Advisory:</span>
-                {weather.outdoorAdvice}
-              </div>
-            </div>
-          ) : (
-            <div className="text-[10px] text-slate-400 py-1 text-center">
-              Tap GPS to lock hyper-local coordinates...
-            </div>
-          )}
-
-          <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1 border-t border-white/10 mt-1">
-            <span>Wind: {weather ? (isMetric ? `${weather.windSpeedKmh}km/h` : `${weather.windSpeedMph}mph`) : '--'}</span>
-            <span>Humidity: {weather?.humidity || 50}%</span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleTriggerGps();
+              }}
+              disabled={gpsAcquiring}
+              className="text-[10px] text-cyan-300 hover:text-white bg-white/10 hover:bg-white/15 px-2 py-1 rounded-lg border border-white/15 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+              title="Lock device GPS"
+            >
+              <Smartphone className={`w-3 h-3 text-cyan-400 ${gpsAcquiring ? 'animate-bounce' : ''}`} />
+              <span className="font-bold">GPS</span>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRefreshWeather();
+              }}
+              disabled={weatherLoading}
+              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              title="Refresh weather"
+            >
+              <RefreshCw className={`w-3 h-3 ${weatherLoading ? 'animate-spin' : ''}`} />
+            </button>
+            {renderMoreIcon('weather-gps', 'Live Weather & GPS')}
           </div>
         </div>
       </div>
 
-      {/* RECTANGLE 2: AI Workout Intelligence & Split Engine (Compact) */}
+      {/* RECTANGLE 2: Overhaul AI Coach Hub (Dedicated Subpages: Body Rating, Coach Chat, Overviews & Routines) */}
       <div 
-        onClick={() => setExpandedCard('ai-split')}
-        className="ig-glass-card rounded-2xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 transition-all cursor-pointer group shadow-sm border border-white/10 hover:border-violet-500/40 relative"
+        onClick={() => onNavigateTab('ai-coach')}
+        className="ig-glass-card rounded-2xl p-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 transition-all cursor-pointer group shadow-md border border-white/10 hover:border-emerald-500/40 relative overflow-hidden"
       >
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl ig-story-ring p-[2px] shrink-0 group-hover:scale-105 transition-transform">
-            <div className="w-full h-full rounded-[10px] bg-slate-950 flex items-center justify-center text-violet-300">
-              <Sparkles className="w-4 h-4" />
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl ig-story-ring p-[2px] shrink-0 group-hover:scale-105 transition-transform">
+            <div className="w-full h-full rounded-[10px] bg-slate-950 flex items-center justify-center text-emerald-300">
+              <Sparkles className="w-4 h-4 text-emerald-400" />
             </div>
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-white">AI Notes Workout & Split Analyzer</span>
-              <span className="text-[8px] font-bold text-violet-300 bg-violet-500/20 px-1.5 py-0.5 rounded-full border border-violet-500/30 uppercase font-mono">Gemini AI</span>
+              <span className="text-xs sm:text-sm font-bold text-white">Overhaul AI Performance Hub & Coach</span>
+              <span className="text-[9px] font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded-full border border-emerald-500/30 uppercase font-mono">Multilingual AI</span>
             </div>
-            <p className="text-[10px] text-slate-400 line-clamp-1">
-              Paste workout notes from Apple Notes or Google Keep. AI splits into days, muscles hit, ratings & swaps.
+            <p className="text-[11px] text-slate-400 line-clamp-1">
+              Dedicated subpages for AI Body Rating, Real-Time Split Chat, Overviews & Adaptive Routines.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-stretch sm:self-auto shrink-0 justify-end">
+        <div className="flex items-center gap-1.5 self-stretch md:self-auto shrink-0 justify-end flex-wrap">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onNavigateTab('ai-workouts');
+              onNavigateTab('ai-coach-rating');
             }}
-            className="px-3 py-1 bg-violet-500 hover:bg-violet-400 text-slate-950 font-black text-xs rounded-xl shadow-sm transition-all flex items-center gap-1 cursor-pointer"
+            className="px-2.5 py-1 text-slate-200 hover:text-white bg-white/10 hover:bg-white/15 rounded-xl text-xs font-bold border border-white/15 transition-all cursor-pointer"
           >
-            <span>Analyze</span>
-            <ChevronRight className="w-3 h-3" />
+            Body Rating
           </button>
-          {renderMoreIcon('ai-split', 'AI Workout Split')}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onNavigateTab('ai-coach-chat');
+            }}
+            className="px-2.5 py-1 text-slate-200 hover:text-white bg-white/10 hover:bg-white/15 rounded-xl text-xs font-bold border border-white/15 transition-all cursor-pointer"
+          >
+            AI Chat
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onNavigateTab('ai-coach');
+            }}
+            className="px-3 py-1.5 text-black font-black text-xs rounded-xl shadow-sm transition-all flex items-center gap-1 cursor-pointer"
+            style={{ backgroundColor: 'var(--accent-hex)' }}
+          >
+            <span>Open Hub</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
+
+      {/* SLEEP & RECOVERY CARD */}
+      {sleepHistory && sleepHistory.length > 0 && onUpdateSleep && (
+        <SleepCard
+          sleepLog={sleepHistory.find((s) => s.date === todayStr) || sleepHistory[0]}
+          onUpdateSleep={onUpdateSleep}
+        />
+      )}
+
+      {/* FRIENDS COMMUNITY SPOTLIGHT / ZERO FRIENDS CARD */}
+      {(() => {
+        const acceptedFriends = (friends || []).filter((fr) => fr.status === 'accepted');
+        const incomingRequestsCount = (friends || []).filter((fr) => fr.status === 'pending_incoming').length;
+        const outgoingRequestsCount = (friends || []).filter((fr) => fr.status === 'pending_outgoing').length;
+
+        return (
+          <div
+            onClick={() => onNavigateTab('friends')}
+            className="ig-glass-card rounded-2xl p-4 border border-white/10 shadow-md space-y-3 cursor-pointer group hover:border-white/20 transition-all"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-amber-400" />
+                <span className="text-xs font-bold text-white uppercase tracking-wider">
+                  Friends Community {acceptedFriends.length > 0 ? `(${acceptedFriends.length})` : '(0 Friends)'}
+                </span>
+                {incomingRequestsCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-mono font-bold animate-pulse">
+                    {incomingRequestsCount} New
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] text-slate-400 group-hover:text-white flex items-center gap-1">
+                <span>{acceptedFriends.length > 0 ? 'View All Friends' : 'Add Friends & Requests'}</span>
+                <ChevronRight className="w-3 h-3" />
+              </span>
+            </div>
+
+            {acceptedFriends.length > 0 ? (
+              <div className="flex items-center justify-between gap-3 overflow-x-auto">
+                {acceptedFriends.slice(0, 3).map((fr) => (
+                  <div
+                    key={fr.id}
+                    className="flex-1 p-2.5 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between gap-2"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <img src={fr.avatar} alt={fr.name} className="w-8 h-8 rounded-full object-cover" />
+                      <div className="truncate">
+                        <span className="text-xs font-bold text-white block truncate">{fr.name}</span>
+                        <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-mono">
+                          <Flame className="w-3 h-3 text-amber-400 fill-amber-400" />
+                          {fr.streak}d streak · BPL {fr.bplScore}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-slate-900 border border-white/10 flex items-center justify-center text-slate-400 shrink-0">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">0 Friends Connected</h4>
+                    <p className="text-[11px] text-slate-400">
+                      {incomingRequestsCount > 0
+                        ? `You have ${incomingRequestsCount} incoming friend request waiting to add back!`
+                        : outgoingRequestsCount > 0
+                        ? `You have ${outgoingRequestsCount} outgoing request pending approval.`
+                        : 'No fake friends. Add athlete codes to mutually connect and track Big 3 PRs.'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onNavigateTab('friends');
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-black self-start sm:self-auto cursor-pointer shadow-sm transition-transform active:scale-95 whitespace-nowrap"
+                  style={{ backgroundColor: 'var(--accent-hex)' }}
+                >
+                  {incomingRequestsCount > 0 ? `Review Request (${incomingRequestsCount})` : 'Add Friends & Requests'}
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* COMPACT ACTIVITY ROW (Walks, Gym, Rides, Fuel) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
@@ -679,21 +812,38 @@ export const HomeMainView: React.FC<HomeMainViewProps> = ({
       </div>
 
       {/* ENLARGED BIG CARD DETAIL MODAL */}
-      <CardDetailModal
-        cardId={expandedCard}
-        onClose={() => setExpandedCard(null)}
+      {expandedCard && (
+        <CardDetailModal
+          cardId={expandedCard}
+          onClose={() => setExpandedCard(null)}
+          profile={profile}
+          onUpdateProfile={onUpdateProfile}
+          weather={weather}
+          weatherLoading={weatherLoading}
+          onRefreshWeather={onRefreshWeather}
+          onRequestGps={onRequestGps}
+          liftRecords={liftRecords}
+          sportsHistory={sportsHistory}
+          stepsHistory={stepsHistory}
+          sleepHistory={sleepHistory}
+          onUpdateSleep={onUpdateSleep}
+          nutritionLog={nutritionLog}
+          onNavigateTab={onNavigateTab}
+          onQuickAddSteps={onQuickAddSteps}
+        />
+      )}
+
+      <AthleteProfileModal
+        isOpen={showAthleteModal}
+        onClose={() => setShowAthleteModal(false)}
         profile={profile}
         onUpdateProfile={onUpdateProfile}
-        weather={weather}
-        weatherLoading={weatherLoading}
-        onRefreshWeather={onRefreshWeather}
-        onRequestGps={onRequestGps}
         liftRecords={liftRecords}
         sportsHistory={sportsHistory}
         stepsHistory={stepsHistory}
-        nutritionLog={nutritionLog}
-        onNavigateTab={onNavigateTab}
-        onQuickAddSteps={onQuickAddSteps}
+        bplScore={bplData.score}
+        bplTier={bplData.tier}
+        currentStreak={weeklyStepsAvg > 0 ? 3 : 1}
       />
     </div>
   );

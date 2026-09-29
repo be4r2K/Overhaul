@@ -28,8 +28,6 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
   onUpdateSteps,
   currentSteps,
 }) => {
-  if (!isOpen) return null;
-
   const isMetric = profile.units === 'metric';
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -57,6 +55,8 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
 
   // Steps state
   const [stepAdd, setStepAdd] = useState<number>(1000);
+
+  if (!isOpen) return null;
 
   const selectedExercise = exercises.find((e) => e.id === exerciseId) || exercises[0];
   const weightKg = isMetric ? liftWeight : units.lbsToKg(liftWeight);
@@ -131,9 +131,9 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/70 backdrop-blur-2xl flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       <div 
-        className="w-full max-w-lg ig-glass-card bg-slate-950/80 dark:bg-slate-950/85 backdrop-blur-2xl border border-white/20 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 animate-card-expand relative my-auto max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-lg glass-modal rounded-3xl p-5 sm:p-6 space-y-4 animate-card-expand relative my-auto max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header */}

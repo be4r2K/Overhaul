@@ -35,6 +35,7 @@ export interface UserProfile {
   email?: string;
   authProvider?: 'google' | 'apple' | 'local';
   hasExplicitlyLogged?: boolean;
+  personalFriendCode?: string;
 }
 
 export type ExerciseCategory = 'chest' | 'back' | 'legs' | 'shoulders' | 'arms' | 'core';
@@ -113,4 +114,65 @@ export interface DailyNutritionLog {
   date: string; // YYYY-MM-DD
   waterConsumedMl: number;
   meals: MealItem[];
+}
+
+export interface SleepLog {
+  date: string;
+  totalMinutes: number; // e.g. 450 = 7h 30m
+  score: number; // 0 to 100
+  deepMinutes: number;
+  remMinutes: number;
+  lightMinutes: number;
+  awakeMinutes: number;
+  source: 'samsung_health' | 'google_fit' | 'apple_health' | 'manual';
+  syncedAt?: string;
+}
+
+export interface CongratsMessage {
+  id: string;
+  fromName: string;
+  fromAvatar?: string;
+  message: string;
+  timestamp: string;
+  isCustom?: boolean;
+}
+
+export interface ReminderNudge {
+  id: string;
+  fromName: string;
+  fromAvatar?: string;
+  message: string;
+  timestamp: string;
+}
+
+export interface Friend {
+  id: string;
+  friendCode: string;
+  name: string;
+  avatar: string;
+  status: 'accepted' | 'pending_incoming' | 'pending_outgoing';
+  streak: number;
+  bplScore: number;
+  bench1RM: number;
+  squat1RM: number;
+  deadlift1RM: number;
+  lastActive: string;
+  recentWorkout: string;
+  overviewSnippet: string;
+  sleepHours: number;
+  favoriteLift?: string;
+}
+
+export interface FriendPost {
+  id: string;
+  friendId: string;
+  friendName: string;
+  friendAvatar: string;
+  type: 'pr' | 'workout_completed' | 'streak_milestone' | 'sports';
+  title: string;
+  description: string;
+  timeAgo: string;
+  likes: number;
+  userLiked?: boolean;
+  congrats: CongratsMessage[];
 }
