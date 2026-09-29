@@ -150,6 +150,7 @@ export const AICoachHubView: React.FC<AICoachHubViewProps> = ({
                   onUpdateRoutine={onSaveAnalysis}
                   language={language}
                   onNavigateToChat={() => setSubTab('coach-chat')}
+                  liftRecords={liftRecords}
                 />
               )}
 

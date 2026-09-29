@@ -19,7 +19,8 @@ import {
   ChevronRight,
   Maximize2,
   Target,
-  Percent
+  Percent,
+  Camera
 } from 'lucide-react';
 import { ActivityLevel, DailyNutritionLog, FitnessGoal, Gender, MacroSplit, MealItem, SleepLog, UserProfile } from '../types/fitness';
 import { 
@@ -46,6 +47,7 @@ interface BiometricsViewProps {
   onUpdateSleep?: (updated: SleepLog) => void;
   language?: string;
   nutritionLog?: DailyNutritionLog;
+  onOpenPhysiqueScanner?: () => void;
 }
 
 export const BiometricsView: React.FC<BiometricsViewProps> = ({
@@ -60,6 +62,7 @@ export const BiometricsView: React.FC<BiometricsViewProps> = ({
   onUpdateSleep,
   language = 'en',
   nutritionLog,
+  onOpenPhysiqueScanner,
 }) => {
   const isMetric = profile.units === 'metric';
 
@@ -155,6 +158,14 @@ export const BiometricsView: React.FC<BiometricsViewProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+          <button
+            type="button"
+            onClick={onOpenPhysiqueScanner}
+            className="px-3 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-black text-xs rounded-xl shadow-sm transition-all flex items-center gap-1 cursor-pointer active:scale-95 shrink-0"
+          >
+            <Camera className="w-3.5 h-3.5" />
+            <span>Scan Physique</span>
+          </button>
           <button
             type="button"
             onClick={() => setActiveModal('scale')}

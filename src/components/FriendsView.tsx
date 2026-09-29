@@ -151,43 +151,37 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
   const handleSyncContacts = async () => {
     setIsSyncingContacts(true);
     try {
-      if ('contacts' in navigator && 'ContactsManager' in window && (navigator as any).contacts) {
-        try {
-          const props = ['name', 'tel'];
-          const selectedContacts = await (navigator as any).contacts.select(props, { multiple: true });
-          if (Array.isArray(selectedContacts) && selectedContacts.length > 0) {
-            const cleanList = friends.filter(
-              (f) =>
-                f &&
-                !['Alex Rivera', 'Liam Carter', 'Sophia Martinez'].includes(f.name) &&
-                !['ATHLETE-A3', 'ATHLETE-L1', 'ATHLETE-S2'].includes(f.friendCode)
-            );
-            const newlyMatched: Friend[] = selectedContacts.map((c: any, idx: number) => ({
-              id: `friend-${Date.now()}-${idx}`,
-              name: (Array.isArray(c.name) ? c.name[0] : c.name) || 'Connected Partner',
-              friendCode: `ATHLETE-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-              status: 'accepted' as const,
-              streak: 1,
-              bplScore: 80,
-              avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-              bench1RM: 95,
-              squat1RM: 130,
-              deadlift1RM: 160,
-              lastActive: 'Today',
-              recentWorkout: 'Verified Synced Session',
-              overviewSnippet: 'Cross-referenced via device address book',
-              sleepHours: 7.8,
-            }));
-            onUpdateFriends([...cleanList, ...newlyMatched]);
-            confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
-          }
-        } catch (e) {
-          // Contact picker cancelled or declined
-        }
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 600));
-      }
+      const { fetchDeviceContacts } = await import('../utils/contacts');
+      const deviceContacts = await fetchDeviceContacts();
+      
+      const cleanList = friends.filter(
+        (f) =>
+          f &&
+          !['Alex Rivera', 'Liam Carter', 'Sophia Martinez'].includes(f.name) &&
+          !['ATHLETE-A3', 'ATHLETE-L1', 'ATHLETE-S2'].includes(f.friendCode)
+      );
 
+      const registeredMatches = deviceContacts
+        .filter((c) => c.isRegisteredUser)
+        .map((c, idx) => ({
+          id: `friend-contact-${Date.now()}-${idx}`,
+          name: c.name,
+          friendCode: `ATHLETE-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+          status: 'accepted' as const,
+          streak: 2,
+          bplScore: 84,
+          avatar: `https://images.unsplash.com/photo-${1500000000000 + Math.floor(Math.random() * 500000)}?w=150&auto=format&fit=crop&q=80`,
+          bench1RM: 105,
+          squat1RM: 140,
+          deadlift1RM: 175,
+          lastActive: 'Just Now',
+          recentWorkout: 'Matched via Address Book',
+          overviewSnippet: `Verified partner phone: ${c.phone}`,
+          sleepHours: 7.9,
+        }));
+
+      onUpdateFriends([...cleanList, ...registeredMatches]);
+      confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
       setContactsSynced(true);
     } catch (err) {
       console.warn('Contacts sync non-fatal:', err);

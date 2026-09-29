@@ -456,86 +456,55 @@ Tell me your constraints or injuries (e.g. "I play soccer 3x/wk, adjust my leg s
 
   const safeMessages = Array.isArray(chatMessages) ? chatMessages : [];
 
+  // Simulated Voice dictation trigger
+  const handleVoiceInputSimulate = () => {
+    const lines = [
+      "Skip leg day because of a long shift at work.",
+      "Condense my workout split to a 2-day routine.",
+      "Show me how to increase bench press 1RM.",
+      "Adjust my macros for aggressive fat loss.",
+      "Analyze posture from check-in scans."
+    ];
+    const randomLine = lines[Math.floor(Math.random() * lines.length)];
+    setInputMsg(randomLine);
+  };
+
   return (
-    <div className="h-full flex flex-col justify-between gap-2 overflow-hidden select-none">
-      {/* Top Header Card */}
-      <div className="ig-glass-card rounded-2xl p-3 border border-white/10 flex items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-black font-black shadow-md shrink-0"
-            style={{ backgroundColor: 'var(--accent-hex)' }}
-          >
-            <Bot className="w-4 h-4 text-black" />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <h3 className="text-xs sm:text-sm font-black text-white">
-                Overhaul AI Coach & Split Adaptor
-              </h3>
-              <span className="text-[9px] font-bold accent-text bg-white/10 px-1.5 py-0.2 rounded font-mono uppercase">
-                Zero Fluff
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-400">
-              Direct, candid critique · Real-time routine restructuring
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          {onNavigateToRoutine && (
-            <button
-              type="button"
-              onClick={onNavigateToRoutine}
-              className="px-2.5 py-1 text-[11px] font-bold text-slate-200 hover:text-white bg-white/10 hover:bg-white/15 rounded-xl border border-white/15 transition-colors flex items-center gap-1 cursor-pointer"
-            >
-              <Dumbbell className="w-3 h-3 text-amber-400" />
-              <span>Routine</span>
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={handleClearChat}
-            title="Reset Chat"
-            className="p-1.5 text-slate-400 hover:text-rose-400 bg-white/10 hover:bg-white/15 rounded-xl border border-white/15 transition-colors cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {/* Main Chat Thread Area */}
-      <div className="ig-glass-card rounded-2xl p-3 border border-white/10 flex-1 min-h-0 flex flex-col justify-between overflow-hidden shadow-xl gap-2 pb-24">
-        {/* Scrollable Message Thread */}
-        <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-2.5">
-          {safeMessages?.map((msg) => (
+    <div className="h-full flex flex-col justify-between overflow-hidden select-none">
+      
+      {/* 1. SCROLLABLE MESSAGES CONTAINER */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-3.5 scrollbar-none">
+        {safeMessages?.map((msg) => {
+          const isAI = msg?.role === 'assistant';
+          return (
             <div
               key={msg?.id || Math.random()}
-              className={`flex items-start gap-2 ${msg?.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex items-start gap-2.5 ${!isAI ? 'justify-end' : 'justify-start'}`}
             >
-              {msg?.role === 'assistant' && (
+              {isAI && (
                 <div
-                  className="w-6 h-6 rounded-lg flex items-center justify-center text-black font-black shrink-0 mt-0.5 shadow-sm"
+                  className="w-7 h-7 rounded-xl flex items-center justify-center text-black font-black shrink-0 mt-0.5 shadow-md"
                   style={{ backgroundColor: 'var(--accent-hex)' }}
                 >
-                  <Bot className="w-3.5 h-3.5 text-black" />
+                  <Bot className="w-4 h-4 text-black" />
                 </div>
               )}
 
               <div
-                className={`max-w-[85%] sm:max-w-[78%] p-2.5 sm:p-3 rounded-2xl text-xs leading-relaxed ${
-                  msg?.role === 'user'
-                    ? 'bg-slate-800 text-white rounded-tr-none border border-slate-700 shadow-sm'
-                    : 'bg-white/[0.06] text-slate-100 rounded-tl-none border border-white/10 shadow-sm'
+                className={`max-w-[85%] sm:max-w-[78%] p-3 rounded-2xl text-xs leading-relaxed shadow-lg transition-all duration-300 ${
+                  !isAI
+                    ? 'bg-white/[0.08] text-slate-100 rounded-tr-none border border-white/5 shadow-inner'
+                    : 'bg-black/90 text-white rounded-tl-none border shadow-[0_0_15px_rgba(0,255,255,0.05)]'
                 }`}
+                style={isAI ? { borderColor: 'var(--accent-hex)' } : undefined}
               >
-                <p className="whitespace-pre-line break-words">{msg?.content || ''}</p>
+                <p className="whitespace-pre-line break-words font-sans">{msg?.content || ''}</p>
 
                 {msg?.didModifyRoutine && (
-                  <div className="mt-2 pt-2 border-t border-emerald-500/30 flex items-center justify-between gap-2 text-[10px] font-bold text-emerald-300">
+                  <div className="mt-2.5 pt-2.5 border-t border-emerald-500/20 flex items-center justify-between gap-2 text-[10px] font-bold text-emerald-300">
                     <div className="flex items-center gap-1">
-                      <Zap className="w-3 h-3 text-emerald-400 shrink-0" />
-                      <span>Active split modified in real time!</span>
+                      <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span>Workout Split Adjusted Instantly</span>
                     </div>
                     {onNavigateToRoutine && (
                       <button
@@ -543,74 +512,92 @@ Tell me your constraints or injuries (e.g. "I play soccer 3x/wk, adjust my leg s
                         onClick={onNavigateToRoutine}
                         className="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[9px] font-extrabold flex items-center gap-0.5 transition-colors cursor-pointer"
                       >
-                        <span>View Split</span>
+                        <span>View</span>
                         <ChevronRight className="w-2.5 h-2.5" />
                       </button>
                     )}
                   </div>
                 )}
 
-                <div className="text-[8px] text-slate-500 mt-1 text-right font-mono">
+                <div className="text-[8px] text-slate-500 mt-1.5 text-right font-mono">
                   {msg?.timestamp || 'Just now'}
                 </div>
               </div>
 
-              {msg?.role === 'user' && (
-                <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center text-white shrink-0 mt-0.5 border border-white/15">
-                  <UserIcon className="w-3.5 h-3.5 text-slate-300" />
+              {!isAI && (
+                <div className="w-7 h-7 rounded-xl bg-white/10 flex items-center justify-center text-white shrink-0 mt-0.5 border border-white/15 shadow-md">
+                  <UserIcon className="w-4 h-4 text-slate-300" />
                 </div>
               )}
             </div>
-          ))}
+          );
+        })}
 
-          {chatLoading && (
-            <div className="flex items-center gap-2 text-xs text-slate-400 p-2">
-              <div
-                className="w-5 h-5 rounded-lg flex items-center justify-center text-black"
-                style={{ backgroundColor: 'var(--accent-hex)' }}
-              >
-                <Bot className="w-3 h-3 text-black animate-spin" />
-              </div>
-              <span className="font-mono text-[11px] animate-pulse">Calculating biomechanics & split impact...</span>
+        {chatLoading && (
+          <div className="flex items-center gap-2 text-xs text-slate-400 p-2.5 bg-black/45 border border-white/5 rounded-2xl animate-pulse max-w-[85%]">
+            <div
+              className="w-5 h-5 rounded-lg flex items-center justify-center text-black"
+              style={{ backgroundColor: 'var(--accent-hex)' }}
+            >
+              <Bot className="w-3.5 h-3.5 text-black animate-spin" />
             </div>
-          )}
+            <span className="font-mono text-[10px]">Processing biomechanics & updating split...</span>
+          </div>
+        )}
 
-          <div ref={messagesEndRef} />
-        </div>
+        <div ref={messagesEndRef} />
+      </div>
 
-        {/* Quick Suggestion Chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 pt-1 scrollbar-none shrink-0">
+      {/* 2. CHIPS & INPUT SECURE ANCHOR DOCK */}
+      <div className="p-3 border-t border-white/10 bg-slate-950/80 backdrop-blur-xl space-y-2 shrink-0">
+        
+        {/* Quick Suggestion Chips: interactive neon-outlined pills */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-none shrink-0">
           {[
-            'Skip Leg Day for work',
+            'Skip Leg Day',
             'Condense to 2-Day Split',
-            'Fix Shoulder Impingement',
+            'Adjust Macro Split',
           ].map((promptText) => (
             <button
               key={promptText}
               type="button"
               onClick={() => executeSendMessage(promptText)}
               disabled={chatLoading}
-              className="text-[10px] font-bold whitespace-nowrap px-2.5 py-1 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] border border-white/15 text-slate-200 hover:text-white transition-all cursor-pointer shrink-0 active:scale-95 flex items-center gap-1 shadow-sm disabled:opacity-50"
+              className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap px-3 py-1.5 rounded-full bg-slate-950 border transition-all cursor-pointer shrink-0 active:scale-95 flex items-center gap-1 shadow-[0_0_10px_rgba(0,0,0,0.5)] disabled:opacity-50"
+              style={{ borderColor: 'var(--accent-hex)', color: 'var(--accent-hex)' }}
             >
-              <Zap className="w-2.5 h-2.5 text-amber-400" />
+              <Zap className="w-2.5 h-2.5" />
               <span>{promptText}</span>
             </button>
           ))}
         </div>
 
-        {/* Message Input Form */}
-        <form onSubmit={handleSendMessage} className="flex items-center gap-2 shrink-0 pt-1">
+        {/* Message Input Form with Voice Dictation Trigger */}
+        <form onSubmit={handleSendMessage} className="flex items-center gap-2 shrink-0">
+          {/* Simulated Mic button */}
+          <button
+            type="button"
+            onClick={handleVoiceInputSimulate}
+            title="Simulate Voice Input Dictation"
+            className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-cyan-400 hover:text-cyan-300 transition-colors active:scale-90 cursor-pointer shrink-0"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+            </svg>
+          </button>
+
           <input
             type="text"
             value={inputMsg}
             onChange={(e) => setInputMsg(e.target.value)}
-            placeholder="Ask anything or request a real-time split adjustment..."
-            className="flex-1 bg-white/[0.06] border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white/40 font-sans"
+            placeholder="Instruct Coach Goggins or ask for split adjustments..."
+            className="flex-1 bg-white/[0.06] border border-white/15 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white/40 font-sans"
           />
+
           <button
             type="submit"
             disabled={!inputMsg.trim() || chatLoading}
-            className="p-2 rounded-xl text-black font-extrabold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-md shrink-0"
+            className="p-2.5 rounded-xl text-black font-extrabold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-md shrink-0 flex items-center justify-center"
             style={{ backgroundColor: 'var(--accent-hex)' }}
           >
             <Send className="w-4 h-4 text-black" />

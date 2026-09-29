@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Dumbbell, Activity, Sparkles, Users } from 'lucide-react';
+import { LayoutDashboard, Dumbbell, Activity, Users, Settings } from 'lucide-react';
 import { t } from '../utils/i18n';
 
 interface BottomNavProps {
@@ -13,8 +13,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onSelectTab, l
     { id: 'gym', label: 'Tracker', icon: Dumbbell },
     { id: 'biometrics', label: t('biometrics', language), icon: Activity },
     { id: 'dashboard', label: t('dashboard', language), icon: LayoutDashboard, isCenter: true },
-    { id: 'ai-coach', label: t('aiCoach', language), icon: Sparkles },
     { id: 'friends', label: 'Social', icon: Users },
+    { id: 'settings', label: t('settings', language), icon: Settings },
   ];
 
   return (

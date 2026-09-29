@@ -37,6 +37,7 @@ import { fetchWeatherForLocation, WeatherData, getAccurateDeviceGPS } from './ut
 import { googleSignIn, initAuth, logout } from './utils/auth';
 import { fetchGooglePeopleProfile } from './utils/googlePeople';
 import { applyThemeToDOM, getStoredTheme, setStoredTheme } from './utils/theme';
+import { isHealthConnectAvailable, requestHealthConnectPermissions, queryHealthConnectData } from './utils/healthConnect';
 import { TopBar } from './components/TopBar';
 import { BottomNav } from './components/BottomNav';
 import { HomeMainView } from './components/HomeMainView';
@@ -44,12 +45,20 @@ import { BiometricsView } from './components/BiometricsView';
 import { GymProgressView } from './components/GymProgressView';
 import { SportsTrackerView } from './components/SportsTrackerView';
 import { NutritionView } from './components/NutritionView';
+import { Sparkles } from 'lucide-react';
 import { AICoachHubView } from './components/AICoachHubView';
+import { AICoachChatSection } from './components/AICoachChatSection';
 import { FriendsView } from './components/FriendsView';
 import { RestTimerWidget } from './components/RestTimerWidget';
 import { QuickLogModal } from './components/QuickLogModal';
-import { SettingsModal } from './components/SettingsModal';
+import { SettingsView } from './components/SettingsView';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { AuthGateway } from './components/AuthGateway';
+import { OnboardingTour } from './components/OnboardingTour';
+import { PhysiqueScannerModal } from './components/PhysiqueScannerModal';
+import { isContactsAvailable, requestContactsPermissions } from './utils/contacts';
+import { Geolocation } from '@capacitor/geolocation';
+import { Toast } from '@capacitor/toast';
 
 export default function App() {
   // Application State backed by localStorage
@@ -139,6 +148,8 @@ export default function App() {
   const [isRestTimerOpen, setIsRestTimerOpen] = useState<boolean>(false);
   const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [isAiCoachOpen, setIsAiCoachOpen] = useState<boolean>(false);
+  const [isPhysiqueScannerOpen, setIsPhysiqueScannerOpen] = useState<boolean>(false);
 
   // Weather state
   const [weather, setWeather] = useState<WeatherData | null>(null);
@@ -148,6 +159,12 @@ export default function App() {
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(profile.authProvider === 'google');
   const [authLoading, setAuthLoading] = useState<boolean>(false);
+
+  // Interactive Onboarding Tour state
+  const [onboardingStep, setOnboardingStep] = useState<number | null>(() => {
+    const done = localStorage.getItem('overhaul_onboarding_completed_v4');
+    return done ? null : 1;
+  });
 
   // Apply theme to DOM on mount and changes
   useEffect(() => {
@@ -159,6 +176,62 @@ export default function App() {
     document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
     document.documentElement.lang = language || 'en';
   }, [language]);
+
+  // First-launch initialization check (isFirstLaunch)
+  useEffect(() => {
+    const hasLaunched = localStorage.getItem('overhaul_first_launch_v3');
+    if (!hasLaunched) {
+      // Clear legacy storage items
+      localStorage.removeItem('apex_fitness_profile');
+      localStorage.removeItem('apex_fitness_lifts');
+      localStorage.removeItem('apex_fitness_sports');
+      localStorage.removeItem('apex_fitness_steps');
+      localStorage.removeItem('apex_fitness_nutrition');
+      localStorage.removeItem('apex_fitness_sleep');
+      localStorage.removeItem('apex_fitness_friends');
+      localStorage.removeItem('apex_fitness_friend_posts');
+      localStorage.removeItem('apex_fitness_ai_workout_analysis');
+      
+      // Set first launch completed tag
+      localStorage.setItem('overhaul_first_launch_v3', 'true');
+      
+      // Reset react state variables immediately to zeroed/empty defaults!
+      setProfile({
+        name: 'Christian',
+        familyName: 'Salameh',
+        birthDate: '2001-05-18',
+        gender: 'male',
+        heightCm: 0,
+        weightKg: 0,
+        activityLevel: 'moderate',
+        goal: 'lean_bulk',
+        macroSplit: 'high_protein',
+        stepGoal: 10000,
+        units: 'metric',
+        targetWaterMl: 0,
+        location: '',
+        email: 'christiansalameh7@gmail.com',
+        authProvider: 'local',
+      });
+      setLiftRecords([]);
+      setSportsHistory([]);
+      setStepsHistory([{
+        date: new Date().toISOString().split('T')[0],
+        steps: 0,
+        target: 10000,
+        distanceKm: 0,
+        caloriesBurned: 0,
+      }]);
+      setNutritionLog({
+        date: new Date().toISOString().split('T')[0],
+        waterConsumedMl: 0,
+        meals: [],
+      });
+      setSleepHistory([]);
+      setFriends([]);
+      setFriendPosts([]);
+    }
+  }, []);
 
   const handleUpdateTheme = (updated: AppThemeSettings) => {
     setTheme(updated);
@@ -246,12 +319,69 @@ export default function App() {
 
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // Handle Google Sign In & Information extraction
+  // Handle Google Sign In & Dynamic Zero-State Initializations
   const handleGoogleSignIn = async () => {
     setAuthLoading(true);
     try {
       const { user, accessToken } = await googleSignIn();
       setIsAuthenticated(true);
+      setOnboardingStep(1);
+
+      // Generate strictly unique permanent passcode for new user
+      const athleteCode = `OVH-${Math.floor(1000 + Math.random() * 9000)}-${user.uid.slice(-4).toUpperCase()}`;
+
+      // STRICT ZERO-STATE INITIALIZATION FOR THE NEWLY SIGNED IN ACCOUNT
+      setLiftRecords([]);
+      setSportsHistory([]);
+      setStepsHistory([{
+        date: todayStr,
+        steps: 0,
+        target: 10000,
+        distanceKm: 0,
+        caloriesBurned: 0,
+      }]);
+      setNutritionLog({
+        date: todayStr,
+        waterConsumedMl: 0,
+        meals: [],
+      });
+      setSleepHistory([]);
+      setFriends([]);
+      setFriendPosts([]);
+      
+      // Clear physique visual scanner results to reset assessments
+      localStorage.removeItem('ai_body_vision_result');
+      localStorage.removeItem('ai_body_vision_history');
+      setAiWorkoutAnalysis(null);
+
+      // Request All Required Native Permissions on Sign-In with robust try-catch
+      try {
+        const geoPerms = await Geolocation.requestPermissions();
+        if (geoPerms.location === 'granted') {
+          const pos = await Geolocation.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 10000
+          });
+          const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+          handleGpsUpdated(coords);
+        }
+
+        if ('Notification' in window) {
+          Notification.requestPermission();
+        }
+
+        const hcAvailable = await isHealthConnectAvailable();
+        if (hcAvailable) {
+          await requestHealthConnectPermissions();
+        }
+
+        const conAvailable = await isContactsAvailable();
+        if (conAvailable) {
+          await requestContactsPermissions();
+        }
+      } catch (err) {
+        console.warn('Native permissions triggers non-fatal:', err);
+      }
 
       // Fetch people profile (Name, Family name, Birthday, Location)
       try {
@@ -267,11 +397,11 @@ export default function App() {
             photoUrl: peopleData.photoUrl || user.photoURL || prev.photoUrl,
             email: peopleData.email || user.email || prev.email,
             authProvider: 'google',
+            personalFriendCode: athleteCode,
           };
           return updated;
         });
 
-        // Trigger weather refresh for new location if found
         if (peopleData.locationName) {
           loadWeather(peopleData.locationName);
         }
@@ -286,15 +416,18 @@ export default function App() {
             email: user.email || prev.email,
             photoUrl: user.photoURL || prev.photoUrl,
             authProvider: 'google',
+            personalFriendCode: athleteCode,
           }));
         }
       }
     } catch (err: any) {
       console.error('Google Sign In failed:', err);
+      await Toast.show({ text: 'Sign in failed. Check network connection.', duration: 'short' });
     } finally {
       setAuthLoading(false);
     }
   };
+
 
   // Unit toggle
   const handleToggleUnits = () => {
@@ -503,6 +636,122 @@ export default function App() {
   const totalCaloriesBurnedToday =
     todayStepLog.caloriesBurned + todaySports.reduce((sum, s) => sum + s.caloriesBurned, 0);
 
+  // Step-by-Step Interactive Onboarding tour controls
+  const handleNextOnboarding = () => {
+    if (onboardingStep === null) return;
+    const next = onboardingStep + 1;
+    if (next > 5) {
+      setOnboardingStep(null);
+      localStorage.setItem('overhaul_onboarding_completed_v4', 'true');
+    } else {
+      setOnboardingStep(next);
+      if (next === 2) setCurrentTab('biometrics');
+      if (next === 3) setCurrentTab('settings');
+      if (next === 4) setCurrentTab('friends');
+      if (next === 5) setCurrentTab('dashboard');
+    }
+  };
+
+  const handleSkipOnboarding = () => {
+    setOnboardingStep(null);
+    localStorage.setItem('overhaul_onboarding_completed_v4', 'true');
+    setCurrentTab('dashboard');
+  };
+
+  const getOnboardingStepInfo = () => {
+    switch (onboardingStep) {
+      case 1:
+        return {
+          title: "1. STATS & GRIDS TARGETS",
+          desc: "This is your main dashboard. Keep track of today's hydration, sports calorie burn, and step counters. Tapping any grid panel expands it to reveal premium, real-time analytics!",
+        };
+      case 2:
+        return {
+          title: "2. BIOMETRICS & PHYSIQUE AUDIT",
+          desc: "Here you can monitor physical stats like age, weight, and BPL scores. Upload check-in photos inside the Body Vision scanner to trigger dynamic, strength-coupled AI Muscle Audits!",
+        };
+      case 3:
+        return {
+          title: "3. HEALTH CONNECT & SYNC",
+          desc: "Manage native telemetry under system integrations. Enabling Samsung Health sync grants Health Connect reading permissions to pull live step counts and sleep durations directly.",
+        };
+      case 4:
+        return {
+          title: "4. SOCIAL COMMUNITY & CONTACTS",
+          desc: "Synchronize your device address book natively to instantly match verified workout partners. Follow their current training streaks and view community liftoff milestones!",
+        };
+      case 5:
+        return {
+          title: "5. BIOMECHANICAL AI SPLIT COACH",
+          desc: "This floating spark FAB is your direct connection to Overhaul's Biomechanical Split Coach. Ask questions or click quick-action pills to adapt your workout routine in real time!",
+        };
+      default:
+        return null;
+    }
+  };
+
+  const currentStepInfo = getOnboardingStepInfo();
+
+  // 1. Google OAuth Gateway Access Protection Block
+  if (!isAuthenticated) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md overflow-y-auto font-sans text-slate-100">
+        <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+          <div className="absolute top-10 right-0 w-96 h-96 rounded-full bg-cyan-500/20 blur-[120px]" />
+          <div className="absolute bottom-10 left-0 w-96 h-96 rounded-full bg-indigo-500/20 blur-[120px]" />
+        </div>
+
+        <div className="w-full max-w-md p-6 sm:p-8 rounded-3xl bg-slate-900/60 border border-white/10 backdrop-blur-2xl shadow-2xl text-center space-y-6 animate-card-expand">
+          <div className="flex flex-col items-center gap-3">
+            <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 shrink-0 shadow-lg animate-pulse">
+              <Sparkles className="w-8 h-8 text-cyan-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-widest text-white">OVERHAUL</h1>
+              <p className="text-[10px] text-slate-400 mt-1 uppercase font-mono tracking-wider">Health, Gym & Biometric Intelligence</p>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2 text-slate-300 text-xs text-left leading-normal font-medium font-sans">
+            <p className="font-bold text-white mb-1">Welcome! Sign in with your Google Account to unlock:</p>
+            <ul className="list-disc pl-5 space-y-1 text-slate-400">
+              <li>Automatic background Samsung Health sync</li>
+              <li>Accurate location weather forecasts & GPS tracking</li>
+              <li>Autonomous AI training critiques & 3D body scans</li>
+              <li>Address book contact matching and Community friends</li>
+            </ul>
+          </div>
+
+          <button
+            onClick={handleGoogleSignIn}
+            disabled={authLoading}
+            className="w-full py-3.5 rounded-2xl text-black font-black text-xs flex items-center justify-center gap-2.5 shadow-lg active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+            style={{
+              backgroundColor: 'var(--accent-hex)',
+              boxShadow: '0 0 15px var(--accent-hex)'
+            }}
+          >
+            {authLoading ? (
+              <span className="font-mono text-xs animate-pulse">Establishing Secure OAuth connection...</span>
+            ) : (
+              <>
+                <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                  <path fill="#000" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#000" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#000" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#000" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <span>SIGN IN WITH GOOGLE</span>
+              </>
+            )}
+          </button>
+
+          <p className="text-[9px] text-slate-500 font-mono">By continuing, you agree to allow background telemetry and Health Connect permissions.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`h-screen max-h-screen flex flex-col justify-between ${theme.mode === 'light' ? 'bg-slate-50 text-slate-900' : 'bg-gradient-to-br from-slate-950 via-slate-900 to-black text-slate-100'} font-sans selection:bg-emerald-500/20 selection:text-emerald-300 relative transition-colors duration-200`}>
       {/* Ambient background gradient glow spots */}
@@ -565,6 +814,7 @@ export default function App() {
               authLoading={authLoading}
               isAuthenticated={isAuthenticated}
               onOpenSettings={() => setIsSettingsOpen(true)}
+              onOpenPhysiqueScanner={() => setIsPhysiqueScannerOpen(true)}
               theme={theme}
               language={language}
             />
@@ -629,6 +879,7 @@ export default function App() {
               weeklyCardioMinutes={weeklyCardioMinutes}
               nutritionLog={nutritionLog}
               language={language}
+              onOpenPhysiqueScanner={() => setIsPhysiqueScannerOpen(true)}
             />
           )}
 
@@ -663,6 +914,7 @@ export default function App() {
               totalCaloriesBurnedToday={totalCaloriesBurnedToday}
               onNavigateToTab={(tab) => setCurrentTab(tab as any)}
               language={language}
+              onOpenPhysiqueScanner={() => setIsPhysiqueScannerOpen(true)}
             />
           )}
 
@@ -675,6 +927,18 @@ export default function App() {
               onUpdateTodaySteps={handleUpdateTodaySteps}
               onAddSportActivity={handleAddSportActivity}
               onDeleteSportActivity={handleDeleteSportActivity}
+              language={language}
+            />
+          )}
+
+          {/* Dedicated full screen Settings Page Tab Route */}
+          {currentTab === 'settings' && (
+            <SettingsView
+              theme={theme}
+              onUpdateTheme={handleUpdateTheme}
+              profile={profile}
+              onUpdateProfile={setProfile}
+              onGpsUpdated={handleGpsUpdated}
               language={language}
             />
           )}
@@ -701,19 +965,138 @@ export default function App() {
         currentSteps={todayStepLog.steps}
       />
 
-      {/* Customization & Settings Modal (Dark/Light, Accent color, Font, Phone GPS) */}
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        theme={theme}
-        onUpdateTheme={handleUpdateTheme}
-        profile={profile}
-        onUpdateProfile={setProfile}
-        onGpsUpdated={handleGpsUpdated}
+      {/* Mobile Bottom Navigation Bar with Main in the center */}
+      <BottomNav
+        currentTab={currentTab}
+        onSelectTab={setCurrentTab}
       />
 
-      {/* Mobile Bottom Navigation Bar with Main in the center */}
-      <BottomNav currentTab={currentTab} onSelectTab={setCurrentTab} />
+      {/* Floating AI Coach Button (FAB) */}
+      <div className="fixed bottom-[90px] right-[20px] z-50 pointer-events-auto">
+        <button
+          onClick={() => setIsAiCoachOpen(true)}
+          className="w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg cursor-pointer active:scale-95 border hover:scale-105"
+          style={{
+            backgroundColor: 'var(--accent-hex)',
+            borderColor: 'rgba(255, 255, 255, 0.25)',
+            boxShadow: '0 0 15px var(--accent-hex)'
+          }}
+          title="Open AI Coach & Real-Time Split Adaptor"
+          aria-label="Open AI Coach"
+        >
+          <Sparkles className="w-5 h-5 text-black stroke-[2.5]" />
+        </button>
+      </div>
+
+      {/* Slide-Up AI Coach Chat Modal */}
+      <AnimatePresence>
+        {isAiCoachOpen && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4 pointer-events-auto">
+            {/* Modal Container */}
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className="w-full max-w-lg h-[80vh] flex flex-col liquid-glass rounded-t-3xl border border-white/20 shadow-2xl overflow-hidden relative"
+            >
+              {/* Header */}
+              <div className="p-3 sm:p-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-slate-950/40">
+                <div className="flex items-center gap-2">
+                  <div className="p-1 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
+                    <Sparkles className="w-4 h-4 text-cyan-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black text-white">AI Coach & Split Adaptor</h2>
+                    <p className="text-[10px] text-slate-400">Real-Time Routine Synchronization Active</p>
+                  </div>
+                </div>
+                {/* Close Button */}
+                <button
+                  onClick={() => setIsAiCoachOpen(false)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  title="Close AI Coach"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Chat View content */}
+              <div className="flex-1 min-h-0 p-2 overflow-y-auto">
+                <AICoachChatSection
+                  profile={profile}
+                  currentRoutine={aiWorkoutAnalysis}
+                  onUpdateRoutine={(updated) => {
+                    setAiWorkoutAnalysis(updated);
+                    saveToStorage('ai_workout_analysis', updated);
+                  }}
+                  onNavigateToRoutine={() => {
+                    setIsAiCoachOpen(false);
+                    setCurrentTab('gym');
+                  }}
+                />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 2. Interactive Step-by-Step Onboarding Tour Overlay */}
+      {onboardingStep !== null && currentStepInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm pointer-events-auto">
+          <div className="w-full max-w-sm rounded-3xl p-5 sm:p-6 space-y-4 border border-white/20 shadow-2xl relative bg-slate-900/90 backdrop-blur-xl animate-card-expand">
+            
+            {/* Step Counter Badge */}
+            <div className="flex items-center justify-between border-b border-white/5 pb-2">
+              <span className="text-[10px] font-black uppercase tracking-wider font-mono accent-text">
+                OVERHAUL QUICK TOUR · STEP {onboardingStep} OF 5
+              </span>
+              <button
+                onClick={handleSkipOnboarding}
+                className="text-[10px] font-bold text-slate-400 hover:text-white uppercase tracking-wider transition-colors cursor-pointer"
+              >
+                Skip Tour
+              </button>
+            </div>
+
+            {/* Tour content */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-black text-white uppercase tracking-wide flex items-center gap-1.5 font-sans">
+                <Sparkles className="w-4 h-4 text-cyan-400 animate-spin" />
+                <span>{currentStepInfo.title}</span>
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed font-medium font-sans">
+                {currentStepInfo.desc}
+              </p>
+            </div>
+
+            {/* Navigation action buttons */}
+            <div className="flex items-center justify-between gap-3 pt-2">
+              <span className="text-[10px] font-mono text-slate-500">Auto-navigating tabs active</span>
+              <button
+                onClick={handleNextOnboarding}
+                className="px-4 py-2 rounded-xl text-black font-extrabold text-[11px] uppercase tracking-wider active:scale-95 transition-all cursor-pointer shadow-md font-sans"
+                style={{ backgroundColor: 'var(--accent-hex)' }}
+              >
+                {onboardingStep === 5 ? 'Finish Tour' : 'Next Step'}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+      {/* 3. AI Physique Multi-Photo Scanner Modal */}
+      <PhysiqueScannerModal
+        isOpen={isPhysiqueScannerOpen}
+        onClose={() => setIsPhysiqueScannerOpen(false)}
+        onUpdateRatings={(ratings) => {
+          // In a real app, this would persist to DB
+          console.log('AI Muscle Ratings Processed:', ratings);
+          Toast.show({ text: 'AI Physique Audit Complete. Muscle ratings updated.', duration: 'long' });
+        }}
+      />
     </div>
   );
 }

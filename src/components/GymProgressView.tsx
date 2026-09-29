@@ -44,6 +44,7 @@ interface GymProgressViewProps {
   totalCaloriesBurnedToday?: number;
   onNavigateToTab?: (tab: string) => void;
   language?: string;
+  onOpenPhysiqueScanner?: () => void;
 }
 
 const DEFAULT_DAY1_EXERCISES = [
@@ -77,6 +78,7 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
   nutritionLog,
   totalCaloriesBurnedToday,
   onNavigateToTab,
+  onOpenPhysiqueScanner,
 }) => {
   const isMetric = profile.units === 'metric';
   const todayStr = new Date().toISOString().split('T')[0];
@@ -491,9 +493,15 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
 
           <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-white/10">
             <span>{hasVisionScan ? `${muscleRatingsList.length} Muscles Analyzed` : 'Scan Physique'}</span>
-            <span className="text-cyan-400 font-bold group-hover:translate-x-0.5 transition-transform">
-              {hasVisionScan ? 'Full Podium →' : 'AI Coach →'}
-            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onOpenPhysiqueScanner) onOpenPhysiqueScanner();
+              }}
+              className="text-cyan-400 font-bold hover:translate-x-0.5 transition-transform cursor-pointer"
+            >
+              {hasVisionScan ? 'Full Podium →' : 'Scan Physique →'}
+            </button>
           </div>
         </div>
 

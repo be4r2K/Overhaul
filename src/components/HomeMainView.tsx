@@ -77,6 +77,7 @@ interface HomeMainViewProps {
   authLoading: boolean;
   isAuthenticated: boolean;
   onOpenSettings?: () => void;
+  onOpenPhysiqueScanner?: () => void;
   theme?: AppThemeSettings;
   language?: string;
 }
@@ -105,6 +106,7 @@ export const HomeMainView: React.FC<HomeMainViewProps> = ({
   authLoading,
   isAuthenticated,
   onOpenSettings,
+  onOpenPhysiqueScanner,
   theme,
   language = 'en',
 }) => {
@@ -391,7 +393,15 @@ export const HomeMainView: React.FC<HomeMainViewProps> = ({
 
           <div className="w-full flex items-center justify-between text-[10px] text-slate-400 pt-0.5 border-t border-white/10">
             <span>Fat: {bodyComp.bodyFatPct > 0 ? `${bodyComp.bodyFatPct}%` : '0%'}</span>
-            <span className="text-violet-400 font-mono font-bold">{strengthRatio > 0 ? `${strengthRatio}x` : '0x'}</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onOpenPhysiqueScanner) onOpenPhysiqueScanner();
+              }}
+              className="text-violet-400 font-mono font-bold hover:underline cursor-pointer"
+            >
+              Scan Physique →
+            </button>
           </div>
         </div>
 
@@ -548,7 +558,11 @@ export const HomeMainView: React.FC<HomeMainViewProps> = ({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onNavigateTab('ai-coach-rating');
+              if (onOpenPhysiqueScanner) {
+                onOpenPhysiqueScanner();
+              } else {
+                onNavigateTab('ai-coach-rating');
+              }
             }}
             className="px-2.5 py-1 text-slate-200 hover:text-white bg-white/10 hover:bg-white/15 rounded-xl text-xs font-bold border border-white/15 transition-all cursor-pointer"
           >

@@ -257,6 +257,24 @@ input[type="range"] {
   font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
+/* Global Font Overrides for High-Fidelity UI */
+body,
+html,
+button,
+input,
+select,
+textarea {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif !important;
+}
+
+.font-mono,
+code,
+pre,
+kbd,
+samp {
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
 /* iOS-Style Liquid Glassmorphism Utilities with raw WebKit support */
 .liquid-glass,
 .glass-card,

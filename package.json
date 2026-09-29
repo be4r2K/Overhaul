@@ -12,11 +12,17 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@capacitor-community/contacts": "^8.0.0",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/geolocation": "^8.2.2",
+    "@capacitor/motion": "^8.0.1",
+    "@capacitor/toast": "^8.0.1",
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/canvas-confetti": "^1.9.0",
     "@vitejs/plugin-react": "^6.1.1",
     "canvas-confetti": "^1.9.4",
+    "capacitor-health-connect": "^0.7.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "firebase": "^12.19.0",
