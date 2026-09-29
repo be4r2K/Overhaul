@@ -62,7 +62,7 @@ Task (Output strictly in English):
 5. Immediate actionable fixes and drop-in exercise substitutions for lagging lifts or joint-unfriendly movements.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: 'gemini-1.5-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -170,7 +170,6 @@ Task (Output strictly in English):
     return res.json(parsedData);
   } catch (error: any) {
     console.warn('AI workout analysis error / quota exceeded:', error?.message);
-    const isQuota = true;
     return res.status(200).json({
       overallScore: 88,
       balanceRating: 8.8,
@@ -279,7 +278,7 @@ Coaching Persona Directives:
 5. All text in "${language}".`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: 'gemini-1.5-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -351,7 +350,7 @@ Coaching Persona Directives:
   }
 });
 
-// AI Body Vision & Weekly Progression Analysis Endpoint (Multimodal Gemini 3.8 Flash)
+// AI Body Vision & Weekly Progression Analysis Endpoint (Multimodal Gemini 1.5 Flash)
 app.post('/api/ai/body-vision', async (req: Request, res: Response) => {
   try {
     const {
@@ -427,7 +426,7 @@ Evaluate:
     parts.push({ text: promptText });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: 'gemini-1.5-flash',
       contents: { parts },
       config: {
         responseMimeType: 'application/json',
@@ -576,7 +575,7 @@ Instructions:
    - Provide direct, no-BS, evidence-based coaching in the reply.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: 'gemini-1.5-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',

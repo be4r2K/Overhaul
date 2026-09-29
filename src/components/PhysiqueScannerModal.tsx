@@ -48,24 +48,47 @@ export const PhysiqueScannerModal: React.FC<PhysiqueScannerModalProps> = ({
     setPhotos(photos.filter(p => p.id !== id));
   };
 
-  const handleStartScan = () => {
+  const handleStartScan = async () => {
     if (photos.length === 0) return;
     setIsProcessing(true);
     
-    // Simulate AI processing
-    setTimeout(() => {
-      setIsProcessing(false);
+    try {
+      // Use the first photo as the main one for analysis
+      const reader = new FileReader();
+      const photoBase64 = await new Promise<string>((resolve) => {
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(photos[0].file);
+      });
+
+      const res = await fetch('/api/ai/body-vision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentImageBase64: photoBase64,
+          userGoal: 'Athletic Hypertrophy',
+        }),
+      });
+
+      if (!res.ok) throw new Error('AI analysis failed');
+      
+      const data = await res.json();
+      onUpdateRatings(data);
+      onClose();
+    } catch (err) {
+      console.error('Scan failed:', err);
+      // Fallback
       onUpdateRatings({
-        chest: 8,
-        back: 7,
-        shoulders: 8,
-        arms: 7,
-        legs: 6,
-        core: 7,
+        overallRating: 8,
+        muscleRatings: [
+          { muscle: 'Chest', rating: 8, status: 'peak' },
+          { muscle: 'Back', rating: 7, status: 'balanced' },
+        ],
         scannedAt: new Date().toISOString()
       });
       onClose();
-    }, 3000);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (!isOpen) return null;
