@@ -23,11 +23,11 @@ jobs:
       - name: Build Web Production Bundle
         run: bun run build
 
-      - name: Setup Java JDK 21
+      - name: Setup Java JDK 17
         uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
-          java-version: '21'
+          java-version: '17'
 
       - name: Sync Capacitor Native Assets
         run: npx cap sync android || (npx cap add android && npx cap copy android)
