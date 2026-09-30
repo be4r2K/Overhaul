@@ -46,7 +46,7 @@ import { BiometricsView } from './components/BiometricsView';
 import { GymProgressView } from './components/GymProgressView';
 import { SportsTrackerView } from './components/SportsTrackerView';
 import { NutritionView } from './components/NutritionView';
-import { Sparkles, AlertCircle, X } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { AICoachHubView } from './components/AICoachHubView';
 import { AICoachChatSection } from './components/AICoachChatSection';
 import { FriendsView } from './components/FriendsView';
@@ -160,7 +160,6 @@ export default function App() {
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(profile.authProvider === 'google');
   const [authLoading, setAuthLoading] = useState<boolean>(false);
-  const [authError, setAuthError] = useState<string | null>(null);
 
   // Interactive Onboarding Tour state
   const [onboardingStep, setOnboardingStep] = useState<number | null>(() => {
@@ -343,7 +342,6 @@ export default function App() {
   // Handle Google Sign In & Dynamic Zero-State Initializations
   const handleGoogleSignIn = async () => {
     setAuthLoading(true);
-    setAuthError(null);
     const activeClientId = getActiveWebClientId();
     console.log("Active Web Client ID:", activeClientId);
 
@@ -360,7 +358,12 @@ export default function App() {
       await GoogleSignin.signOut();
 
       // 3. Initiate native Google Sign In with Web Client ID
-      const { user, accessToken } = await GoogleSignin.signIn();
+      const result = await GoogleSignin.signIn();
+      if (!result || !result.user) {
+        console.error("Google Sign-In returned no user (handled silently).");
+        return;
+      }
+      const { user, accessToken } = result;
       setIsAuthenticated(true);
       setOnboardingStep(1);
 
@@ -474,20 +477,8 @@ export default function App() {
         }
       }
     } catch (error: any) {
-      console.error("Google Auth Exception:", error);
-      const errCode = String(error?.code || error?.message || "");
-
-      let cleanErrorMsg = error?.message || 'Authentication could not be completed.';
-      if (errCode.includes("10") || errCode.includes("DEVELOPER_ERROR")) {
-        cleanErrorMsg = "Error 10 (DEVELOPER_ERROR): Verify that the SHA-1 fingerprint of the release.keystore file is registered under your Android App in Firebase Console.";
-      } else {
-        cleanErrorMsg = `Sign-In Error: ${cleanErrorMsg}`;
-      }
-
-      setAuthError(cleanErrorMsg);
-      try {
-        await Toast.show({ text: cleanErrorMsg.slice(0, 160), duration: 'long' });
-      } catch (e) {}
+      // Log silently for debugging; do NOT trigger popups, alerts, or UI banners
+      console.error("Google Sign-In Error (Handled Silently):", error);
     } finally {
       setAuthLoading(false);
     }
@@ -794,23 +785,6 @@ export default function App() {
               <li>Address book contact matching and Community friends</li>
             </ul>
           </div>
-
-          {authError && (
-            <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs text-left flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-bold text-rose-200 uppercase text-[10px] tracking-wider">Authentication Notice</p>
-                <p className="text-[11px] text-rose-300/90 mt-0.5 leading-snug">{authError}</p>
-              </div>
-              <button
-                onClick={() => setAuthError(null)}
-                className="text-rose-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
-                aria-label="Dismiss error"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
 
           <button
             onClick={handleGoogleSignIn}

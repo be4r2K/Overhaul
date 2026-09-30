@@ -10,7 +10,6 @@ import {
   Auth,
 } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
-import { Toast } from '@capacitor/toast';
 import { GoogleAuth } from '@capacitor-community/google-auth';
 import auth from '@react-native-firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -154,78 +153,33 @@ function getFallbackUser(): GoogleSignInResult {
  */
 export const handleGoogleSignIn = async () => {
   try {
-    // 1. Force a quick session reset (signOut()) before calling signIn() to prevent cached or dirty session states
     try {
       if (GoogleAuth && typeof GoogleAuth.signOut === 'function') {
         await GoogleAuth.signOut();
       }
-    } catch {
-      // Ignore if no active session exists
-    }
-    try {
-      await firebaseSignOut(firebaseAuthInstance);
-    } catch {
-      // Ignore
+    } catch (e) {
+      // Ignore cleanup error
     }
 
-    // 2. Ensure GoogleAuth.initialize is called with exact Web Client ID
     initGoogleAuth(WEB_CLIENT_ID);
 
     let idToken: string | undefined;
     let accessToken: string = '';
-    let firebaseUser: User | null = null;
 
     if (Capacitor.isNativePlatform()) {
-      // Native Capacitor flow
-      const response = await GoogleAuth.signIn();
-      console.log('[GoogleSignin] Native raw response received:', JSON.stringify(response));
-
-      // 3. Handle token extraction safely across both legacy and new Capacitor/Firebase plugin response structures
-      const res = response as any;
-      idToken = res?.authentication?.idToken || res?.idToken || res?.data?.idToken || res?.data?.authentication?.idToken;
-      accessToken = res?.authentication?.accessToken || res?.accessToken || res?.data?.accessToken || res?.data?.authentication?.accessToken || '';
-
-      if (!idToken) {
-        throw new Error("Unable to retrieve Google ID Token.");
-      }
-
-      // 4. Authenticate with Firebase Natively
-      const googleCredential = auth.GoogleAuthProvider.credential(idToken, accessToken);
-      const userCredential = await auth().signInWithCredential(googleCredential);
-      firebaseUser = userCredential.user;
-
-      cachedAccessToken = accessToken;
-      if (typeof window !== 'undefined') sessionStorage.setItem('ovh_access_token', accessToken);
-
-      return Object.assign(userCredential, {
-        idToken,
-        accessToken,
-        user: firebaseUser,
-        authentication: { idToken, accessToken },
-      });
+      const response: any = await GoogleAuth.signIn();
+      idToken = response?.authentication?.idToken || response?.idToken || response?.data?.idToken;
+      accessToken = response?.authentication?.accessToken || response?.accessToken || response?.data?.accessToken || '';
     } else {
-      // Web environment: use Firebase Web Auth
+      // Web fallback
       try {
         const provider = new GoogleAuthProvider();
         provider.addScope('profile');
         provider.addScope('email');
-        provider.setCustomParameters({ prompt: 'select_account' });
-
         const result = await signInWithPopup(firebaseAuthInstance, provider);
         const credential = GoogleAuthProvider.credentialFromResult(result);
-        accessToken = credential?.accessToken || '';
         idToken = credential?.idToken || undefined;
-        firebaseUser = result.user;
-
-        cachedAccessToken = accessToken;
-        if (typeof window !== 'undefined') sessionStorage.setItem('ovh_access_token', accessToken);
-
-        return {
-          idToken: idToken || null,
-          accessToken,
-          user: firebaseUser,
-          authentication: { idToken, accessToken },
-        };
+        accessToken = credential?.accessToken || '';
       } catch (webErr: any) {
         if (webErr?.code === 'auth/unauthorized-domain' || webErr?.message?.includes('iframe') || webErr?.code === 'auth/popup-blocked') {
           console.warn('[GoogleSignin] Web environment restricted. Applying fallback session.');
@@ -235,27 +189,32 @@ export const handleGoogleSignIn = async () => {
             authentication: { idToken: fallback.idToken, accessToken: fallback.accessToken },
           };
         }
-        throw webErr;
+        console.error("Google Sign-In Error (Handled Silently):", webErr);
+        return null;
       }
     }
-  } catch (error: any) {
-    console.error("Google Auth Failure:", error);
 
-    const errCode = String(error?.code || error?.message || "");
-    let toastMessage = `Sign-In Error: ${error?.message || 'Authentication could not be completed.'}`;
-
-    if (errCode.includes("10") || errCode.includes("DEVELOPER_ERROR")) {
-      toastMessage = "Error 10 (DEVELOPER_ERROR): Verify that the SHA-1 fingerprint of the release.keystore file is registered under your Android App in Firebase Console.";
+    if (!idToken) {
+      console.error("Sign-in failed: No ID Token received.");
+      return null;
     }
 
-    // 4. Clean UI error toast instead of raw alert dialogs
-    try {
-      await Toast.show({ text: toastMessage.slice(0, 160), duration: 'long' });
-    } catch {
-      // Non-fatal if native toast unavailable
-    }
+    const googleCredential = auth.GoogleAuthProvider.credential(idToken, accessToken);
+    const userCredential = await auth().signInWithCredential(googleCredential);
 
-    throw error;
+    cachedAccessToken = accessToken;
+    if (typeof window !== 'undefined') sessionStorage.setItem('ovh_access_token', accessToken);
+
+    return Object.assign(userCredential, {
+      idToken,
+      accessToken,
+      authentication: { idToken, accessToken },
+    });
+
+  } catch (error) {
+    // Log silently for debugging; do NOT trigger popups, alerts, or UI banners
+    console.error("Google Sign-In Error (Handled Silently):", error);
+    return null;
   }
 };
 
@@ -300,21 +259,23 @@ export const GoogleSignin = {
   /**
    * Main Sign-In method delegated to handleGoogleSignIn().
    */
-  signIn: async (): Promise<GoogleSignInResult> => {
+  signIn: async (): Promise<GoogleSignInResult | null> => {
     if (isInProgress) {
-      const err: any = new Error('Sign in in progress.');
-      err.code = statusCodes.IN_PROGRESS;
-      throw err;
+      return null;
     }
 
     isInProgress = true;
     try {
       const result: any = await handleGoogleSignIn();
+      if (!result) return null;
       return {
         idToken: result?.idToken || result?.authentication?.idToken || null,
         accessToken: result?.accessToken || result?.authentication?.accessToken || cachedAccessToken || '',
         user: result?.user,
       };
+    } catch (err) {
+      console.error("Google Sign-In Error (Handled Silently):", err);
+      return null;
     } finally {
       isInProgress = false;
     }
