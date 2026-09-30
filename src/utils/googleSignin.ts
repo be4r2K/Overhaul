@@ -84,6 +84,16 @@ export const GoogleSignin = {
     // Force use the correct Web Client ID
     configuredWebClientId = options.webClientId || DEFAULT_WEB_CLIENT_ID;
     
+    // Critical validation (from User Request)
+    if (!configuredWebClientId || configuredWebClientId.includes("YOUR_EXACT") || configuredWebClientId === '') {
+      console.error("CRITICAL: Web Client ID is not configured or is a placeholder!");
+      if (typeof window !== 'undefined') {
+        alert("CRITICAL ERROR: Google Web Client ID is missing or incorrect in configuration.");
+      }
+    }
+
+    console.log(`[GoogleSignin] Active Web Client ID: ${configuredWebClientId}`);
+    
     // ONLY initialize native plugin on native platforms.
     if (Capacitor.isNativePlatform()) {
       try {
