@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   UserProfile, 
   Exercise, 
@@ -34,7 +34,6 @@ import {
 } from './utils/storage';
 import { calculate1RM, calculateSportCalories } from './utils/calculations';
 import { fetchWeatherForLocation, WeatherData, getAccurateDeviceGPS } from './utils/weather';
-import { googleSignIn, initAuth, logout } from './utils/auth';
 import { GoogleSignin, statusCodes } from './utils/googleSignin';
 import firebaseConfig from '../firebase-applet-config.json';
 import { fetchGooglePeopleProfile } from './utils/googlePeople';
@@ -279,12 +278,12 @@ export default function App() {
 
   // Firebase auth state listener
   useEffect(() => {
-    const unsubscribe = initAuth(
-      (user, token) => {
+    const unsubscribe = GoogleSignin.initAuth(
+      (user) => {
         setIsAuthenticated(true);
       },
       () => {
-        // Not signed in with cached token
+        // Not signed in
       }
     );
     return () => unsubscribe();
@@ -465,6 +464,9 @@ export default function App() {
       } else if (error?.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         console.error('[Google Sign-In] Google Play Services unavailable or network offline [PLAY_SERVICES_NOT_AVAILABLE]');
         await Toast.show({ text: 'Google Play Services unavailable or offline.', duration: 'long' });
+      } else if (error?.code === 'auth/unauthorized-domain') {
+        console.error('[Google Sign-In] Domain not authorized in Firebase Console');
+        await Toast.show({ text: 'Unauthorized domain. Add origin in Firebase Console -> Auth -> Settings -> Authorized domains.', duration: 'long' });
       } else {
         const errorDetail = error?.message || 'Check network connection or Firebase SHA-1 setup.';
         await Toast.show({ text: `Google Sign-In failed (${error?.code || 'ERROR'}): ${errorDetail}`, duration: 'long' });
@@ -481,6 +483,14 @@ export default function App() {
       ...prev,
       units: prev.units === 'metric' ? 'imperial' : 'metric',
     }));
+  };
+
+  const handleLogout = async () => {
+    await GoogleSignin.signOut();
+    setIsAuthenticated(false);
+    setOnboardingStep(0);
+    // Profile reset
+    setProfile(DEFAULT_PROFILE);
   };
 
   // Reset to sample default data
@@ -824,6 +834,7 @@ export default function App() {
         onToggleUnits={handleToggleUnits}
         onResetData={handleResetData}
         onGoogleSignIn={handleGoogleSignIn}
+        onLogout={handleLogout}
         isAuthenticated={isAuthenticated}
         authLoading={authLoading}
         profile={profile}

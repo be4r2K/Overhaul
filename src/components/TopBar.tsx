@@ -11,6 +11,7 @@ interface TopBarProps {
   onToggleUnits: () => void;
   onResetData?: () => void;
   onGoogleSignIn: () => void;
+  onLogout: () => void;
   isAuthenticated: boolean;
   authLoading: boolean;
   profile: UserProfile;
@@ -25,6 +26,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   units,
   onToggleUnits,
   onGoogleSignIn,
+  onLogout,
   isAuthenticated,
   authLoading,
   profile,
@@ -90,7 +92,12 @@ export const TopBar: React.FC<TopBarProps> = ({
           ) : (
             <div
               title={`Connected as ${profile.name} (${profile.email || ''})`}
-              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-xl bg-white/10 text-emerald-300 border border-white/15"
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-xl bg-white/10 text-emerald-300 border border-white/15 cursor-pointer hover:bg-white/15"
+              onClick={() => {
+                if (window.confirm(t('logoutConfirm', language) || 'Sign out of Google?')) {
+                  onLogout();
+                }
+              }}
             >
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
               <span className="truncate max-w-[60px] sm:max-w-[100px]">{profile.name}</span>

@@ -28,6 +28,7 @@ export const ENGLISH_TRANSLATIONS: Record<string, string> = {
   syncing: 'Syncing...',
   done: 'Done',
   share: 'Share',
+  logoutConfirm: 'Sign out of Google Account?',
   copy: 'Copy',
   copied: 'Copied!',
   sendRequest: 'Send Request',
