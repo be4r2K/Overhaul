@@ -3,7 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.overhaul.app">
 
-    <uses-sdk tools:overrideLibrary="androidx.health.connect.client" />
+    <uses-sdk tools:overrideLibrary="androidx.health.connect.client, com.capacitor.community.contacts" />
 
     <!-- Health Connect Permissions -->
     <uses-permission android:name="android.permission.health.READ_STEPS" />

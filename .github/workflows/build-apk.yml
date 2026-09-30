@@ -42,7 +42,7 @@ jobs:
           cd android
           gradle wrapper --gradle-version 8.13
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
