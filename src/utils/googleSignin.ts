@@ -25,6 +25,7 @@ export const statusCodes = {
   IN_PROGRESS: 'IN_PROGRESS',
   PLAY_SERVICES_NOT_AVAILABLE: 'PLAY_SERVICES_NOT_AVAILABLE',
   SIGN_IN_REQUIRED: 'SIGN_IN_REQUIRED',
+  DEVELOPER_ERROR: 'DEVELOPER_ERROR',
 };
 
 export interface ConfigureOptions {
@@ -250,6 +251,9 @@ export const GoogleSignin = {
       // Normalize error codes
       if (error?.code === 'auth/popup-closed-by-user' || error?.message?.includes('closed')) {
         error.code = statusCodes.SIGN_IN_CANCELLED;
+      } else if (error?.code === '10' || error?.message?.includes('10') || error?.message?.includes('DEVELOPER_ERROR')) {
+        console.error('[GoogleSignin] Developer Error (10) detected. This usually indicates an incorrect webClientId or missing SHA-1 fingerprint in Firebase Console.');
+        error.code = statusCodes.DEVELOPER_ERROR;
       }
 
       throw error;

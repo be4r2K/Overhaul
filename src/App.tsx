@@ -478,6 +478,9 @@ export default function App() {
       } else if (error?.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         console.error('[Google Sign-In] Google Play Services unavailable or network offline [PLAY_SERVICES_NOT_AVAILABLE]');
         await Toast.show({ text: 'Google Play Services unavailable or offline.', duration: 'long' });
+      } else if (error?.code === statusCodes.DEVELOPER_ERROR) {
+        console.error('[Google Sign-In] Developer Error (10): Check webClientId and SHA-1 in Firebase Console.');
+        await Toast.show({ text: 'Configuration error. Verify Web Client ID and SHA-1 fingerprint in Firebase.', duration: 'long' });
       } else if (error?.code === 'auth/unauthorized-domain') {
         console.error('[Google Sign-In] Domain not authorized in Firebase Console');
         await Toast.show({ text: 'Unauthorized domain. Add origin in Firebase Console -> Auth -> Settings -> Authorized domains.', duration: 'long' });
