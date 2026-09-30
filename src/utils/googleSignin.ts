@@ -11,6 +11,7 @@ import {
 } from 'firebase/auth';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import firebaseConfig from '../../firebase-applet-config.json';
+import googleServices from '../../android/app/google-services.json';
 
 // Use registerPlugin for the Capacitor Google Auth plugin.
 // Wrapped defensively to avoid 'Script error' on web if the package is missing or failing.
@@ -45,13 +46,48 @@ export interface GoogleSignInResult {
   user: User;
 }
 
-// THE WEB CLIENT ID MUST BE THE "WEB APPLICATION" CLIENT ID FROM FIREBASE/GOOGLE CLOUD
-// Reference: Request 3 "Hardcode or bind the correct Web Client ID"
-const DEFAULT_WEB_CLIENT_ID = '17995664186-1avqhs8ve5jb239fd0vt4346vlm6lc63.apps.googleusercontent.com';
+// 1. HARDCODED WEB CLIENT ID (Explicit string constant fallback)
+export const EXPLICIT_WEB_CLIENT_ID = '17995664186-1avqhs8ve5jb239fd0vt4346vlm6lc63.apps.googleusercontent.com';
+
+/**
+ * Automatically loads the Web Client ID directly from google-services.json if available,
+ * then checks firebase-applet-config.json, or falls back to the explicit string constant.
+ */
+export function getAutoWebClientId(): string {
+  try {
+    const clients = (googleServices as any)?.client || [];
+    for (const c of clients) {
+      const oauthList = c?.oauth_client || [];
+      for (const oauth of oauthList) {
+        // client_type 3 is Web Application Client ID in Google Services JSON
+        if (oauth?.client_type === 3 && typeof oauth?.client_id === 'string' && oauth.client_id.trim()) {
+          console.log('[GoogleSignin] Loaded Web Client ID from google-services.json (client_type 3):', oauth.client_id);
+          return oauth.client_id.trim();
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[GoogleSignin] Could not parse google-services.json:', e);
+  }
+
+  if (firebaseConfig?.oAuthClientId && typeof firebaseConfig.oAuthClientId === 'string' && firebaseConfig.oAuthClientId.trim()) {
+    console.log('[GoogleSignin] Loaded Web Client ID from firebase-applet-config.json:', firebaseConfig.oAuthClientId);
+    return firebaseConfig.oAuthClientId.trim();
+  }
+
+  console.log('[GoogleSignin] Loaded Web Client ID from EXPLICIT_WEB_CLIENT_ID constant:', EXPLICIT_WEB_CLIENT_ID);
+  return EXPLICIT_WEB_CLIENT_ID;
+}
+
+const DEFAULT_WEB_CLIENT_ID = getAutoWebClientId();
 let configuredWebClientId: string = DEFAULT_WEB_CLIENT_ID;
 let isInProgress = false;
 let cachedAccessToken: string | null = typeof window !== 'undefined' ? sessionStorage.getItem('ovh_access_token') : null;
 let isInitialized = false;
+
+export function getActiveWebClientId(): string {
+  return configuredWebClientId || DEFAULT_WEB_CLIENT_ID;
+}
 
 /**
  * Fallback session for sandboxed environments where OAuth is restricted.
@@ -80,19 +116,19 @@ export const GoogleSignin = {
   /**
    * Initializes the Google Auth plugin.
    */
-  configure: (options: ConfigureOptions) => {
-    // Force use the correct Web Client ID
-    configuredWebClientId = options.webClientId || DEFAULT_WEB_CLIENT_ID;
+  configure: (options?: Partial<ConfigureOptions>) => {
+    // Automatically load from google-services.json if not explicitly provided
+    configuredWebClientId = options?.webClientId || getAutoWebClientId();
     
-    // Critical validation (from User Request)
-    if (!configuredWebClientId || configuredWebClientId.includes("YOUR_EXACT") || configuredWebClientId === '') {
+    // Critical validation
+    if (!configuredWebClientId || configuredWebClientId.includes("YOUR_EXACT") || configuredWebClientId.includes("YOUR_WEB_CLIENT_ID") || configuredWebClientId === '') {
       console.error("CRITICAL: Web Client ID is not configured or is a placeholder!");
-      if (typeof window !== 'undefined') {
+      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
         alert("CRITICAL ERROR: Google Web Client ID is missing or incorrect in configuration.");
       }
     }
 
-    console.log(`[GoogleSignin] Active Web Client ID: ${configuredWebClientId}`);
+    console.log(`[GoogleSignin] Active Web Client ID configured: ${configuredWebClientId}`);
     
     // ONLY initialize native plugin on native platforms.
     if (Capacitor.isNativePlatform()) {
@@ -101,7 +137,7 @@ export const GoogleSignin = {
           GoogleAuth.initialize({
             clientId: configuredWebClientId,
             serverClientId: configuredWebClientId,
-            scopes: options.scopes || [
+            scopes: options?.scopes || [
               'profile',
               'email',
               'https://www.googleapis.com/auth/user.birthday.read',
@@ -163,12 +199,15 @@ export const GoogleSignin = {
     isInProgress = true;
     const platform = Capacitor.getPlatform();
 
+    // 1. Log exact runtime webClientId being used before triggering sign-in
+    console.log('[GoogleSignin] Active runtime Web Client ID before sign-in:', configuredWebClientId, 'Platform:', platform);
+
     try {
       // 1. NATIVE FLOW
       if (platform === 'android' || platform === 'ios') {
-        console.log(`[GoogleSignin] Executing NATIVE flow for platform: ${platform}`);
+        console.log(`[GoogleSignin] Executing NATIVE flow for platform: ${platform} with Web Client ID: ${configuredWebClientId}`);
         
-        // Force clean sign-out before attempt (Request 2)
+        // Force clean sign-out before attempt
         try {
           if (GoogleAuth && typeof GoogleAuth.signOut === 'function') {
             await GoogleAuth.signOut();
@@ -181,12 +220,15 @@ export const GoogleSignin = {
             if (GoogleAuth && typeof GoogleAuth.initialize === 'function') {
               await GoogleAuth.initialize({ 
                 clientId: configuredWebClientId,
+                serverClientId: configuredWebClientId,
                 forceCodeForRefreshToken: true,
                 grantOfflineAccess: true
               });
               isInitialized = true;
             }
-          } catch (e) {}
+          } catch (e) {
+            console.warn('[GoogleSignin] Re-init error:', e);
+          }
         }
 
         if (GoogleAuth && typeof GoogleAuth.signIn === 'function') {
@@ -194,10 +236,10 @@ export const GoogleSignin = {
           console.log('[GoogleSignin] Native raw response:', JSON.stringify(response));
 
           if (!response) {
-            throw new Error('Native Google Sign-In returned no response.');
+            throw new Error(`Token Null. Raw Response: ${JSON.stringify(response)}`);
           }
 
-          // Robust extraction for v11+ (Request 1)
+          // Robust extraction for v11+ / legacy
           const idToken = response?.data?.idToken || response?.idToken || 
                           response?.data?.authentication?.idToken || 
                           response?.authentication?.idToken;
@@ -207,8 +249,8 @@ export const GoogleSignin = {
                               response?.authentication?.accessToken || '';
           
           if (!idToken) {
-            console.error('[GoogleSignin] Full Google Response Object:', JSON.stringify(response, null, 2));
-            throw new Error("Native Google Sign-In returned no ID token.");
+            console.error('[GoogleSignin] Missing ID Token in response:', JSON.stringify(response, null, 2));
+            throw new Error(`Token Null. Raw Response: ${JSON.stringify(response)}`);
           }
 
           cachedAccessToken = accessToken;
@@ -222,7 +264,7 @@ export const GoogleSignin = {
             user: userCredential.user,
           };
         } else {
-          throw new Error('Native GoogleAuth plugin not found.');
+          throw new Error('Native GoogleAuth plugin not found or signIn method unavailable.');
         }
       }
 
@@ -253,16 +295,12 @@ export const GoogleSignin = {
         throw webError;
       }
     } catch (error: any) {
-      console.error('[GoogleSignin] Sign-In Error:', error);
+      // Log the exact raw error unmasked
+      const rawCode = error?.code || error?.status || 'N/A';
+      const rawMsg = error?.message || String(error);
+      const rawErrorDetails = `Code: ${rawCode}\nMsg: ${rawMsg}\nWebClientID: ${configuredWebClientId}`;
+      console.error('RAW GOOGLE AUTH ERROR in signIn():', rawErrorDetails, error);
       
-      // Developer Error 10 logging (Request 2)
-      if (error?.code === '10' || error?.message?.includes('10') || error?.message?.includes('DEVELOPER_ERROR')) {
-        console.error('Developer Error 10: Check webClientId and SHA-1 fingerprint in Firebase Console.', error);
-        error.code = statusCodes.DEVELOPER_ERROR;
-      } else if (error?.code === 'auth/popup-closed-by-user' || error?.message?.includes('closed')) {
-        error.code = statusCodes.SIGN_IN_CANCELLED;
-      }
-
       throw error;
     } finally {
       isInProgress = false;
@@ -275,7 +313,6 @@ export const GoogleSignin = {
   initAuth: (onAuthSuccess?: (user: User, token: string) => void, onAuthFailure?: () => void) => {
     return onAuthStateChanged(auth, (user) => {
       if (user) {
-        // If we have a user but no token in memory, use the persisted one or a mock one for the session
         const token = cachedAccessToken || 'ovh_persisted_session';
         if (onAuthSuccess) onAuthSuccess(user, token);
       } else {

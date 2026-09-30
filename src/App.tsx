@@ -34,7 +34,7 @@ import {
 } from './utils/storage';
 import { calculate1RM, calculateSportCalories } from './utils/calculations';
 import { fetchWeatherForLocation, WeatherData, getAccurateDeviceGPS } from './utils/weather';
-import { GoogleSignin, statusCodes } from './utils/googleSignin';
+import { GoogleSignin, statusCodes, getAutoWebClientId, getActiveWebClientId } from './utils/googleSignin';
 import firebaseConfig from '../firebase-applet-config.json';
 import { fetchGooglePeopleProfile } from './utils/googlePeople';
 import { applyThemeToDOM, getStoredTheme, setStoredTheme } from './utils/theme';
@@ -261,8 +261,9 @@ export default function App() {
   // Configure GoogleSignin at root app lifecycle level before any user interaction
   useEffect(() => {
     try {
+      const activeId = getAutoWebClientId();
       GoogleSignin.configure({
-        webClientId: firebaseConfig.oAuthClientId,
+        webClientId: activeId,
         offlineAccess: true,
         scopes: [
           'https://www.googleapis.com/auth/userinfo.profile',
@@ -270,7 +271,7 @@ export default function App() {
           'https://www.googleapis.com/auth/user.addresses.read',
         ],
       });
-      console.log('[Root Lifecycle] GoogleSignin configured with Web Client ID:', firebaseConfig.oAuthClientId);
+      console.log('[Root Lifecycle] GoogleSignin configured with active Web Client ID:', activeId);
     } catch (e) {
       console.error('[Root Lifecycle] Failed to configure GoogleSignin:', e);
     }
@@ -341,7 +342,15 @@ export default function App() {
   // Handle Google Sign In & Dynamic Zero-State Initializations
   const handleGoogleSignIn = async () => {
     setAuthLoading(true);
+    const activeClientId = getActiveWebClientId();
+    console.log("Active Web Client ID:", activeClientId);
+
     try {
+      GoogleSignin.configure({
+        webClientId: activeClientId,
+        offlineAccess: true,
+      });
+
       // 1. Verify Google Play Services availability
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 
@@ -463,30 +472,30 @@ export default function App() {
         }
       }
     } catch (error: any) {
-      console.error('[Google Sign-In Failure]', {
-        code: error?.code,
-        message: error?.message,
-        error,
-      });
+      // PRINT EXACT RAW ERROR UNMASKED
+      const rawCode = error?.code || error?.status || 'N/A';
+      const rawMsg = error?.message || String(error);
+      const rawStack = error?.stack ? String(error.stack).slice(0, 300) : 'N/A';
+      const rawErrorDetails = `Code: ${rawCode}\nMsg: ${rawMsg}\nWebClientID: ${activeClientId}\nStack: ${rawStack}`;
 
-      if (error?.code === statusCodes.SIGN_IN_CANCELLED) {
-        console.log('[Google Sign-In] Account picker cancelled by user [SIGN_IN_CANCELLED]');
-        await Toast.show({ text: 'Sign-in cancelled. Please choose an account.', duration: 'short' });
-      } else if (error?.code === statusCodes.IN_PROGRESS) {
-        console.warn('[Google Sign-In] Sign-in operation already in progress [IN_PROGRESS]');
-        await Toast.show({ text: 'Sign-in already in progress.', duration: 'short' });
-      } else if (error?.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        console.error('[Google Sign-In] Google Play Services unavailable or network offline [PLAY_SERVICES_NOT_AVAILABLE]');
-        await Toast.show({ text: 'Google Play Services unavailable or offline.', duration: 'long' });
-      } else if (error?.code === statusCodes.DEVELOPER_ERROR) {
-        console.error('[Google Sign-In] Developer Error (10): Check webClientId and SHA-1 in Firebase Console.');
-        await Toast.show({ text: 'Configuration error. Verify Web Client ID and SHA-1 fingerprint in Firebase.', duration: 'long' });
-      } else if (error?.code === 'auth/unauthorized-domain') {
-        console.error('[Google Sign-In] Domain not authorized in Firebase Console');
-        await Toast.show({ text: 'Unauthorized domain. Add origin in Firebase Console -> Auth -> Settings -> Authorized domains.', duration: 'long' });
-      } else {
-        const errorDetail = error?.message || 'Check network connection or Firebase SHA-1 setup.';
-        await Toast.show({ text: `Google Sign-In failed (${error?.code || 'ERROR'}): ${errorDetail}`, duration: 'long' });
+      console.error("RAW GOOGLE AUTH ERROR:", rawErrorDetails, error);
+
+      // Display raw error on UI for instant debugging
+      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+        try {
+          window.alert(`DEBUG DIAGNOSTIC:\n${rawErrorDetails}`);
+        } catch (alertErr) {
+          console.warn('Alert error:', alertErr);
+        }
+      }
+
+      try {
+        await Toast.show({
+          text: `[DEBUG ${rawCode}]: ${rawMsg.slice(0, 160)}`,
+          duration: 'long'
+        });
+      } catch (tErr) {
+        console.warn('Toast error:', tErr);
       }
     } finally {
       setAuthLoading(false);
