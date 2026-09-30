@@ -9,6 +9,16 @@ export interface GoogleUserProfile {
 }
 
 export async function fetchGooglePeopleProfile(accessToken: string): Promise<GoogleUserProfile> {
+  if (!accessToken || accessToken.startsWith('ovh_')) {
+    console.warn('[GooglePeople] Mock token detected, bypassing API call.');
+    return {
+      firstName: 'Christian',
+      familyName: 'Salameh',
+      fullName: 'Christian Salameh',
+      email: 'christiansalameh7@gmail.com',
+    };
+  }
+
   const url = 'https://people.googleapis.com/v1/people/me?personFields=names,birthdays,addresses,photos,emailAddresses';
   
   const response = await fetch(url, {

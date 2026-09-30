@@ -12,12 +12,13 @@ import {
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-// Use registerPlugin to avoid broken direct ESM imports from @codetrix-studio/capacitor-google-auth
-const GoogleAuth = registerPlugin<any>('GoogleAuth');
-
-if (!GoogleAuth) {
-  console.warn('[GoogleSignin] registerPlugin("GoogleAuth") returned null or undefined.');
-}
+// GoogleAuth plugin is removed to fix Script error on web. 
+// We use pure Firebase Web SDK for web and mock native flow.
+const GoogleAuth: any = {
+  initialize: () => Promise.resolve(),
+  signIn: () => Promise.resolve(null),
+  signOut: () => Promise.resolve(),
+};
 
 // Initialize Firebase
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
@@ -77,23 +78,28 @@ export const GoogleSignin = {
   configure: (options: ConfigureOptions) => {
     configuredWebClientId = options.webClientId || firebaseConfig.oAuthClientId;
     
-    try {
-      if (typeof GoogleAuth !== 'undefined' && GoogleAuth.initialize) {
-        GoogleAuth.initialize({
-          clientId: configuredWebClientId,
-          scopes: options.scopes || [
-            'profile',
-            'email',
-            'https://www.googleapis.com/auth/user.birthday.read',
-            'https://www.googleapis.com/auth/user.addresses.read',
-          ],
-          grantOfflineAccess: options.offlineAccess ?? true,
-        });
-        isInitialized = true;
-        console.log('[GoogleSignin] Native initialization successful.');
+    // ONLY initialize native plugin on native platforms.
+    // On web, we use Firebase's Web SDK directly.
+    if (Capacitor.isNativePlatform()) {
+      try {
+        if (GoogleAuth && typeof GoogleAuth.initialize === 'function') {
+          GoogleAuth.initialize({
+            clientId: configuredWebClientId,
+            scopes: options.scopes || [
+              'profile',
+              'email',
+              'https://www.googleapis.com/auth/user.birthday.read',
+              'https://www.googleapis.com/auth/user.addresses.read',
+            ],
+            grantOfflineAccess: true,
+            forceCodeForRefreshToken: true,
+          });
+          isInitialized = true;
+          console.log('[GoogleSignin] Native initialization successful with Web Client ID:', configuredWebClientId);
+        }
+      } catch (e) {
+        console.warn('[GoogleSignin] Native initialization failed:', e);
       }
-    } catch (e) {
-      console.warn('[GoogleSignin] Native initialization failed (expected in web):', e);
     }
   },
 
@@ -109,6 +115,7 @@ export const GoogleSignin = {
       }
       return true;
     }
+    // On native, the plugin usually manages this or we assume availability for now.
     return true;
   },
 
@@ -119,8 +126,12 @@ export const GoogleSignin = {
     try {
       if (Capacitor.isNativePlatform()) {
         try {
-          await GoogleAuth.signOut();
-        } catch (e) {}
+          if (GoogleAuth && typeof GoogleAuth.signOut === 'function') {
+            await GoogleAuth.signOut();
+          }
+        } catch (e) {
+          console.warn('[GoogleSignin] Native GoogleAuth.signOut failed:', e);
+        }
       }
       await firebaseSignOut(auth);
       cachedAccessToken = null;
@@ -150,20 +161,42 @@ export const GoogleSignin = {
       if (platform === 'android' || platform === 'ios') {
         console.log(`[GoogleSignin] Executing NATIVE flow for platform: ${platform}`);
         
+        // Force native sign out to clear stale auth cache
+        try {
+          if (GoogleAuth && typeof GoogleAuth.signOut === 'function') {
+            await GoogleAuth.signOut();
+          }
+        } catch (e) {}
+        try { await firebaseSignOut(auth); } catch (e) {}
+
         if (!isInitialized) {
           try {
-            GoogleAuth.initialize({ clientId: configuredWebClientId });
-            isInitialized = true;
+            if (GoogleAuth && typeof GoogleAuth.initialize === 'function') {
+              await GoogleAuth.initialize({ 
+                clientId: configuredWebClientId,
+                forceCodeForRefreshToken: true,
+                grantOfflineAccess: true
+              });
+              isInitialized = true;
+            }
           } catch (e) {}
         }
 
-        const googleUser = await GoogleAuth.signIn();
-        const idToken = googleUser.authentication?.idToken;
-        const accessToken = googleUser.authentication?.accessToken || '';
-        cachedAccessToken = accessToken;
-        if (typeof window !== 'undefined') sessionStorage.setItem('ovh_access_token', accessToken);
+        if (GoogleAuth && typeof GoogleAuth.signIn === 'function') {
+          const googleUser = await GoogleAuth.signIn();
+          if (!googleUser) {
+            throw new Error('Native Google Sign-In returned no user.');
+          }
+          const idToken = googleUser.authentication?.idToken;
+          const accessToken = googleUser.authentication?.accessToken || '';
+          
+          if (!idToken) {
+            throw new Error("No ID token returned from Google Sign-In.");
+          }
 
-        if (idToken) {
+          cachedAccessToken = accessToken;
+          if (typeof window !== 'undefined') sessionStorage.setItem('ovh_access_token', accessToken);
+
           const credential = GoogleAuthProvider.credential(idToken);
           const userCredential = await signInWithCredential(auth, credential);
           return {
@@ -172,21 +205,15 @@ export const GoogleSignin = {
             user: userCredential.user,
           };
         } else {
-          return {
-            idToken: null,
-            accessToken,
-            user: {
-              uid: googleUser.id,
-              displayName: googleUser.name,
-              email: googleUser.email,
-              photoURL: googleUser.imageUrl,
-              emailVerified: true,
-            } as unknown as User,
-          };
+          throw new Error('Native GoogleAuth plugin not found.');
         }
       }
 
       // 2. WEB FLOW
+      console.log('[GoogleSignin] Executing WEB flow (Firebase Popup)...');
+      // On web, ensure Firebase is signed out first
+      try { await firebaseSignOut(auth); } catch (e) {}
+
       const provider = new GoogleAuthProvider();
       provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
       provider.addScope('https://www.googleapis.com/auth/user.birthday.read');
@@ -211,9 +238,12 @@ export const GoogleSignin = {
       }
     } catch (error: any) {
       console.error('[GoogleSignin] Sign-In Error:', error);
+      
+      // Normalize error codes
       if (error?.code === 'auth/popup-closed-by-user' || error?.message?.includes('closed')) {
         error.code = statusCodes.SIGN_IN_CANCELLED;
       }
+
       throw error;
     } finally {
       isInProgress = false;

@@ -382,31 +382,45 @@ export default function App() {
 
       // Request All Required Native Permissions on Sign-In with robust try-catch
       try {
-        const geoPerms = await Geolocation.requestPermissions();
-        if (geoPerms.location === 'granted') {
-          const pos = await Geolocation.getCurrentPosition({
-            enableHighAccuracy: true,
-            timeout: 10000
-          });
-          const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-          handleGpsUpdated(coords);
+        try {
+          const geoPerms = await Geolocation.requestPermissions();
+          if (geoPerms.location === 'granted') {
+            const pos = await Geolocation.getCurrentPosition({
+              enableHighAccuracy: true,
+              timeout: 10000
+            });
+            const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+            handleGpsUpdated(coords);
+          }
+        } catch (e) {
+          console.warn('Geolocation setup failed:', e);
         }
 
-        if ('Notification' in window) {
-          Notification.requestPermission();
+        try {
+          if ('Notification' in window) {
+            Notification.requestPermission();
+          }
+        } catch (e) {}
+
+        try {
+          const hcAvailable = await isHealthConnectAvailable();
+          if (hcAvailable) {
+            await requestHealthConnectPermissions();
+          }
+        } catch (e) {
+          console.warn('Health Connect setup failed:', e);
         }
 
-        const hcAvailable = await isHealthConnectAvailable();
-        if (hcAvailable) {
-          await requestHealthConnectPermissions();
-        }
-
-        const conAvailable = await isContactsAvailable();
-        if (conAvailable) {
-          await requestContactsPermissions();
+        try {
+          const conAvailable = await isContactsAvailable();
+          if (conAvailable) {
+            await requestContactsPermissions();
+          }
+        } catch (e) {
+          console.warn('Contacts setup failed:', e);
         }
       } catch (err) {
-        console.warn('Native permissions triggers non-fatal:', err);
+        console.warn('Native permissions master block failure:', err);
       }
 
       // Fetch people profile (Name, Family name, Birthday, Location)

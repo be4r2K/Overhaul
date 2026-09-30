@@ -11,10 +11,13 @@ export async function isHealthConnectAvailable(): Promise<boolean> {
     if (
       typeof window !== 'undefined' &&
       (window as any).Capacitor &&
+      typeof (window as any).Capacitor.isPluginAvailable === 'function' &&
       (window as any).Capacitor.isPluginAvailable('HealthConnect')
     ) {
-      const { availability } = await HealthConnect.checkAvailability();
-      return availability === 'Available';
+      if (HealthConnect && typeof HealthConnect.checkAvailability === 'function') {
+        const { availability } = await HealthConnect.checkAvailability();
+        return availability === 'Available';
+      }
     }
   } catch (e) {
     console.warn('Health Connect availability check bypassed/unsupported:', e);
@@ -29,11 +32,13 @@ export async function requestHealthConnectPermissions(): Promise<boolean> {
   try {
     const available = await isHealthConnectAvailable();
     if (available) {
-      const result = await HealthConnect.requestHealthPermissions({
-        read: ['Steps' as any, 'SleepSession' as any],
-        write: []
-      });
-      return !!result;
+      if (HealthConnect && typeof HealthConnect.requestHealthPermissions === 'function') {
+        const result = await HealthConnect.requestHealthPermissions({
+          read: ['Steps' as any, 'SleepSession' as any],
+          write: []
+        });
+        return !!result;
+      }
     }
   } catch (e) {
     console.error('Health Connect permissions request bypassed:', e);
