@@ -35,6 +35,8 @@ import {
 import { calculate1RM, calculateSportCalories } from './utils/calculations';
 import { fetchWeatherForLocation, WeatherData, getAccurateDeviceGPS } from './utils/weather';
 import { googleSignIn, initAuth, logout } from './utils/auth';
+import { GoogleSignin, statusCodes } from './utils/googleSignin';
+import firebaseConfig from '../firebase-applet-config.json';
 import { fetchGooglePeopleProfile } from './utils/googlePeople';
 import { applyThemeToDOM, getStoredTheme, setStoredTheme } from './utils/theme';
 import { isHealthConnectAvailable, requestHealthConnectPermissions, queryHealthConnectData } from './utils/healthConnect';
@@ -257,6 +259,24 @@ export default function App() {
     loadWeather(profile.location, explicitCoords);
   }, [loadWeather, profile.location, explicitCoords]);
 
+  // Configure GoogleSignin at root app lifecycle level before any user interaction
+  useEffect(() => {
+    try {
+      GoogleSignin.configure({
+        webClientId: firebaseConfig.oAuthClientId,
+        offlineAccess: true,
+        scopes: [
+          'https://www.googleapis.com/auth/userinfo.profile',
+          'https://www.googleapis.com/auth/user.birthday.read',
+          'https://www.googleapis.com/auth/user.addresses.read',
+        ],
+      });
+      console.log('[Root Lifecycle] GoogleSignin configured with Web Client ID:', firebaseConfig.oAuthClientId);
+    } catch (e) {
+      console.error('[Root Lifecycle] Failed to configure GoogleSignin:', e);
+    }
+  }, []);
+
   // Firebase auth state listener
   useEffect(() => {
     const unsubscribe = initAuth(
@@ -323,7 +343,14 @@ export default function App() {
   const handleGoogleSignIn = async () => {
     setAuthLoading(true);
     try {
-      const { user, accessToken } = await googleSignIn();
+      // 1. Verify Google Play Services availability
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+
+      // 2. Force signOut() before signIn() to reset any cached/broken implicit state and ensure account picker pops up
+      await GoogleSignin.signOut();
+
+      // 3. Initiate native Google Sign In with Web Client ID
+      const { user, accessToken } = await GoogleSignin.signIn();
       setIsAuthenticated(true);
       setOnboardingStep(1);
 
@@ -385,25 +412,27 @@ export default function App() {
 
       // Fetch people profile (Name, Family name, Birthday, Location)
       try {
-        const peopleData = await fetchGooglePeopleProfile(accessToken);
-        
-        setProfile((prev) => {
-          const updated: UserProfile = {
-            ...prev,
-            name: peopleData.firstName || prev.name,
-            familyName: peopleData.familyName || prev.familyName,
-            birthDate: peopleData.birthDate || prev.birthDate,
-            location: peopleData.locationName || prev.location,
-            photoUrl: peopleData.photoUrl || user.photoURL || prev.photoUrl,
-            email: peopleData.email || user.email || prev.email,
-            authProvider: 'google',
-            personalFriendCode: athleteCode,
-          };
-          return updated;
-        });
+        if (accessToken) {
+          const peopleData = await fetchGooglePeopleProfile(accessToken);
+          
+          setProfile((prev) => {
+            const updated: UserProfile = {
+              ...prev,
+              name: peopleData.firstName || prev.name,
+              familyName: peopleData.familyName || prev.familyName,
+              birthDate: peopleData.birthDate || prev.birthDate,
+              location: peopleData.locationName || prev.location,
+              photoUrl: peopleData.photoUrl || user.photoURL || prev.photoUrl,
+              email: peopleData.email || user.email || prev.email,
+              authProvider: 'google',
+              personalFriendCode: athleteCode,
+            };
+            return updated;
+          });
 
-        if (peopleData.locationName) {
-          loadWeather(peopleData.locationName);
+          if (peopleData.locationName) {
+            loadWeather(peopleData.locationName);
+          }
         }
       } catch (err) {
         console.warn('Google People API profile enrichment non-fatal:', err);
@@ -420,9 +449,26 @@ export default function App() {
           }));
         }
       }
-    } catch (err: any) {
-      console.error('Google Sign In failed:', err);
-      await Toast.show({ text: 'Sign in failed. Check network connection.', duration: 'short' });
+    } catch (error: any) {
+      console.error('[Google Sign-In Failure]', {
+        code: error?.code,
+        message: error?.message,
+        error,
+      });
+
+      if (error?.code === statusCodes.SIGN_IN_CANCELLED) {
+        console.log('[Google Sign-In] Account picker cancelled by user [SIGN_IN_CANCELLED]');
+        await Toast.show({ text: 'Sign-in cancelled. Please choose an account.', duration: 'short' });
+      } else if (error?.code === statusCodes.IN_PROGRESS) {
+        console.warn('[Google Sign-In] Sign-in operation already in progress [IN_PROGRESS]');
+        await Toast.show({ text: 'Sign-in already in progress.', duration: 'short' });
+      } else if (error?.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        console.error('[Google Sign-In] Google Play Services unavailable or network offline [PLAY_SERVICES_NOT_AVAILABLE]');
+        await Toast.show({ text: 'Google Play Services unavailable or offline.', duration: 'long' });
+      } else {
+        const errorDetail = error?.message || 'Check network connection or Firebase SHA-1 setup.';
+        await Toast.show({ text: `Google Sign-In failed (${error?.code || 'ERROR'}): ${errorDetail}`, duration: 'long' });
+      }
     } finally {
       setAuthLoading(false);
     }
@@ -744,6 +790,16 @@ export default function App() {
                 <span>SIGN IN WITH GOOGLE</span>
               </>
             )}
+          </button>
+
+          <button
+            onClick={() => {
+              setIsAuthenticated(true);
+              setOnboardingStep(1);
+            }}
+            className="w-full py-2.5 rounded-xl border border-white/10 hover:border-white/20 bg-white/[0.04] text-slate-300 font-mono text-[11px] flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
+          >
+            <span>Continue in Offline Mode</span>
           </button>
 
           <p className="text-[9px] text-slate-500 font-mono">By continuing, you agree to allow background telemetry and Health Connect permissions.</p>

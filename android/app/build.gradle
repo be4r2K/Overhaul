@@ -18,7 +18,7 @@ android {
     }
     signingConfigs {
         release {
-            def keystorePath = System.getenv("KEYSTORE_PATH")
+            def keystorePath = System.getenv("KEYSTORE_FILE") ?: System.getenv("KEYSTORE_PATH")
             if (keystorePath) {
                 def keystoreFile = file(keystorePath)
                 if (!keystoreFile.exists()) {
@@ -36,18 +36,16 @@ android {
 
     buildTypes {
         debug {
-            def keystorePath = System.getenv("KEYSTORE_PATH")
-            if (keystorePath && (file(keystorePath).exists() || file("app/" + keystorePath).exists())) {
+            if (signingConfigs.release.storeFile != null) {
                 signingConfig signingConfigs.release
             }
         }
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            def keystorePath = System.getenv("KEYSTORE_PATH")
-            if (keystorePath && (file(keystorePath).exists() || file("app/" + keystorePath).exists())) {
+            if (signingConfigs.release.storeFile != null) {
                 signingConfig signingConfigs.release
             }
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
     compileOptions {
