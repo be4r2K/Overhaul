@@ -13,8 +13,13 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Use registerPlugin for the Capacitor Google Auth plugin.
-// This is safe to call on web as it will just return a proxy that does nothing unless implemented.
-const GoogleAuth = registerPlugin<any>('GoogleAuth');
+// Wrapped defensively to avoid 'Script error' on web if the package is missing or failing.
+let GoogleAuth: any = null;
+try {
+  GoogleAuth = registerPlugin<any>('GoogleAuth');
+} catch (e) {
+  console.warn('[GoogleSignin] registerPlugin("GoogleAuth") failed, using mock.');
+}
 
 // Initialize Firebase
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
@@ -40,7 +45,10 @@ export interface GoogleSignInResult {
   user: User;
 }
 
-let configuredWebClientId: string = firebaseConfig.oAuthClientId || '';
+// THE WEB CLIENT ID MUST BE THE "WEB APPLICATION" CLIENT ID FROM FIREBASE/GOOGLE CLOUD
+// Reference: Request 3 "Hardcode or bind the correct Web Client ID"
+const DEFAULT_WEB_CLIENT_ID = '17995664186-1avqhs8ve5jb239fd0vt4346vlm6lc63.apps.googleusercontent.com';
+let configuredWebClientId: string = DEFAULT_WEB_CLIENT_ID;
 let isInProgress = false;
 let cachedAccessToken: string | null = typeof window !== 'undefined' ? sessionStorage.getItem('ovh_access_token') : null;
 let isInitialized = false;
@@ -73,15 +81,16 @@ export const GoogleSignin = {
    * Initializes the Google Auth plugin.
    */
   configure: (options: ConfigureOptions) => {
-    configuredWebClientId = options.webClientId || firebaseConfig.oAuthClientId;
+    // Force use the correct Web Client ID
+    configuredWebClientId = options.webClientId || DEFAULT_WEB_CLIENT_ID;
     
     // ONLY initialize native plugin on native platforms.
-    // On web, we use Firebase's Web SDK directly.
     if (Capacitor.isNativePlatform()) {
       try {
         if (GoogleAuth && typeof GoogleAuth.initialize === 'function') {
           GoogleAuth.initialize({
             clientId: configuredWebClientId,
+            serverClientId: configuredWebClientId,
             scopes: options.scopes || [
               'profile',
               'email',
@@ -95,7 +104,7 @@ export const GoogleSignin = {
           console.log('[GoogleSignin] Native initialization successful with Web Client ID:', configuredWebClientId);
         }
       } catch (e) {
-        console.warn('[GoogleSignin] Native initialization failed:', e);
+        console.error('[GoogleSignin] Native initialization failed:', e);
       }
     }
   },
@@ -105,14 +114,8 @@ export const GoogleSignin = {
    */
   hasPlayServices: async (options?: { showPlayServicesUpdateDialog?: boolean }): Promise<boolean> => {
     if (Capacitor.getPlatform() === 'web') {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        const err: any = new Error('No network connection.');
-        err.code = statusCodes.PLAY_SERVICES_NOT_AVAILABLE;
-        throw err;
-      }
       return true;
     }
-    // On native, the plugin usually manages this or we assume availability for now.
     return true;
   },
 
@@ -126,9 +129,7 @@ export const GoogleSignin = {
           if (GoogleAuth && typeof GoogleAuth.signOut === 'function') {
             await GoogleAuth.signOut();
           }
-        } catch (e) {
-          console.warn('[GoogleSignin] Native GoogleAuth.signOut failed:', e);
-        }
+        } catch (e) {}
       }
       await firebaseSignOut(auth);
       cachedAccessToken = null;
@@ -140,8 +141,7 @@ export const GoogleSignin = {
   },
 
   /**
-   * Main Sign-In method. Uses native Play Services on Android/iOS
-   * and Firebase Web SDK (Popup) on web environments.
+   * Main Sign-In method.
    */
   signIn: async (): Promise<GoogleSignInResult> => {
     if (isInProgress) {
@@ -154,11 +154,11 @@ export const GoogleSignin = {
     const platform = Capacitor.getPlatform();
 
     try {
-      // 1. NATIVE FLOW (Android / iOS)
+      // 1. NATIVE FLOW
       if (platform === 'android' || platform === 'ios') {
         console.log(`[GoogleSignin] Executing NATIVE flow for platform: ${platform}`);
         
-        // Force native sign out to clear stale auth cache
+        // Force clean sign-out before attempt (Request 2)
         try {
           if (GoogleAuth && typeof GoogleAuth.signOut === 'function') {
             await GoogleAuth.signOut();
@@ -187,19 +187,17 @@ export const GoogleSignin = {
             throw new Error('Native Google Sign-In returned no response.');
           }
 
-          // Robust extraction: support both new (v11+ / data-nested) and legacy structures
-          const idToken = response?.data?.authentication?.idToken || 
-                          response?.authentication?.idToken || 
-                          response?.data?.idToken || 
-                          response?.idToken;
+          // Robust extraction for v11+ (Request 1)
+          const idToken = response?.data?.idToken || response?.idToken || 
+                          response?.data?.authentication?.idToken || 
+                          response?.authentication?.idToken;
 
-          const accessToken = response?.data?.authentication?.accessToken || 
-                              response?.authentication?.accessToken || 
-                              response?.data?.accessToken || 
-                              response?.accessToken || '';
+          const accessToken = response?.data?.accessToken || response?.accessToken || 
+                              response?.data?.authentication?.accessToken || 
+                              response?.authentication?.accessToken || '';
           
           if (!idToken) {
-            console.error('[GoogleSignin] Missing ID Token in response:', JSON.stringify(response, null, 2));
+            console.error('[GoogleSignin] Full Google Response Object:', JSON.stringify(response, null, 2));
             throw new Error("Native Google Sign-In returned no ID token.");
           }
 
@@ -220,7 +218,6 @@ export const GoogleSignin = {
 
       // 2. WEB FLOW
       console.log('[GoogleSignin] Executing WEB flow (Firebase Popup)...');
-      // On web, ensure Firebase is signed out first
       try { await firebaseSignOut(auth); } catch (e) {}
 
       const provider = new GoogleAuthProvider();
@@ -248,12 +245,12 @@ export const GoogleSignin = {
     } catch (error: any) {
       console.error('[GoogleSignin] Sign-In Error:', error);
       
-      // Normalize error codes
-      if (error?.code === 'auth/popup-closed-by-user' || error?.message?.includes('closed')) {
-        error.code = statusCodes.SIGN_IN_CANCELLED;
-      } else if (error?.code === '10' || error?.message?.includes('10') || error?.message?.includes('DEVELOPER_ERROR')) {
-        console.error('[GoogleSignin] Developer Error (10) detected. This usually indicates an incorrect webClientId or missing SHA-1 fingerprint in Firebase Console.');
+      // Developer Error 10 logging (Request 2)
+      if (error?.code === '10' || error?.message?.includes('10') || error?.message?.includes('DEVELOPER_ERROR')) {
+        console.error('Developer Error 10: Check webClientId and SHA-1 fingerprint in Firebase Console.', error);
         error.code = statusCodes.DEVELOPER_ERROR;
+      } else if (error?.code === 'auth/popup-closed-by-user' || error?.message?.includes('closed')) {
+        error.code = statusCodes.SIGN_IN_CANCELLED;
       }
 
       throw error;
