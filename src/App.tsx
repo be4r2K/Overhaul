@@ -472,30 +472,38 @@ export default function App() {
         }
       }
     } catch (error: any) {
-      // PRINT EXACT RAW ERROR UNMASKED
-      const rawCode = error?.code || error?.status || 'N/A';
-      const rawMsg = error?.message || String(error);
-      const rawStack = error?.stack ? String(error.stack).slice(0, 300) : 'N/A';
-      const rawErrorDetails = `Code: ${rawCode}\nMsg: ${rawMsg}\nWebClientID: ${activeClientId}\nStack: ${rawStack}`;
+      console.error("Capacitor Google Auth Error:", error);
+      const errorCodeStr = String(error?.code || '');
+      const errorMsgStr = String(error?.message || '');
 
-      console.error("RAW GOOGLE AUTH ERROR:", rawErrorDetails, error);
-
-      // Display raw error on UI for instant debugging
-      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-        try {
-          window.alert(`DEBUG DIAGNOSTIC:\n${rawErrorDetails}`);
-        } catch (alertErr) {
-          console.warn('Alert error:', alertErr);
+      if (
+        errorCodeStr === '10' ||
+        errorCodeStr.includes('10') ||
+        errorMsgStr.includes('10') ||
+        errorMsgStr.includes('DEVELOPER_ERROR')
+      ) {
+        const error10Alert = "Error 10: Please ensure your SHA-1 fingerprint is added to Firebase Console under your Android App.";
+        console.error(error10Alert);
+        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+          try {
+            window.alert(error10Alert);
+          } catch (e) {}
         }
-      }
-
-      try {
-        await Toast.show({
-          text: `[DEBUG ${rawCode}]: ${rawMsg.slice(0, 160)}`,
-          duration: 'long'
-        });
-      } catch (tErr) {
-        console.warn('Toast error:', tErr);
+        try {
+          await Toast.show({ text: error10Alert, duration: 'long' });
+        } catch (e) {}
+      } else {
+        const rawCode = error?.code || error?.status || 'N/A';
+        const rawMsg = error?.message || String(error);
+        const errDetails = `Sign-In Error (${rawCode}): ${rawMsg}`;
+        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+          try {
+            window.alert(errDetails);
+          } catch (e) {}
+        }
+        try {
+          await Toast.show({ text: errDetails.slice(0, 160), duration: 'long' });
+        } catch (e) {}
       }
     } finally {
       setAuthLoading(false);

@@ -26,14 +26,10 @@ function getGoogleServicesJson(): any {
   return null;
 }
 
-// Use registerPlugin for the Capacitor Google Auth plugin.
-// Wrapped defensively to avoid 'Script error' on web if the package is missing or failing.
-let GoogleAuth: any = null;
-try {
-  GoogleAuth = registerPlugin<any>('GoogleAuth');
-} catch (e) {
-  console.warn('[GoogleSignin] registerPlugin("GoogleAuth") failed, using mock.');
-}
+// Use registerPlugin for Capacitor Google Auth plugin.
+export const GoogleAuth = registerPlugin<any>('GoogleAuth', {
+  web: () => import('@codetrix-studio/capacitor-google-auth').then((m: any) => new m.GoogleAuthWeb()),
+});
 
 // Initialize Firebase
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
@@ -97,11 +93,32 @@ const DEFAULT_WEB_CLIENT_ID = getAutoWebClientId();
 let configuredWebClientId: string = DEFAULT_WEB_CLIENT_ID;
 let isInProgress = false;
 let cachedAccessToken: string | null = typeof window !== 'undefined' ? sessionStorage.getItem('ovh_access_token') : null;
-let isInitialized = false;
 
 export function getActiveWebClientId(): string {
   return configuredWebClientId || DEFAULT_WEB_CLIENT_ID;
 }
+
+/**
+ * Explicit GoogleAuth initializer as requested.
+ * Configures the Web Client ID, scopes, and offline access flags.
+ */
+export const initGoogleAuth = (clientId: string = configuredWebClientId) => {
+  configuredWebClientId = clientId || getAutoWebClientId();
+  try {
+    if (GoogleAuth && typeof GoogleAuth.initialize === 'function') {
+      GoogleAuth.initialize({
+        clientId: configuredWebClientId,
+        serverClientId: configuredWebClientId,
+        scopes: ['profile', 'email'],
+        grantOfflineAccess: true,
+        forceCodeForRefreshToken: true,
+      });
+      console.log('[GoogleSignin] GoogleAuth.initialize called with Web Client ID:', configuredWebClientId);
+    }
+  } catch (e) {
+    console.warn('[GoogleSignin] GoogleAuth.initialize error:', e);
+  }
+};
 
 /**
  * Fallback session for sandboxed environments where OAuth is restricted.
@@ -131,7 +148,6 @@ export const GoogleSignin = {
    * Initializes the Google Auth plugin.
    */
   configure: (options?: Partial<ConfigureOptions>) => {
-    // Automatically load from google-services.json if not explicitly provided
     configuredWebClientId = options?.webClientId || getAutoWebClientId();
     
     // Critical validation
@@ -143,39 +159,13 @@ export const GoogleSignin = {
     }
 
     console.log(`[GoogleSignin] Active Web Client ID configured: ${configuredWebClientId}`);
-    
-    // ONLY initialize native plugin on native platforms.
-    if (Capacitor.isNativePlatform()) {
-      try {
-        if (GoogleAuth && typeof GoogleAuth.initialize === 'function') {
-          GoogleAuth.initialize({
-            clientId: configuredWebClientId,
-            serverClientId: configuredWebClientId,
-            scopes: options?.scopes || [
-              'profile',
-              'email',
-              'https://www.googleapis.com/auth/user.birthday.read',
-              'https://www.googleapis.com/auth/user.addresses.read',
-            ],
-            grantOfflineAccess: true,
-            forceCodeForRefreshToken: true,
-          });
-          isInitialized = true;
-          console.log('[GoogleSignin] Native initialization successful with Web Client ID:', configuredWebClientId);
-        }
-      } catch (e) {
-        console.error('[GoogleSignin] Native initialization failed:', e);
-      }
-    }
+    initGoogleAuth(configuredWebClientId);
   },
 
   /**
    * Checks for Google Play Services availability (Native Android).
    */
   hasPlayServices: async (options?: { showPlayServicesUpdateDialog?: boolean }): Promise<boolean> => {
-    if (Capacitor.getPlatform() === 'web') {
-      return true;
-    }
     return true;
   },
 
@@ -213,11 +203,10 @@ export const GoogleSignin = {
     isInProgress = true;
     const platform = Capacitor.getPlatform();
 
-    // 1. Log exact runtime webClientId being used before triggering sign-in
     console.log('[GoogleSignin] Active runtime Web Client ID before sign-in:', configuredWebClientId, 'Platform:', platform);
 
     try {
-      // 1. NATIVE FLOW
+      // 1. NATIVE FLOW (Android / iOS)
       if (platform === 'android' || platform === 'ios') {
         console.log(`[GoogleSignin] Executing NATIVE flow for platform: ${platform} with Web Client ID: ${configuredWebClientId}`);
         
@@ -229,21 +218,8 @@ export const GoogleSignin = {
         } catch (e) {}
         try { await firebaseSignOut(auth); } catch (e) {}
 
-        if (!isInitialized) {
-          try {
-            if (GoogleAuth && typeof GoogleAuth.initialize === 'function') {
-              await GoogleAuth.initialize({ 
-                clientId: configuredWebClientId,
-                serverClientId: configuredWebClientId,
-                forceCodeForRefreshToken: true,
-                grantOfflineAccess: true
-              });
-              isInitialized = true;
-            }
-          } catch (e) {
-            console.warn('[GoogleSignin] Re-init error:', e);
-          }
-        }
+        // Ensure initialize is called with the exact Web Client ID before calling signIn()
+        initGoogleAuth(configuredWebClientId);
 
         if (GoogleAuth && typeof GoogleAuth.signIn === 'function') {
           const response = await GoogleAuth.signIn();
@@ -309,11 +285,20 @@ export const GoogleSignin = {
         throw webError;
       }
     } catch (error: any) {
-      // Log the exact raw error unmasked
-      const rawCode = error?.code || error?.status || 'N/A';
-      const rawMsg = error?.message || String(error);
-      const rawErrorDetails = `Code: ${rawCode}\nMsg: ${rawMsg}\nWebClientID: ${configuredWebClientId}`;
-      console.error('RAW GOOGLE AUTH ERROR in signIn():', rawErrorDetails, error);
+      console.error("Capacitor Google Auth Error:", error);
+      
+      const errorCodeStr = String(error?.code || '');
+      const errorMsgStr = String(error?.message || '');
+
+      if (errorCodeStr === '10' || errorCodeStr.includes('10') || errorMsgStr.includes('10') || errorMsgStr.includes('DEVELOPER_ERROR')) {
+        const sha1Warning = "Error 10: Please ensure your SHA-1 fingerprint is added to Firebase Console under your Android App.";
+        console.error("Capacitor Google Auth Error (Developer Error 10):", sha1Warning);
+        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+          alert(sha1Warning);
+        }
+      } else {
+        console.error(`Sign-In Error: ${error?.message || JSON.stringify(error)}`);
+      }
       
       throw error;
     } finally {

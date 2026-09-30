@@ -13,6 +13,7 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': rootDir,
+        '@capacitor-community/google-auth': '@codetrix-studio/capacitor-google-auth',
         '@react-native-google-signin/google-signin': path.resolve(rootDir, 'src/utils/reactNativeGoogleSigninStub.ts'),
         '@react-native-firebase/auth': path.resolve(rootDir, 'src/utils/reactNativeFirebaseAuthStub.ts'),
         '@react-native-firebase/app': path.resolve(rootDir, 'src/utils/reactNativeFirebaseAuthStub.ts'),
