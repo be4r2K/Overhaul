@@ -11,7 +11,20 @@ import {
 } from 'firebase/auth';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import firebaseConfig from '../../firebase-applet-config.json';
-import googleServices from '../../android/app/google-services.json';
+
+// Dynamically resolve google-services.json if present without breaking Vite if absent on CI runners
+function getGoogleServicesJson(): any {
+  try {
+    const modules = (import.meta as any).glob('../../android/app/google-services.json', { eager: true });
+    const keys = Object.keys(modules);
+    if (keys.length > 0 && modules[keys[0]]) {
+      return modules[keys[0]]?.default || modules[keys[0]];
+    }
+  } catch {
+    // Non-fatal if file does not exist in CI or web environment
+  }
+  return null;
+}
 
 // Use registerPlugin for the Capacitor Google Auth plugin.
 // Wrapped defensively to avoid 'Script error' on web if the package is missing or failing.
@@ -55,6 +68,7 @@ export const EXPLICIT_WEB_CLIENT_ID = '17995664186-1avqhs8ve5jb239fd0vt4346vlm6l
  */
 export function getAutoWebClientId(): string {
   try {
+    const googleServices = getGoogleServicesJson();
     const clients = (googleServices as any)?.client || [];
     for (const c of clients) {
       const oauthList = c?.oauth_client || [];
