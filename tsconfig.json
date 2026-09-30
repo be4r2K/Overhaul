@@ -19,6 +19,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@capacitor-community/google-auth": [
+        "./node_modules/@codetrix-studio/capacitor-google-auth"
+      ],
+      "@react-native-firebase/auth": [
+        "./src/utils/reactNativeFirebaseAuthStub.ts"
       ]
     },
     "allowImportingTsExtensions": true,

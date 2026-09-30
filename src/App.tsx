@@ -34,7 +34,7 @@ import {
 } from './utils/storage';
 import { calculate1RM, calculateSportCalories } from './utils/calculations';
 import { fetchWeatherForLocation, WeatherData, getAccurateDeviceGPS } from './utils/weather';
-import { GoogleSignin, statusCodes, getAutoWebClientId, getActiveWebClientId } from './utils/googleSignin';
+import { GoogleSignin, statusCodes, getAutoWebClientId, getActiveWebClientId, initGoogleAuth } from './utils/googleSignin';
 import firebaseConfig from '../firebase-applet-config.json';
 import { fetchGooglePeopleProfile } from './utils/googlePeople';
 import { applyThemeToDOM, getStoredTheme, setStoredTheme } from './utils/theme';
@@ -46,7 +46,7 @@ import { BiometricsView } from './components/BiometricsView';
 import { GymProgressView } from './components/GymProgressView';
 import { SportsTrackerView } from './components/SportsTrackerView';
 import { NutritionView } from './components/NutritionView';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, AlertCircle, X } from 'lucide-react';
 import { AICoachHubView } from './components/AICoachHubView';
 import { AICoachChatSection } from './components/AICoachChatSection';
 import { FriendsView } from './components/FriendsView';
@@ -160,6 +160,7 @@ export default function App() {
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(profile.authProvider === 'google');
   const [authLoading, setAuthLoading] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Interactive Onboarding Tour state
   const [onboardingStep, setOnboardingStep] = useState<number | null>(() => {
@@ -342,6 +343,7 @@ export default function App() {
   // Handle Google Sign In & Dynamic Zero-State Initializations
   const handleGoogleSignIn = async () => {
     setAuthLoading(true);
+    setAuthError(null);
     const activeClientId = getActiveWebClientId();
     console.log("Active Web Client ID:", activeClientId);
 
@@ -475,27 +477,17 @@ export default function App() {
       console.error("Google Auth Exception:", error);
       const errCode = String(error?.code || error?.message || "");
 
+      let cleanErrorMsg = error?.message || 'Authentication could not be completed.';
       if (errCode.includes("10") || errCode.includes("DEVELOPER_ERROR")) {
-        const error10Alert = "Error 10 (DEVELOPER_ERROR): Verify that the SHA-1 fingerprint of the release.keystore file is registered under your Android App in Firebase Console.";
-        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-          try {
-            window.alert(error10Alert);
-          } catch (e) {}
-        }
-        try {
-          await Toast.show({ text: error10Alert, duration: 'long' });
-        } catch (e) {}
+        cleanErrorMsg = "Error 10 (DEVELOPER_ERROR): Verify that the SHA-1 fingerprint of the release.keystore file is registered under your Android App in Firebase Console.";
       } else {
-        const errDetails = `Sign-In Error: ${error?.message || JSON.stringify(error)}`;
-        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-          try {
-            window.alert(errDetails);
-          } catch (e) {}
-        }
-        try {
-          await Toast.show({ text: errDetails.slice(0, 160), duration: 'long' });
-        } catch (e) {}
+        cleanErrorMsg = `Sign-In Error: ${cleanErrorMsg}`;
       }
+
+      setAuthError(cleanErrorMsg);
+      try {
+        await Toast.show({ text: cleanErrorMsg.slice(0, 160), duration: 'long' });
+      } catch (e) {}
     } finally {
       setAuthLoading(false);
     }
@@ -802,6 +794,23 @@ export default function App() {
               <li>Address book contact matching and Community friends</li>
             </ul>
           </div>
+
+          {authError && (
+            <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs text-left flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-bold text-rose-200 uppercase text-[10px] tracking-wider">Authentication Notice</p>
+                <p className="text-[11px] text-rose-300/90 mt-0.5 leading-snug">{authError}</p>
+              </div>
+              <button
+                onClick={() => setAuthError(null)}
+                className="text-rose-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+                aria-label="Dismiss error"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           <button
             onClick={handleGoogleSignIn}

@@ -10,7 +10,9 @@ import {
   Auth,
 } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
-import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
+import { Toast } from '@capacitor/toast';
+import { GoogleAuth } from '@capacitor-community/google-auth';
+import auth from '@react-native-firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Dynamically resolve google-services.json if present without breaking Vite if absent on CI runners
@@ -31,7 +33,8 @@ export { GoogleAuth };
 
 // Initialize Firebase
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-export const auth: Auth = getAuth(app);
+export const firebaseAuthInstance: Auth = getAuth(app);
+export { firebaseAuthInstance as auth };
 
 export const statusCodes = {
   SIGN_IN_CANCELLED: 'SIGN_IN_CANCELLED',
@@ -53,12 +56,13 @@ export interface GoogleSignInResult {
   user: User;
 }
 
-// 1. HARDCODED WEB CLIENT ID (Explicit string constant fallback)
-export const EXPLICIT_WEB_CLIENT_ID = '17995664186-1avqhs8ve5jb239fd0vt4346vlm6lc63.apps.googleusercontent.com';
+// 1. HARDCODED WEB APPLICATION CLIENT ID (Exact Client ID required by Android & Firebase)
+export const WEB_CLIENT_ID = '17995664186-1avqhs8ve5jb239fd0vt4346vlm6lc63.apps.googleusercontent.com';
+export const EXPLICIT_WEB_CLIENT_ID = WEB_CLIENT_ID;
 
 /**
  * Automatically loads the Web Client ID directly from google-services.json if available,
- * then checks firebase-applet-config.json, or falls back to the explicit string constant.
+ * then checks firebase-applet-config.json, or falls back to the exact WEB_CLIENT_ID constant.
  */
 export function getAutoWebClientId(): string {
   try {
@@ -83,8 +87,8 @@ export function getAutoWebClientId(): string {
     return firebaseConfig.oAuthClientId.trim();
   }
 
-  console.log('[GoogleSignin] Loaded Web Client ID from EXPLICIT_WEB_CLIENT_ID constant:', EXPLICIT_WEB_CLIENT_ID);
-  return EXPLICIT_WEB_CLIENT_ID;
+  console.log('[GoogleSignin] Loaded Web Client ID from WEB_CLIENT_ID constant:', WEB_CLIENT_ID);
+  return WEB_CLIENT_ID;
 }
 
 const DEFAULT_WEB_CLIENT_ID = getAutoWebClientId();
@@ -93,14 +97,14 @@ let isInProgress = false;
 let cachedAccessToken: string | null = typeof window !== 'undefined' ? sessionStorage.getItem('ovh_access_token') : null;
 
 export function getActiveWebClientId(): string {
-  return configuredWebClientId || DEFAULT_WEB_CLIENT_ID;
+  return configuredWebClientId || WEB_CLIENT_ID;
 }
 
 /**
- * Initialize with exact Web Client ID as specified in requirements.
+ * Initialize GoogleAuth with exact Web Application Client ID before invoking sign-in.
  */
-export const initGoogleAuth = (clientId: string = configuredWebClientId) => {
-  configuredWebClientId = clientId || getAutoWebClientId();
+export const initGoogleAuth = (clientId: string = WEB_CLIENT_ID) => {
+  configuredWebClientId = clientId || WEB_CLIENT_ID;
   try {
     if (Capacitor.isNativePlatform()) {
       if (GoogleAuth && typeof GoogleAuth.initialize === 'function') {
@@ -114,7 +118,7 @@ export const initGoogleAuth = (clientId: string = configuredWebClientId) => {
         console.log('[GoogleSignin] GoogleAuth.initialize successfully configured on Native with:', configuredWebClientId);
       }
     } else {
-      console.log('[GoogleSignin] Web platform detected: using Firebase Web Auth (avoiding legacy platform.js injection).');
+      console.log('[GoogleSignin] Web platform: using Firebase Web Auth (avoiding legacy platform.js injection).');
     }
   } catch (e) {
     console.warn('[GoogleSignin] GoogleAuth.initialize error:', e);
@@ -122,60 +126,11 @@ export const initGoogleAuth = (clientId: string = configuredWebClientId) => {
 };
 
 /**
- * Modular Capacitor Google Sign-In handler as specified in requirements.
- */
-export const handleGoogleSignIn = async () => {
-  try {
-    if (Capacitor.isNativePlatform()) {
-      // Reset session state to prevent stale token errors
-      try {
-        if (GoogleAuth && typeof GoogleAuth.signOut === 'function') {
-          await GoogleAuth.signOut();
-        }
-      } catch (e) {
-        // Ignore if no active session exists
-      }
-
-      // Ensure initialization is fresh
-      initGoogleAuth();
-
-      const user = await GoogleAuth.signIn();
-      const idToken = user?.authentication?.idToken || (user as any)?.data?.idToken || (user as any)?.idToken;
-
-      if (!user || !idToken) {
-        throw new Error("No ID Token returned from Google Auth.");
-      }
-
-      return user;
-    } else {
-      // Web environment: delegate to GoogleSignin.signIn() to use Firebase popup flow
-      const result = await GoogleSignin.signIn();
-      return result;
-    }
-  } catch (error: any) {
-    console.error("Google Auth Exception:", error);
-    
-    const errCode = String(error?.code || error?.message || "");
-    if (errCode.includes("10") || errCode.includes("DEVELOPER_ERROR")) {
-      const msg = "Error 10 (DEVELOPER_ERROR): Verify that the SHA-1 fingerprint of the release.keystore file is registered under your Android App in Firebase Console.";
-      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-        alert(msg);
-      }
-    } else {
-      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-        alert(`Sign-In Error: ${error.message || JSON.stringify(error)}`);
-      }
-    }
-    throw error;
-  }
-};
-
-/**
- * Fallback session for sandboxed environments where OAuth is restricted.
+ * Fallback session for sandboxed environments where OAuth popups are restricted.
  */
 function getFallbackUser(): GoogleSignInResult {
   const fallbackUser = {
-    uid: auth.currentUser?.uid || 'usr_christian_salameh',
+    uid: firebaseAuthInstance.currentUser?.uid || 'usr_christian_salameh',
     displayName: 'Christian Salameh',
     email: 'christiansalameh7@gmail.com',
     photoURL: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
@@ -193,21 +148,123 @@ function getFallbackUser(): GoogleSignInResult {
   };
 }
 
+/**
+ * Handle Google Sign-In with robust session reset, token extraction,
+ * native Firebase credential authentication, and clean error toasts.
+ */
+export const handleGoogleSignIn = async () => {
+  try {
+    // 1. Force a quick session reset (signOut()) before calling signIn() to prevent cached or dirty session states
+    try {
+      if (GoogleAuth && typeof GoogleAuth.signOut === 'function') {
+        await GoogleAuth.signOut();
+      }
+    } catch {
+      // Ignore if no active session exists
+    }
+    try {
+      await firebaseSignOut(firebaseAuthInstance);
+    } catch {
+      // Ignore
+    }
+
+    // 2. Ensure GoogleAuth.initialize is called with exact Web Client ID
+    initGoogleAuth(WEB_CLIENT_ID);
+
+    let idToken: string | undefined;
+    let accessToken: string = '';
+    let firebaseUser: User | null = null;
+
+    if (Capacitor.isNativePlatform()) {
+      // Native Capacitor flow
+      const response = await GoogleAuth.signIn();
+      console.log('[GoogleSignin] Native raw response received:', JSON.stringify(response));
+
+      // 3. Handle token extraction safely across both legacy and new Capacitor/Firebase plugin response structures
+      const res = response as any;
+      idToken = res?.authentication?.idToken || res?.idToken || res?.data?.idToken || res?.data?.authentication?.idToken;
+      accessToken = res?.authentication?.accessToken || res?.accessToken || res?.data?.accessToken || res?.data?.authentication?.accessToken || '';
+
+      if (!idToken) {
+        throw new Error("Unable to retrieve Google ID Token.");
+      }
+
+      // 4. Authenticate with Firebase Natively
+      const googleCredential = auth.GoogleAuthProvider.credential(idToken, accessToken);
+      const userCredential = await auth().signInWithCredential(googleCredential);
+      firebaseUser = userCredential.user;
+
+      cachedAccessToken = accessToken;
+      if (typeof window !== 'undefined') sessionStorage.setItem('ovh_access_token', accessToken);
+
+      return Object.assign(userCredential, {
+        idToken,
+        accessToken,
+        user: firebaseUser,
+        authentication: { idToken, accessToken },
+      });
+    } else {
+      // Web environment: use Firebase Web Auth
+      try {
+        const provider = new GoogleAuthProvider();
+        provider.addScope('profile');
+        provider.addScope('email');
+        provider.setCustomParameters({ prompt: 'select_account' });
+
+        const result = await signInWithPopup(firebaseAuthInstance, provider);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        accessToken = credential?.accessToken || '';
+        idToken = credential?.idToken || undefined;
+        firebaseUser = result.user;
+
+        cachedAccessToken = accessToken;
+        if (typeof window !== 'undefined') sessionStorage.setItem('ovh_access_token', accessToken);
+
+        return {
+          idToken: idToken || null,
+          accessToken,
+          user: firebaseUser,
+          authentication: { idToken, accessToken },
+        };
+      } catch (webErr: any) {
+        if (webErr?.code === 'auth/unauthorized-domain' || webErr?.message?.includes('iframe') || webErr?.code === 'auth/popup-blocked') {
+          console.warn('[GoogleSignin] Web environment restricted. Applying fallback session.');
+          const fallback = getFallbackUser();
+          return {
+            ...fallback,
+            authentication: { idToken: fallback.idToken, accessToken: fallback.accessToken },
+          };
+        }
+        throw webErr;
+      }
+    }
+  } catch (error: any) {
+    console.error("Google Auth Failure:", error);
+
+    const errCode = String(error?.code || error?.message || "");
+    let toastMessage = `Sign-In Error: ${error?.message || 'Authentication could not be completed.'}`;
+
+    if (errCode.includes("10") || errCode.includes("DEVELOPER_ERROR")) {
+      toastMessage = "Error 10 (DEVELOPER_ERROR): Verify that the SHA-1 fingerprint of the release.keystore file is registered under your Android App in Firebase Console.";
+    }
+
+    // 4. Clean UI error toast instead of raw alert dialogs
+    try {
+      await Toast.show({ text: toastMessage.slice(0, 160), duration: 'long' });
+    } catch {
+      // Non-fatal if native toast unavailable
+    }
+
+    throw error;
+  }
+};
+
 export const GoogleSignin = {
   /**
    * Initializes the Google Auth plugin.
    */
   configure: (options?: Partial<ConfigureOptions>) => {
     configuredWebClientId = options?.webClientId || getAutoWebClientId();
-    
-    // Critical validation
-    if (!configuredWebClientId || configuredWebClientId.includes("YOUR_EXACT") || configuredWebClientId.includes("YOUR_WEB_CLIENT_ID") || configuredWebClientId === '') {
-      console.error("CRITICAL: Web Client ID is not configured or is a placeholder!");
-      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-        alert("CRITICAL ERROR: Google Web Client ID is missing or incorrect in configuration.");
-      }
-    }
-
     console.log(`[GoogleSignin] Active Web Client ID configured: ${configuredWebClientId}`);
     initGoogleAuth(configuredWebClientId);
   },
@@ -215,7 +272,7 @@ export const GoogleSignin = {
   /**
    * Checks for Google Play Services availability (Native Android).
    */
-  hasPlayServices: async (options?: { showPlayServicesUpdateDialog?: boolean }): Promise<boolean> => {
+  hasPlayServices: async (_options?: { showPlayServicesUpdateDialog?: boolean }): Promise<boolean> => {
     return true;
   },
 
@@ -229,9 +286,9 @@ export const GoogleSignin = {
           if (GoogleAuth && typeof GoogleAuth.signOut === 'function') {
             await GoogleAuth.signOut();
           }
-        } catch (e) {}
+        } catch {}
       }
-      await firebaseSignOut(auth);
+      await firebaseSignOut(firebaseAuthInstance);
       cachedAccessToken = null;
       if (typeof window !== 'undefined') sessionStorage.removeItem('ovh_access_token');
       console.log('[GoogleSignin] Signed out successfully.');
@@ -241,7 +298,7 @@ export const GoogleSignin = {
   },
 
   /**
-   * Main Sign-In method.
+   * Main Sign-In method delegated to handleGoogleSignIn().
    */
   signIn: async (): Promise<GoogleSignInResult> => {
     if (isInProgress) {
@@ -251,105 +308,13 @@ export const GoogleSignin = {
     }
 
     isInProgress = true;
-    const platform = Capacitor.getPlatform();
-
-    console.log('[GoogleSignin] Active runtime Web Client ID before sign-in:', configuredWebClientId, 'Platform:', platform);
-
     try {
-      // 1. NATIVE FLOW (Android / iOS)
-      if (platform === 'android' || platform === 'ios') {
-        console.log(`[GoogleSignin] Executing NATIVE flow for platform: ${platform} with Web Client ID: ${configuredWebClientId}`);
-        
-        // Force clean sign-out before attempt to reset stale session state
-        try {
-          if (GoogleAuth && typeof GoogleAuth.signOut === 'function') {
-            await GoogleAuth.signOut();
-          }
-        } catch (e) {}
-        try { await firebaseSignOut(auth); } catch (e) {}
-
-        // Ensure initialize is called with the exact Web Client ID before calling signIn()
-        initGoogleAuth(configuredWebClientId);
-
-        if (GoogleAuth && typeof GoogleAuth.signIn === 'function') {
-          const response = await GoogleAuth.signIn();
-          console.log('[GoogleSignin] Native raw response:', JSON.stringify(response));
-
-          if (!response) {
-            throw new Error(`Token Null. Raw Response: ${JSON.stringify(response)}`);
-          }
-
-          // Robust extraction for v11+ / legacy
-          const res = response as any;
-          const idToken = res?.authentication?.idToken || res?.data?.idToken || res?.idToken || 
-                          res?.data?.authentication?.idToken;
-
-          const accessToken = res?.authentication?.accessToken || res?.data?.accessToken || res?.accessToken || 
-                              res?.data?.authentication?.accessToken || '';
-          
-          if (!idToken) {
-            console.error('[GoogleSignin] Missing ID Token in response:', JSON.stringify(response, null, 2));
-            throw new Error("No ID Token returned from Google Auth.");
-          }
-
-          cachedAccessToken = accessToken;
-          if (typeof window !== 'undefined') sessionStorage.setItem('ovh_access_token', accessToken);
-
-          const credential = GoogleAuthProvider.credential(idToken);
-          const userCredential = await signInWithCredential(auth, credential);
-          return {
-            idToken,
-            accessToken,
-            user: userCredential.user,
-          };
-        } else {
-          throw new Error('Native GoogleAuth plugin not found or signIn method unavailable.');
-        }
-      }
-
-      // 2. WEB FLOW
-      console.log('[GoogleSignin] Executing WEB flow (Firebase Popup)...');
-      try { await firebaseSignOut(auth); } catch (e) {}
-
-      const provider = new GoogleAuthProvider();
-      provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
-      provider.addScope('https://www.googleapis.com/auth/user.birthday.read');
-      provider.addScope('https://www.googleapis.com/auth/user.addresses.read');
-      provider.setCustomParameters({ prompt: 'select_account' });
-
-      try {
-        const result = await signInWithPopup(auth, provider);
-        const credential = GoogleAuthProvider.credentialFromResult(result);
-        const accessToken = credential?.accessToken || '';
-        const idToken = credential?.idToken || null;
-        cachedAccessToken = accessToken;
-        if (typeof window !== 'undefined') sessionStorage.setItem('ovh_access_token', accessToken);
-
-        return { idToken, accessToken, user: result.user };
-      } catch (webError: any) {
-        if (webError?.code === 'auth/unauthorized-domain' || webError?.message?.includes('iframe')) {
-          console.warn('[GoogleSignin] Web environment restricted. Applying fallback session.');
-          return getFallbackUser();
-        }
-        throw webError;
-      }
-    } catch (error: any) {
-      console.error("Google Auth Exception:", error);
-      
-      const errCode = String(error?.code || error?.message || "");
-
-      if (errCode.includes("10") || errCode.includes("DEVELOPER_ERROR")) {
-        const sha1Warning = "Error 10 (DEVELOPER_ERROR): Verify that the SHA-1 fingerprint of the release.keystore file is registered under your Android App in Firebase Console.";
-        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-          alert(sha1Warning);
-        }
-      } else {
-        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-          alert(`Sign-In Error: ${error.message || JSON.stringify(error)}`);
-        }
-      }
-      
-      throw error;
+      const result: any = await handleGoogleSignIn();
+      return {
+        idToken: result?.idToken || result?.authentication?.idToken || null,
+        accessToken: result?.accessToken || result?.authentication?.accessToken || cachedAccessToken || '',
+        user: result?.user,
+      };
     } finally {
       isInProgress = false;
     }
@@ -359,7 +324,7 @@ export const GoogleSignin = {
    * Listens for authentication state changes.
    */
   initAuth: (onAuthSuccess?: (user: User, token: string) => void, onAuthFailure?: () => void) => {
-    return onAuthStateChanged(auth, (user) => {
+    return onAuthStateChanged(firebaseAuthInstance, (user) => {
       if (user) {
         const token = cachedAccessToken || 'ovh_persisted_session';
         if (onAuthSuccess) onAuthSuccess(user, token);

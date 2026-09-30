@@ -1,16 +1,20 @@
+import { Toast } from '@capacitor/toast';
+
 /**
  * Web / Vite fallback stub for 'react-native'.
  */
-
 export const Platform = {
   OS: 'web',
   select: (obj: any) => obj.web || obj.default,
 };
 
 export const Alert = {
-  alert: (title: string, message?: string) => {
-    if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-      window.alert(`${title}\n${message || ''}`);
+  alert: async (title: string, message?: string) => {
+    const text = `${title}${message ? `: ${message}` : ''}`;
+    try {
+      await Toast.show({ text, duration: 'long' });
+    } catch {
+      console.warn('[Alert Toast]:', text);
     }
   },
 };
