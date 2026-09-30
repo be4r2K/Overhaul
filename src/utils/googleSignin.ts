@@ -12,13 +12,9 @@ import {
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-// GoogleAuth plugin is removed to fix Script error on web. 
-// We use pure Firebase Web SDK for web and mock native flow.
-const GoogleAuth: any = {
-  initialize: () => Promise.resolve(),
-  signIn: () => Promise.resolve(null),
-  signOut: () => Promise.resolve(),
-};
+// Use registerPlugin for the Capacitor Google Auth plugin.
+// This is safe to call on web as it will just return a proxy that does nothing unless implemented.
+const GoogleAuth = registerPlugin<any>('GoogleAuth');
 
 // Initialize Firebase
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
@@ -183,15 +179,27 @@ export const GoogleSignin = {
         }
 
         if (GoogleAuth && typeof GoogleAuth.signIn === 'function') {
-          const googleUser = await GoogleAuth.signIn();
-          if (!googleUser) {
-            throw new Error('Native Google Sign-In returned no user.');
+          const response = await GoogleAuth.signIn();
+          console.log('[GoogleSignin] Native raw response:', JSON.stringify(response));
+
+          if (!response) {
+            throw new Error('Native Google Sign-In returned no response.');
           }
-          const idToken = googleUser.authentication?.idToken;
-          const accessToken = googleUser.authentication?.accessToken || '';
+
+          // Robust extraction: support both new (v11+ / data-nested) and legacy structures
+          const idToken = response?.data?.authentication?.idToken || 
+                          response?.authentication?.idToken || 
+                          response?.data?.idToken || 
+                          response?.idToken;
+
+          const accessToken = response?.data?.authentication?.accessToken || 
+                              response?.authentication?.accessToken || 
+                              response?.data?.accessToken || 
+                              response?.accessToken || '';
           
           if (!idToken) {
-            throw new Error("No ID token returned from Google Sign-In.");
+            console.error('[GoogleSignin] Missing ID Token in response:', JSON.stringify(response, null, 2));
+            throw new Error("Native Google Sign-In returned no ID token.");
           }
 
           cachedAccessToken = accessToken;
