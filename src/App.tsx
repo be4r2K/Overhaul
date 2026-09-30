@@ -472,18 +472,11 @@ export default function App() {
         }
       }
     } catch (error: any) {
-      console.error("Capacitor Google Auth Error:", error);
-      const errorCodeStr = String(error?.code || '');
-      const errorMsgStr = String(error?.message || '');
+      console.error("Google Auth Exception:", error);
+      const errCode = String(error?.code || error?.message || "");
 
-      if (
-        errorCodeStr === '10' ||
-        errorCodeStr.includes('10') ||
-        errorMsgStr.includes('10') ||
-        errorMsgStr.includes('DEVELOPER_ERROR')
-      ) {
-        const error10Alert = "Error 10: Please ensure your SHA-1 fingerprint is added to Firebase Console under your Android App.";
-        console.error(error10Alert);
+      if (errCode.includes("10") || errCode.includes("DEVELOPER_ERROR")) {
+        const error10Alert = "Error 10 (DEVELOPER_ERROR): Verify that the SHA-1 fingerprint of the release.keystore file is registered under your Android App in Firebase Console.";
         if (typeof window !== 'undefined' && typeof window.alert === 'function') {
           try {
             window.alert(error10Alert);
@@ -493,9 +486,7 @@ export default function App() {
           await Toast.show({ text: error10Alert, duration: 'long' });
         } catch (e) {}
       } else {
-        const rawCode = error?.code || error?.status || 'N/A';
-        const rawMsg = error?.message || String(error);
-        const errDetails = `Sign-In Error (${rawCode}): ${rawMsg}`;
+        const errDetails = `Sign-In Error: ${error?.message || JSON.stringify(error)}`;
         if (typeof window !== 'undefined' && typeof window.alert === 'function') {
           try {
             window.alert(errDetails);
