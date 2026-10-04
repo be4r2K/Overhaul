@@ -1,56 +1,22 @@
 export type ThemeMode = 'dark' | 'light' | 'glass';
+
+export type SignatureAccentColor =
+  | 'emerald_light' | 'emerald_green' | 'emerald_dark'
+  | 'cobalt_light' | 'deep_cobalt' | 'cobalt_dark'
+  | 'cyan_light' | 'electric_cyan' | 'cyan_dark'
+  | 'teal_light' | 'electric_teal' | 'teal_dark'
+  | 'lime_light' | 'neon_lime' | 'lime_dark'
+  | 'amber_light' | 'amber_gold' | 'amber_dark'
+  | 'coral_light' | 'coral_orange' | 'coral_dark'
+  | 'crimson_light' | 'crimson_red' | 'crimson_dark'
+  | 'pink_light' | 'cyberpunk_pink' | 'pink_dark'
+  | 'amethyst_light' | 'amethyst_purple' | 'amethyst_dark'
+  | 'indigo_light' | 'midnight_indigo' | 'indigo_dark'
+  | 'slate_light' | 'slate_monochrome' | 'slate_dark';
+
 export type AccentColor = 
-  | 'acid_lime'
-  | 'amber_flame'
-  | 'amethyst_glow'
-  | 'bronze_metal'
-  | 'burnt_sienna'
-  | 'cadmium_orange'
-  | 'chartreuse_shock'
-  | 'copper_rust'
-  | 'crimson_red'
-  | 'cyberpunk_pink'
-  | 'deep_cobalt'
-  | 'deep_forest'
-  | 'electric_cyan'
-  | 'electric_plum'
-  | 'electric_teal'
-  | 'emerald_green'
-  | 'ghost_lavender'
-  | 'hot_fuchsia'
-  | 'hyper_violet'
-  | 'ice_blue'
-  | 'inferno_orange'
-  | 'jade_imperial'
-  | 'lapis_lazuli'
-  | 'laser_lemon'
-  | 'midnight_indigo'
-  | 'mint_green'
-  | 'neon_grape'
-  | 'neon_green'
-  | 'neon_magenta'
-  | 'obsidian_black'
-  | 'pastel_peach'
-  | 'pitch_black'
-  | 'plasma_yellow'
-  | 'platinum_silver'
-  | 'pure_white'
-  | 'royal_sapphire'
-  | 'ruby_rose'
-  | 'scarlet_red'
-  | 'solar_gold'
-  | 'steel_blue'
-  | 'stealth_slate'
-  | 'sunset_coral'
-  | 'tangerine_pulse'
-  | 'titanium_gray'
-  | 'toxic_slime'
-  | 'ultramarine_sky'
-  | 'ultra_violet'
-  | 'verdant_olive'
-  | 'volcanic_red'
-  | 'zaffre_blue'
-  | 'custom';
+  | SignatureAccentColor
+  | string;
 
 export type FontFamily = 
   | 'inter' 
@@ -66,141 +32,141 @@ export interface AppThemeSettings {
   accent: AccentColor;
   font: FontFamily;
   customHex?: string;
+  liquidGlass?: boolean; // Apple Liquid Glass Engine toggle
+}
+
+export type OverviewPeriod = 'week' | 'month' | '3month' | 'year' | 'all' | 'daily' | 'monthly' | 'yearly' | 'workout';
+
+export interface AIOverviewData {
+  period?: any;
+  dateRange?: string;
+  executiveSummary?: string;
+  headline?: string;
+  coachVerdict?: string;
+  recommendations?: any;
+  focusAreas?: any;
+  streakStatus?: any;
+  completionRate?: any;
+  recoveryAdvice?: string;
+  totalWorkouts?: number;
+  totalVolumeKg?: number;
+  totalActiveMinutes?: number;
+  totalCaloriesBurned?: number;
+  totalSteps?: number;
+  averageSleepScore?: number;
+  averageHydrationPct?: number;
+  readinessTrend?: string;
+  prCount?: number;
+  topAchievements?: string[];
+  keyStrengths?: string[];
+  areasForImprovement?: string[];
+  strategicRecommendations?: any[];
+  generatedAt?: string;
+  [key: string]: any;
+}
+
+export interface BodyMuscleRating {
+  muscle?: string;
+  rating?: number;
+  status?: string;
+  notes?: string;
+  [key: string]: any;
+}
+
+export interface AIBodyVisionData {
+  id?: string;
+  date?: string;
+  scanTimestamp?: string;
+  overallRating?: any;
+  bodyFatEstimate?: any;
+  muscleMassEstimate?: any;
+  symmetryScore?: any;
+  postureScore?: any;
+  postureAssessment?: any;
+  physiquePotential?: any;
+  muscleRatings?: any;
+  keyImprovements?: any;
+  strengths?: any;
+  weaknesses?: any;
+  critiqueNotes?: any;
+  weeklyProgression?: any;
+  photoUrls?: any;
+  [key: string]: any;
 }
 
 export interface AIWorkoutParsedExercise {
   name: string;
   setsReps?: string;
-  targetMuscle: string;
+  targetMuscle?: string;
   rating?: number;
-  substitution: string;
+  tips?: string;
   notes?: string;
-  formCue?: string;
+  substitution?: string;
+  suggestedWeight?: number;
+  suggestedReps?: number;
+  [key: string]: any;
 }
 
-export interface AIWorkoutParsedDay {
-  dayTitle: string;
-  focus: string;
-  exercises: AIWorkoutParsedExercise[];
-}
-
-export interface AIMuscleCoverage {
-  muscle: string;
-  intensity: string;
-  percentage: number;
-  assessment: string;
-}
-
-export interface AIExerciseSubstitution {
-  originalExercise: string;
-  reasonToSwap?: string;
-  replacement1: string;
-  replacement2: string;
-  equipmentNeeded?: string;
-}
-
-export interface AIWorkoutExerciseLogItem {
-  id: string;
-  exerciseName: string;
-  dayTitle: string;
-  sets: number;
-  reps: number;
-  weight: number;
-  weightUnit: 'kg' | 'lbs';
-  calculated1RM: number;
-  timestamp: string;
-  notes?: string;
+export interface AIWorkoutDayRoutine {
+  dayName?: string;
+  dayTitle?: string;
+  focus?: string;
+  dayType?: string;
+  exercises?: AIWorkoutParsedExercise[];
+  [key: string]: any;
 }
 
 export interface AIWorkoutAnalysisResult {
-  overallScore: number;
-  balanceRating: number;
-  volumeRating: number;
-  exerciseSelectionRating: number;
-  summaryTitle: string;
-  honestOpinion: string;
-  superStrongAreas: string[];
-  neglectedOrNeedsWork: string[];
-  improvements: string[];
-  muscleGroupCoverage: AIMuscleCoverage[];
-  parsedDays: AIWorkoutParsedDay[];
-  substitutions: AIExerciseSubstitution[];
+  id?: string;
+  splitName?: string;
+  splitSummary?: string;
+  summaryTitle?: string;
+  balanceRating?: any;
+  overallScore?: any;
+  parsedDays?: AIWorkoutDayRoutine[];
+  schedule?: AIWorkoutDayRoutine[];
+  weakPointsIdentified?: any;
+  fatigueRiskAssessment?: any;
+  frequencyAdvice?: any;
+  muscleGroupCoverage?: any;
+  substitutions?: any;
+  neglectedOrNeedsWork?: any;
+  improvements?: any;
+  honestOpinion?: any;
   rawNotesSnippet?: string;
   analyzedAt?: string;
+  lastGenerated?: string;
+  [key: string]: any;
 }
 
-export type OverviewPeriod = 'daily' | 'monthly' | 'yearly' | 'workout';
-
-export interface AIOverviewData {
-  period: OverviewPeriod;
-  language?: string;
-  headline: string;
-  coachVerdict: string;
-  completionRate: number;
-  streakStatus: {
-    currentStreak: number;
-    status: 'on_fire' | 'at_risk' | 'broken' | 'building';
-    message: string;
-  };
-  recommendations: string[];
-  focusAreas: string[];
-  recoveryAdvice: string;
-  skippedAdvice?: string;
-  generatedAt: string;
-}
-
-export interface BodyMuscleRating {
-  muscle: string;
-  rating: number; // 1-10
-  status: 'peak' | 'balanced' | 'needs_improvement' | 'lagging';
-  notes: string;
-}
-
-export interface PhysiquePotential {
-  geneticScore: number; // 1-10 scale
-  potentialCeiling: string;
-  projectedGainsKg: string;
-  topGeneticAdvantages: string[];
-  laggingPotentialUnlocks: string[];
-  progressForecast: string;
-}
-
-export interface AIBodyVisionData {
-  id: string;
-  date: string;
-  photoUrl: string;
-  overallRating: number;
-  bodyFatEstimate: string;
-  postureAssessment: string;
-  physiquePotential: PhysiquePotential;
-  muscleRatings: BodyMuscleRating[];
-  keyImprovements: string[];
-  weeklyProgression: {
-    hasPreviousComparison: boolean;
-    improved: string[];
-    stagnant: string[];
-    backwards: string[];
-    summary: string;
-  };
+export interface AIWorkoutExerciseLogItem {
+  id?: string;
+  name?: string;
+  exerciseName?: string;
+  category?: string;
+  weightKg?: number;
+  weight?: number;
+  reps?: number;
+  sets?: any;
+  weightUnit?: string;
+  timestamp?: string;
+  dayTitle?: string;
+  calculated1RM?: number;
+  notes?: string;
+  date?: string;
+  [key: string]: any;
 }
 
 export interface AIChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
+  id?: string;
+  sender?: 'user' | 'ai';
+  role?: string;
+  text?: string;
+  content?: string;
+  timestamp?: string;
   didModifyRoutine?: boolean;
+  suggestedRoutineUpdate?: AIWorkoutAnalysisResult;
+  [key: string]: any;
 }
 
-export const SUPPORTED_LANGUAGES = [
-  { code: 'en', name: 'English', flag: '🇺🇸' },
-  { code: 'es', name: 'Español', flag: '🇪🇸' },
-  { code: 'fr', name: 'Français', flag: '🇫🇷' },
-  { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
-  { code: 'ar', name: 'العربية', flag: '🇸🇦' },
-  { code: 'it', name: 'Italiano', flag: '🇮🇹' },
-  { code: 'pt', name: 'Português', flag: '🇧🇷' },
-  { code: 'ja', name: '日本語', flag: '🇯🇵' },
-  { code: 'ru', name: 'Русский', flag: '🇷🇺' },
-  { code: 'zh', name: '中文', flag: '🇨🇳' },
-];
+export type AICoachMessage = AIChatMessage;

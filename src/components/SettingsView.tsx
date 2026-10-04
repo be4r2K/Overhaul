@@ -1,30 +1,35 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Palette, 
-  Sun, 
-  Moon, 
-  Compass, 
-  Check, 
-  Sliders, 
-  Smartphone, 
+import React, { useState, useEffect } from 'react';
+import {
+  Palette,
+  Sun,
+  Moon,
+  Compass,
+  Check,
+  Smartphone,
   Scale,
   Sparkles,
-  Layers,
   Plus,
   Minus,
-  Pipette,
-  Disc,
   Activity,
   Users,
-  RotateCcw
+  RotateCcw,
+  Loader2,
+  Settings as SettingsIcon,
 } from 'lucide-react';
+import { Toast } from '@capacitor/toast';
 import { AccentColor, AppThemeSettings, ThemeMode } from '../types/aiWorkout';
-import { ACCENT_THEMES } from '../utils/theme';
+import { ACCENT_COLOR_FAMILIES, ACCENT_THEMES } from '../utils/theme';
 import { getAccurateDeviceGPS } from '../utils/weather';
 import { UserProfile } from '../types/fitness';
 import { units } from '../utils/calculations';
-import { isHealthConnectAvailable, requestHealthConnectPermissions } from '../utils/healthConnect';
-import { isContactsAvailable, requestContactsPermissions } from '../utils/contacts';
+import {
+  checkHealthConnectPermissionsGranted,
+  requestHealthConnectPermissions,
+} from '../utils/healthConnect';
+import {
+  checkContactsPermissionsGranted,
+  requestContactsPermissions,
+} from '../utils/contacts';
 
 interface SettingsViewProps {
   theme: AppThemeSettings;
@@ -41,48 +46,41 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   profile,
   onUpdateProfile,
   onGpsUpdated,
-  language = 'en',
 }) => {
   const isMetric = profile.units === 'metric';
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsStatus, setGpsStatus] = useState<string | null>(null);
 
-  // Health Connect integration states
-  const [hcSupported, setHcSupported] = useState(false);
+  // Native Sensor Sync states: strictly default to false until verified by native OS permission check
   const [hcEnabled, setHcSupportedEnabled] = useState(false);
-
-  // Contacts integration states
-  const [contactsSupported, setContactsSupported] = useState(false);
   const [contactsEnabled, setContactsEnabled] = useState(false);
+  const [hcLoading, setHcLoading] = useState(false);
+  const [contactsLoading, setContactsLoading] = useState(false);
 
-  // Palette expand / collapse state
-  const [isPaletteExpanded, setIsPaletteExpanded] = useState(false);
-
+  // Verify actual native OS permission state on mount and when returning from Android System Settings / Play Store
   useEffect(() => {
-    // Automatically expand palette if theme index >= 9
-    const allKeys = Object.keys(ACCENT_THEMES);
-    const selectedIndex = allKeys.indexOf(theme.accent);
-    if (selectedIndex >= 9) {
-      setIsPaletteExpanded(true);
-    }
-  }, [theme.accent]);
+    async function verifyNativePermissions() {
+      const hcGranted = await checkHealthConnectPermissionsGranted();
+      setHcSupportedEnabled(hcGranted);
+      localStorage.setItem('overhaul_hc_linked', hcGranted ? 'true' : 'false');
 
-  // Check integration availability on mount
-  useEffect(() => {
-    async function checkAvailability() {
-      const hcAvail = await isHealthConnectAvailable();
-      setHcSupported(hcAvail);
-      if (hcAvail) {
-        setHcSupportedEnabled(true);
-      }
-
-      const conAvail = await isContactsAvailable();
-      setContactsSupported(conAvail);
-      if (conAvail) {
-        setContactsEnabled(true);
-      }
+      const contactsGranted = await checkContactsPermissionsGranted();
+      setContactsEnabled(contactsGranted);
+      localStorage.setItem('overhaul_contacts_linked', contactsGranted ? 'true' : 'false');
     }
-    checkAvailability();
+    verifyNativePermissions();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        verifyNativePermissions();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', verifyNativePermissions);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', verifyNativePermissions);
+    };
   }, []);
 
   const [localWeight, setLocalWeight] = useState<string>(
@@ -94,6 +92,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleModeChange = (mode: ThemeMode) => {
     onUpdateTheme({ ...theme, mode });
+  };
+
+  const handleToggleLiquidGlass = () => {
+    const current = theme.liquidGlass !== false;
+    onUpdateTheme({ ...theme, liquidGlass: !current });
   };
 
   const handleAccentChange = (accent: AccentColor) => {
@@ -132,7 +135,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleRequestGPS = async () => {
     setGpsLoading(true);
-    setGpsStatus('Requesting high-accuracy GPS...');
+    setGpsStatus('Acquiring GPS...');
     try {
       const coords = await getAccurateDeviceGPS();
       if (coords) {
@@ -141,93 +144,135 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           ...profile,
           location: coords.cityName || `${coords.latitude.toFixed(2)}, ${coords.longitude.toFixed(2)}`,
         });
-        setGpsStatus(`Accurate GPS locked: ${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)} (${coords.cityName || 'Local'})`);
+        setGpsStatus(`${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)} (${coords.cityName || 'Local'})`);
       } else {
         setGpsStatus('Location permission denied or timed out.');
       }
-    } catch (err: any) {
+    } catch {
       setGpsStatus('Error acquiring device location.');
     } finally {
       setGpsLoading(false);
     }
   };
 
-  // Health Connect Native permission trigger
-  const handleToggleHealthConnect = async () => {
-    if (!hcSupported) {
-      // Prompt simulator mock toggle
-      setHcSupportedEnabled(!hcEnabled);
+  // Samsung Health Sync:
+  // Directly invokes native Health Connect authorization; if uninstalled, launches Google Play Store intent directly.
+  const handleHealthButtonClick = async () => {
+    if (hcEnabled) {
+      setHcSupportedEnabled(false);
+      localStorage.setItem('overhaul_hc_linked', 'false');
+      Toast.show({ text: 'Samsung Health unlinked.', duration: 'short' }).catch(() => {});
       return;
     }
 
-    const permitted = await requestHealthConnectPermissions();
-    if (permitted) {
-      setHcSupportedEnabled(true);
-    } else {
+    setHcLoading(true);
+    const safetyTimer = setTimeout(() => {
+      setHcLoading(false);
+    }, 12000);
+
+    try {
+      const permitted = await Promise.race([
+        requestHealthConnectPermissions(),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 12000)),
+      ]);
+
+      if (permitted === true) {
+        setHcSupportedEnabled(true);
+        localStorage.setItem('overhaul_hc_linked', 'true');
+        Toast.show({ text: 'Samsung Health linked.', duration: 'short' }).catch(() => {});
+      } else {
+        setHcSupportedEnabled(false);
+        localStorage.setItem('overhaul_hc_linked', 'false');
+      }
+    } catch {
       setHcSupportedEnabled(false);
+      localStorage.setItem('overhaul_hc_linked', 'false');
+    } finally {
+      clearTimeout(safetyTimer);
+      setHcLoading(false);
     }
   };
 
-  // Contacts Native permission trigger
-  const handleToggleContacts = async () => {
-    if (!contactsSupported) {
-      // Prompt simulator mock toggle
-      setContactsEnabled(!contactsEnabled);
+  // Address Book Sync:
+  // Executes Capacitor's native runtime permission request directly: `await Contacts.requestPermissions()`.
+  // If permanently blocked by Android, opens `NativeSettings.open({ optionAndroid: AndroidSettings.ApplicationDetails })`.
+  const handleContactsButtonClick = async () => {
+    if (contactsEnabled) {
+      setContactsEnabled(false);
+      localStorage.setItem('overhaul_contacts_linked', 'false');
+      Toast.show({ text: 'Address book unlinked.', duration: 'short' }).catch(() => {});
       return;
     }
 
-    const permitted = await requestContactsPermissions();
-    if (permitted) {
-      setContactsEnabled(true);
-    } else {
+    setContactsLoading(true);
+    const safetyTimer = setTimeout(() => {
+      setContactsLoading(false);
+    }, 12000);
+
+    try {
+      const permitted = await Promise.race([
+        requestContactsPermissions(),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 12000)),
+      ]);
+      if (permitted === true) {
+        setContactsEnabled(true);
+        localStorage.setItem('overhaul_contacts_linked', 'true');
+        const { fetchDeviceContacts } = await import('../utils/contacts');
+        await fetchDeviceContacts();
+        Toast.show({ text: 'Address Book linked.', duration: 'short' }).catch(() => {});
+      } else {
+        setContactsEnabled(false);
+        localStorage.setItem('overhaul_contacts_linked', 'false');
+      }
+    } catch {
       setContactsEnabled(false);
+      localStorage.setItem('overhaul_contacts_linked', 'false');
+    } finally {
+      clearTimeout(safetyTimer);
+      setContactsLoading(false);
     }
   };
 
   // Hard Reset App Cache and Data state
   const handleResetAllData = () => {
-    if (window.confirm("DANGER: Wiping all local storage data, lift history, step counts, and metrics. This resets Overhaul to a zeroed-out state and reloads. Proceed?")) {
+    if (
+      window.confirm(
+        'DANGER: Wiping all local storage data, lift history, step counts, and metrics. This resets Overhaul to a zeroed-out state and reloads. Proceed?'
+      )
+    ) {
       localStorage.clear();
       window.location.reload();
     }
   };
 
-  const allAccentKeys = Object.keys(ACCENT_THEMES) as AccentColor[];
-  const visibleAccents = isPaletteExpanded ? allAccentKeys : allAccentKeys.slice(0, 10);
+  const activeAccentName = ((ACCENT_THEMES as any)[theme.accent]?.name || 'Emerald Green').toUpperCase();
 
   return (
-    <div className="h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden p-2 sm:p-3 max-w-7xl mx-auto w-full gap-2 select-none font-sans">
-      
-      {/* 1. DEDICATED HEADER & SUBTITLE */}
-      <div className="ig-glass-card rounded-2xl p-3 sm:p-4 flex items-center justify-between border border-white/10 shadow-sm shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="p-1 rounded-xl bg-cyan-500/10 border border-cyan-500/30 shrink-0">
-            <Sliders className="w-5 h-5 text-cyan-400" />
-          </div>
-          <div>
-            <h1 className="text-base sm:text-lg font-black tracking-tight text-white uppercase">App Control Center</h1>
-            <p className="text-[11px] text-slate-400">Manage biometrics, themes, native sensors, and cache</p>
-          </div>
-        </div>
-        <div className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 font-bold shrink-0">
-          Live System Active
-        </div>
+    <div className="flex-1 min-h-full flex flex-col justify-start overflow-y-auto p-2 sm:p-3 pb-16 max-w-7xl mx-auto w-full gap-2.5 select-none font-sans bg-transparent">
+      {/* Compact 44px Inline Settings Top Header Pill */}
+      <div
+        className="card pill dashboard-item ig-glass-card glass-card-light rounded-2xl flex items-center justify-start gap-2.5 shrink-0"
+        style={{ height: '44px', minHeight: '44px', padding: '0 16px' }}
+      >
+        <SettingsIcon className="w-[18px] h-[18px] accent-text shrink-0" />
+        <h1 className="text-[14px] font-semibold uppercase tracking-wider text-inherit leading-none">
+          SETTINGS
+        </h1>
       </div>
 
-      {/* 2. COMPREHENSIVE SETTINGS CONTROLS (Scrollable List Container) */}
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-0.5">
-        
-        {/* SECTION 1: BODY METRICS */}
-        <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2.5 shadow-sm">
-          <div className="flex items-center gap-2 border-b border-white/5 pb-1.5">
-            <Scale className="w-4 h-4 text-cyan-400" />
-            <h2 className="text-xs font-black uppercase text-slate-200">Body Metrics & Unit Configurations</h2>
+      {/* Scrollable Settings Controls resting directly on the main canvas */}
+      <div className="space-y-4 bg-transparent">
+        {/* SECTION 1: BODY METRICS (Direct on Canvas) */}
+        <section className="space-y-2 bg-transparent">
+          <div className="flex items-center gap-2 px-1 pb-1 border-b border-black/10 dark:border-white/10">
+            <Scale className="w-4 h-4 accent-text" />
+            <h2 className="text-xs font-black uppercase text-inherit">Body Metrics & Unit Configurations</h2>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {/* Weight */}
-            <div>
-              <label className="block text-[11px] font-medium text-slate-300 mb-1">
+          <div className="grid grid-cols-2 gap-2.5 bg-transparent">
+            {/* Weight Card */}
+            <div className="card dashboard-item ig-glass-card glass-card-light p-3 rounded-2xl">
+              <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-400 mb-1">
                 Body Weight ({isMetric ? 'kg' : 'lbs'})
               </label>
               <div className="relative">
@@ -237,7 +282,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   value={localWeight}
                   onChange={(e) => handleWeightUpdate(e.target.value)}
                   placeholder="e.g. 75"
-                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-1.5 text-sm text-white font-mono focus:outline-none focus:border-white/40"
+                  className="pill glass-input-light w-full bg-transparent border border-black/10 dark:border-white/10 rounded-xl px-3 py-1.5 text-sm text-inherit font-mono focus:outline-none"
                 />
                 <span className="absolute right-3 top-2 text-xs text-slate-500 font-mono">
                   {isMetric ? 'kg' : 'lbs'}
@@ -245,9 +290,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
             </div>
 
-            {/* Height */}
-            <div>
-              <label className="block text-[11px] font-medium text-slate-300 mb-1">
+            {/* Height Card */}
+            <div className="card dashboard-item ig-glass-card glass-card-light p-3 rounded-2xl">
+              <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-400 mb-1">
                 Height (cm)
               </label>
               <div className="relative">
@@ -257,243 +302,286 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   value={localHeight}
                   onChange={(e) => handleHeightUpdate(e.target.value)}
                   placeholder="e.g. 180"
-                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-1.5 text-sm text-white font-mono focus:outline-none focus:border-white/40"
+                  className="pill glass-input-light w-full bg-transparent border border-black/10 dark:border-white/10 rounded-xl px-3 py-1.5 text-sm text-inherit font-mono focus:outline-none"
                 />
-                <span className="absolute right-3 top-2 text-xs text-slate-500 font-mono">
-                  cm
-                </span>
+                <span className="absolute right-3 top-2 text-xs text-slate-500 font-mono">cm</span>
               </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            {/* Steps Target */}
-            <div>
-              <label className="block text-[11px] font-medium text-slate-300 mb-1">
+            {/* Steps Target Card */}
+            <div className="card dashboard-item ig-glass-card glass-card-light p-3 rounded-2xl">
+              <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-400 mb-1">
                 Daily Step Goal
               </label>
-              <div className="flex items-center gap-1 bg-slate-900 border border-slate-700/60 rounded-xl p-1 justify-between">
+              <div className="pill glass-input-light flex items-center gap-1 rounded-xl p-1 justify-between border border-black/10 dark:border-white/10">
                 <button
                   type="button"
                   onClick={() => handleStepGoalChange(Math.max(1000, profile.stepGoal - 1000))}
-                  className="p-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white active:scale-90 transition-all cursor-pointer font-bold"
+                  className="p-1.5 rounded-lg hover:opacity-80 text-inherit active:scale-90 transition-all cursor-pointer font-bold"
                 >
                   <Minus className="w-3 h-3" />
                 </button>
-                <span className="text-sm font-bold font-mono text-white tabular-nums">
+                <span className="text-sm font-bold font-mono text-inherit tabular-nums">
                   {profile.stepGoal.toLocaleString()}
                 </span>
                 <button
                   type="button"
                   onClick={() => handleStepGoalChange(profile.stepGoal + 1000)}
-                  className="p-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white active:scale-90 transition-all cursor-pointer font-bold"
+                  className="p-1.5 rounded-lg hover:opacity-80 text-inherit active:scale-90 transition-all cursor-pointer font-bold"
                 >
                   <Plus className="w-3 h-3" />
                 </button>
               </div>
             </div>
 
-            {/* Unit System */}
-            <div>
-              <label className="block text-[11px] font-medium text-slate-300 mb-1">
+            {/* Unit System Card */}
+            <div className="card dashboard-item ig-glass-card glass-card-light p-3 rounded-2xl">
+              <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-400 mb-1">
                 System of Units
               </label>
               <button
                 type="button"
                 onClick={handleToggleUnits}
-                className="w-full py-2 bg-slate-900 border border-slate-700/60 hover:bg-slate-800 rounded-xl text-xs font-bold text-slate-200 transition-colors uppercase cursor-pointer text-center"
+                className="pill glass-input-light w-full py-2 rounded-xl text-xs font-bold text-inherit border border-black/10 dark:border-white/10 transition-colors uppercase cursor-pointer text-center"
               >
                 {profile.units === 'metric' ? 'Metric (kg, cm, km)' : 'Imperial (lbs, in, mi)'}
               </button>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* SECTION 2: DEDICATED PALETTE & VISUAL THEMES */}
-        <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2.5 shadow-sm">
-          <div className="flex items-center gap-2 border-b border-white/5 pb-1.5">
-            <Palette className="w-4 h-4 text-cyan-400" />
-            <h2 className="text-xs font-black uppercase text-slate-200">System Themes & Ambient Accent Swatches</h2>
+        {/* SECTION 2: THEMES & ACCENTS (Direct on Canvas) */}
+        <section className="space-y-2.5 bg-transparent">
+          <div className="flex items-center justify-between gap-2 px-1 pb-1 border-b border-black/10 dark:border-white/10 flex-nowrap">
+            <div className="flex items-center gap-2 min-w-0">
+              <Palette className="w-4 h-4 accent-text shrink-0" />
+              <h2 className="text-xs font-black uppercase text-inherit whitespace-nowrap">THEMES & ACCENTS</h2>
+            </div>
+            <span
+              className="text-xs font-black uppercase tracking-wider font-mono whitespace-nowrap shrink-0"
+              style={{ color: 'var(--accent-hex)' }}
+            >
+              {activeAccentName}
+            </span>
           </div>
 
-          {/* 3-Way Mode Switcher: Dark OLED, Translucent Glass, Light Glass */}
-          <div className="grid grid-cols-3 gap-2">
+          {/* Appearance Mode Switcher: Dark Mode vs Light Mode */}
+          <div className="grid grid-cols-2 gap-2.5 bg-transparent">
             <button
               type="button"
               onClick={() => handleModeChange('dark')}
-              className={`p-2.5 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer text-center ${
-                theme.mode === 'dark'
-                  ? 'bg-white/15 border-white/40 text-white shadow-md ring-1 ring-white/30'
-                  : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
+              className={`card pill settings-item ig-glass-card glass-card-light p-2.5 rounded-2xl text-[11px] font-bold flex items-center justify-center gap-2 transition-all cursor-pointer text-center ${
+                theme.mode === 'dark' ? 'ring-1 ring-current font-black shadow-sm' : 'opacity-75 hover:opacity-100'
               }`}
+              style={theme.mode === 'dark' ? { borderColor: 'var(--accent-hex)' } : undefined}
             >
-              <Moon className="w-4 h-4 text-indigo-400" />
-              <span>Dark OLED</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleModeChange('glass')}
-              className={`p-2.5 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer text-center ${
-                theme.mode === 'glass'
-                  ? 'bg-black/50 border-cyan-400/50 text-white shadow-md ring-1 ring-cyan-400/40 backdrop-blur-md'
-                  : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
-              }`}
-            >
-              <Layers className="w-4 h-4 text-cyan-400" />
-              <span>Translucent Glass</span>
+              <Moon className="w-3.5 h-3.5 accent-text" />
+              <span>Dark Mode</span>
             </button>
 
             <button
               type="button"
               onClick={() => handleModeChange('light')}
-              className={`p-2.5 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer text-center ${
-                theme.mode === 'light'
-                  ? 'bg-white/80 border-slate-300 text-slate-900 shadow-md ring-1 ring-slate-400/20'
-                  : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
+              className={`card pill settings-item ig-glass-card glass-card-light p-2.5 rounded-2xl text-[11px] font-bold flex items-center justify-center gap-2 transition-all cursor-pointer text-center ${
+                theme.mode === 'light' ? 'ring-1 ring-current font-black shadow-sm' : 'opacity-75 hover:opacity-100'
               }`}
+              style={theme.mode === 'light' ? { borderColor: 'var(--accent-hex)' } : undefined}
             >
-              <Sun className="w-4 h-4 text-amber-400" />
-              <span>Light Glass</span>
+              <Sun className="w-3.5 h-3.5 text-amber-500" />
+              <span>Light Mode</span>
             </button>
           </div>
 
-          {/* Expanded Swatch Accent Grid */}
-          <div className="space-y-1.5 pt-1">
-            <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 uppercase font-mono">
-              <span>Accent Glow Hue</span>
-              <span className="accent-text font-black tracking-wider uppercase">{theme.accent.replace('_', ' ')}</span>
+          {/* Liquid Glass Toggle: ON in vibrant green, OFF in bold red */}
+          <div className="card pill settings-item ig-glass-card glass-card-light flex items-center justify-between p-3 rounded-2xl">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 accent-text" />
+              <div>
+                <div className="text-xs font-bold text-inherit">Liquid Glass</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Frosted blur & specular rim highlights</div>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={handleToggleLiquidGlass}
+              className={`px-3.5 py-1 rounded-xl text-xs font-mono font-black transition-all cursor-pointer border ${
+                theme.liquidGlass !== false
+                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-500 dark:text-emerald-400'
+                  : 'bg-rose-500/20 border-rose-500/50 text-rose-600 dark:text-rose-400'
+              }`}
+            >
+              {theme.liquidGlass !== false ? 'ON' : 'OFF'}
+            </button>
+          </div>
 
-            <div className="grid grid-cols-5 gap-1.5">
-              {visibleAccents.map((key) => {
-                const accentTheme = (ACCENT_THEMES as any)[key];
-                const isSelected = theme.accent === key;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => handleAccentChange(key)}
-                    className="relative h-10 rounded-xl flex items-center justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer overflow-hidden border border-white/10 shadow-sm"
-                    style={{ backgroundColor: accentTheme.hex }}
-                    title={`Select ${key} Theme Accent`}
+          {/* 36-Swatch Color Palette Grid resting directly on the main canvas */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 bg-transparent">
+            {ACCENT_COLOR_FAMILIES.map((fam) => {
+              const tones = [
+                { ...fam.light, label: 'Light' },
+                { ...fam.normal, label: 'Normal' },
+                { ...fam.dark, label: 'Dark' },
+              ];
+              const activeTone = tones.find((tItem) => theme.accent === tItem.key);
+              const singleLineTitle = activeTone
+                ? `${fam.family} ${activeTone.label}`.toUpperCase()
+                : fam.family.toUpperCase();
+              return (
+                <div
+                  key={fam.family}
+                  className="card dashboard-item settings-item ig-glass-card glass-card-light p-2.5 rounded-2xl flex flex-col gap-1.5"
+                >
+                  <span
+                    className="text-[10px] font-bold uppercase tracking-wider text-inherit whitespace-nowrap overflow-hidden text-ellipsis block"
+                    style={{ whiteSpace: 'nowrap' }}
                   >
-                    {isSelected && (
-                      <div className="w-5 h-5 rounded-full bg-black/60 flex items-center justify-center shadow-inner">
-                        <Check className="w-3.5 h-3.5 text-white stroke-[3]" />
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
+                    {singleLineTitle}
+                  </span>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {tones.map((tItem) => {
+                      const isSelected = theme.accent === tItem.key;
+                      return (
+                        <button
+                          key={tItem.key}
+                          type="button"
+                          onClick={() => handleAccentChange(tItem.key)}
+                          className={`h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer relative ${
+                            isSelected
+                              ? 'ring-2 ring-slate-900 dark:ring-white scale-105 shadow-md z-10'
+                              : 'hover:scale-95 opacity-90 hover:opacity-100'
+                          }`}
+                          style={{ backgroundColor: tItem.hex }}
+                          title={`${tItem.name} (${tItem.label} Tone)`}
+                          aria-label={`Select ${tItem.name}`}
+                        >
+                          {isSelected && (
+                            <Check
+                              className={`w-3.5 h-3.5 stroke-[3] ${
+                                tItem.label === 'Dark' ? 'text-white' : 'text-slate-950'
+                              }`}
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* SECTION 3: SENSOR SYNCS (Direct on Canvas) */}
+        <section className="space-y-2 bg-transparent">
+          <div className="flex items-center justify-between px-1 pb-1 border-b border-black/10 dark:border-white/10">
+            <div className="flex items-center gap-2">
+              <Smartphone className="w-4 h-4 accent-text" />
+              <h2 className="text-xs font-black uppercase text-inherit">SENSOR SYNCS</h2>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setIsPaletteExpanded(!isPaletteExpanded)}
-              className="w-full text-center py-2 text-xs font-black uppercase tracking-wider text-cyan-400 hover:text-cyan-300 transition-colors flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/10 rounded-xl cursor-pointer mt-1"
-            >
-              <span>{isPaletteExpanded ? '- Collapse' : '+ Expand'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* SECTION 3: NATIVE SENSORS & HEALTH CONNECT INTEGRATIONS */}
-        <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2.5 shadow-sm">
-          <div className="flex items-center gap-2 border-b border-white/5 pb-1.5">
-            <Smartphone className="w-4 h-4 text-cyan-400" />
-            <h2 className="text-xs font-black uppercase text-slate-200">Native Android Sensor Integrations</h2>
           </div>
 
-          {/* Samsung Health via Health Connect permission switch */}
-          <div className="flex items-center justify-between p-2.5 bg-slate-900 border border-slate-700/55 rounded-2xl">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 shrink-0">
-                <Activity className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-xs font-bold text-white truncate">Samsung Health Connect</h3>
-                <p className="text-[10px] text-slate-400 truncate">Steps & Sleep Session reads</p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleToggleHealthConnect}
-              className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer border ${
-                hcEnabled 
-                  ? 'bg-rose-500/20 border-rose-500/40 text-rose-300' 
-                  : 'bg-white/10 border-white/15 text-slate-400 hover:text-white'
-              }`}
-            >
-              {hcEnabled ? 'Active (Linked)' : 'Enable Sync'}
-            </button>
-          </div>
-
-          {/* Contacts Sync sensor status */}
-          <div className="flex items-center justify-between p-2.5 bg-slate-900 border border-slate-700/55 rounded-2xl">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 shrink-0">
-                <Users className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-xs font-bold text-white truncate">Device Address Book Sync</h3>
-                <p className="text-[10px] text-slate-400 truncate">Cross-reference verified friends</p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleToggleContacts}
-              className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer border ${
-                contactsEnabled 
-                  ? 'bg-violet-500/20 border-violet-500/40 text-violet-300' 
-                  : 'bg-white/10 border-white/15 text-slate-400 hover:text-white'
-              }`}
-            >
-              {contactsEnabled ? 'Active (Linked)' : 'Enable Sync'}
-            </button>
-          </div>
-
-          {/* Phone GPS Locking Sensor and Weather query */}
-          <div className="flex flex-col gap-2 p-2.5 bg-slate-900 border border-slate-700/55 rounded-2xl">
-            <div className="flex items-center justify-between">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-transparent">
+            {/* Samsung Health */}
+            <div className="card dashboard-item settings-item ig-glass-card glass-card-light sensor-card flex items-center justify-between p-3 rounded-2xl">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0">
-                  <Compass className="w-4 h-4" />
+                <div className="pill w-8 h-8 rounded-xl flex items-center justify-center text-rose-500 shrink-0">
+                  <Activity className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-xs font-bold text-white truncate">Accurate Phone GPS Lock</h3>
-                  <p className="text-[10px] text-slate-400 truncate">Coordinates: {profile.location || 'Not set'}</p>
+                  <h3 className="text-xs font-bold text-inherit truncate">Samsung Health</h3>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Steps & Sleep</p>
                 </div>
               </div>
 
               <button
                 type="button"
-                onClick={handleRequestGPS}
-                disabled={gpsLoading}
-                className="px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider bg-white/10 hover:bg-white/15 border border-white/15 text-slate-200 transition-colors disabled:opacity-50 cursor-pointer text-center"
+                onClick={handleHealthButtonClick}
+                disabled={hcLoading}
+                className={`pill px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer border flex items-center gap-1.5 shrink-0 ${
+                  hcEnabled
+                    ? 'text-emerald-600 dark:text-emerald-400 font-black'
+                    : 'text-inherit hover:opacity-90'
+                }`}
+                style={!hcEnabled ? { borderColor: 'var(--accent-border)' } : undefined}
               >
-                {gpsLoading ? 'Locking...' : 'Lock GPS'}
+                {hcLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+                <span>{hcEnabled ? 'LINKED' : 'ENABLE SYNC'}</span>
               </button>
             </div>
-            {gpsStatus && (
-              <p className="text-[9px] font-mono text-cyan-400 border-t border-white/5 pt-1.5 mt-0.5">{gpsStatus}</p>
-            )}
-          </div>
-        </div>
 
-        {/* SECTION 4: STORAGE, CACHE, AND CACHE INVALIDATION */}
-        <div className="p-3.5 rounded-2xl bg-rose-500/5 border border-rose-500/15 space-y-2.5 shadow-sm">
-          <div className="flex items-center gap-2 border-b border-rose-500/10 pb-1.5">
+            {/* Address Book */}
+            <div className="card dashboard-item settings-item ig-glass-card glass-card-light sensor-card flex items-center justify-between p-3 rounded-2xl">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="pill w-8 h-8 rounded-xl flex items-center justify-center text-violet-500 shrink-0">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-xs font-bold text-inherit truncate">Address Book</h3>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Match Friends</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleContactsButtonClick}
+                disabled={contactsLoading}
+                className={`pill px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer border flex items-center gap-1.5 shrink-0 ${
+                  contactsEnabled
+                    ? 'text-emerald-600 dark:text-emerald-400 font-black'
+                    : 'text-inherit hover:opacity-90'
+                }`}
+                style={!contactsEnabled ? { borderColor: 'var(--accent-border)' } : undefined}
+              >
+                {contactsLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+                <span>{contactsEnabled ? 'LINKED' : 'ENABLE SYNC'}</span>
+              </button>
+            </div>
+
+            {/* Phone GPS Lock */}
+            <div className="card dashboard-item settings-item ig-glass-card glass-card-light sensor-card flex flex-col justify-center gap-1.5 p-3 rounded-2xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="pill w-8 h-8 rounded-xl flex items-center justify-center text-cyan-500 shrink-0">
+                    <Compass className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-xs font-bold text-inherit truncate">Phone GPS Lock</h3>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Coordinates</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRequestGPS}
+                  disabled={gpsLoading}
+                  className="pill px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider text-inherit border transition-colors disabled:opacity-50 cursor-pointer text-center shrink-0"
+                  style={{ borderColor: 'var(--accent-border)' }}
+                >
+                  {gpsLoading ? 'Locking...' : 'Lock GPS'}
+                </button>
+              </div>
+              {gpsStatus && (
+                <p className="text-[9px] font-mono accent-text border-t border-black/5 dark:border-white/5 pt-1 mt-0.5 truncate">
+                  {gpsStatus}
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* SECTION 4: STORAGE, CACHE, AND CACHE INVALIDATION (Direct on Canvas) */}
+        <section className="space-y-2 bg-transparent">
+          <div className="flex items-center gap-2 px-1 pb-1 border-b border-rose-500/20">
             <RotateCcw className="w-4 h-4 text-rose-500" />
-            <h2 className="text-xs font-black uppercase text-rose-400">DANGER ZONE & CACHE INVALIDATION</h2>
+            <h2 className="text-xs font-black uppercase text-rose-500">DANGER ZONE & CACHE INVALIDATION</h2>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 p-2 bg-slate-900/60 rounded-xl">
+          <div className="card dashboard-item ig-glass-card glass-card-light flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 p-3 rounded-2xl">
             <div>
-              <h3 className="text-[11px] font-black text-white">Reset Local App Cache</h3>
-              <p className="text-[9px] text-slate-400 mt-0.5 leading-normal">Wipe custom routines, logged exercises, steps progress, sleep history and re-initialize state.</p>
+              <h3 className="text-[11px] font-black text-inherit">Reset Local App Cache</h3>
+              <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-normal">
+                Wipe custom routines, logged exercises, steps progress, sleep history and re-initialize state.
+              </p>
             </div>
             <button
               type="button"
@@ -503,8 +591,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               Wipe State
             </button>
           </div>
-        </div>
-
+        </section>
       </div>
     </div>
   );

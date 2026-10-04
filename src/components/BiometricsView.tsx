@@ -69,6 +69,11 @@ export const BiometricsView: React.FC<BiometricsViewProps> = ({
   // Active modal drawer for zero-scroll single-screen
   const [activeModal, setActiveModal] = useState<'scale' | 'bmi' | 'body-comp' | 'bmr-tdee' | 'macros' | 'bpl-radar' | null>(null);
 
+  // Enforce default collapsed state on tab switch / mount
+  React.useEffect(() => {
+    setActiveModal(null);
+  }, []);
+
   // Local state for smooth fluid typing in modals
   const [localWeightStr, setLocalWeightStr] = useState<string>(
     profile.weightKg > 0 ? (isMetric ? profile.weightKg.toString() : units.kgToLbs(profile.weightKg).toString()) : ''
@@ -137,67 +142,47 @@ export const BiometricsView: React.FC<BiometricsViewProps> = ({
   };
 
   return (
-    <div className="h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden p-2 sm:p-3 pb-3 sm:pb-4 max-w-7xl mx-auto w-full gap-2 select-none">
+    <div className="flex-1 min-h-full flex flex-col justify-start overflow-y-auto p-2 sm:p-3 pb-16 max-w-7xl mx-auto w-full gap-2.5 select-none">
       {/* 1. TOP HEADER & ATHLETE BIO SUMMARY (Compact) */}
-      <div className="ig-glass-card rounded-2xl p-2.5 sm:p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border border-white/10 shadow-sm shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+      <div className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-2.5 sm:p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="pill w-8 h-8 rounded-xl flex items-center justify-center text-cyan-500 dark:text-cyan-400 shrink-0">
             <Activity className="w-4 h-4" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <h2 className="text-xs sm:text-sm font-black text-white tracking-tight">Biometrics & Body Intelligence</h2>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-400/20 text-cyan-300 font-bold border border-cyan-400/30 uppercase">
+              <h2 className="text-xs sm:text-sm font-black text-inherit tracking-tight">Biometrics & Body Intelligence</h2>
+              <span className="pill text-[10px] font-mono px-1.5 py-0.5 rounded-lg text-cyan-600 dark:text-cyan-300 font-bold uppercase">
                 BPL {bplData.score}/100 · {bplData.tier}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 truncate">
+            <p className="text-[11px] text-slate-400 leading-snug mt-0.5">
               {profile.name || 'Athlete'} · {ageData.displayText} · {hasLoggedWeight ? `${profile.weightKg}kg` : '0kg'} · BMI {bmiData.bmi} ({bmiData.category})
             </p>
           </div>
         </div>
-
-        <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
-          <button
-            type="button"
-            onClick={onOpenPhysiqueScanner}
-            className="px-3 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-black text-xs rounded-xl shadow-sm transition-all flex items-center gap-1 cursor-pointer active:scale-95 shrink-0"
-          >
-            <Camera className="w-3.5 h-3.5" />
-            <span>Scan Physique</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveModal('scale')}
-            className="px-3 py-1.5 text-black font-black text-xs rounded-xl shadow-sm transition-all flex items-center gap-1 cursor-pointer active:scale-95 shrink-0"
-            style={{ backgroundColor: 'var(--accent-hex)' }}
-          >
-            <Scale className="w-3.5 h-3.5" />
-            <span>Update Scale & Bio</span>
-          </button>
-        </div>
       </div>
 
-      {/* 2. MAIN 6-WIDGET ZERO-SCROLL BENTO GRID */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 flex-1 min-h-0 overflow-hidden">
+      {/* 2. MAIN 6-WIDGET BENTO GRID */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 shrink-0">
         {/* WIDGET 1: Scale Weight & Height */}
         <div
           onClick={() => setActiveModal('scale')}
-          className="ig-glass-card rounded-2xl p-3 flex flex-col justify-between border border-white/10 shadow-sm cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
+          className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-3 flex flex-col justify-between cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
         >
           <div className="flex items-center justify-between text-[10px] font-mono text-cyan-400 font-bold uppercase">
             <span>Body Scale</span>
-            <Scale className="w-3.5 h-3.5 text-cyan-400" />
+            <Scale className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
           </div>
-          <div className="my-1">
-            <div className="text-2xl font-black font-mono text-white tabular-nums">
+          <div className="my-1.5 space-y-0.5">
+            <div className="text-xl sm:text-2xl font-black font-mono text-inherit tabular-nums leading-tight">
               {hasLoggedWeight ? (isMetric ? `${profile.weightKg} kg` : `${units.kgToLbs(profile.weightKg)} lbs`) : '0 kg'}
             </div>
-            <div className="text-[11px] font-mono text-slate-300 mt-0.5 truncate">
-              {hasLoggedHeight ? `${profile.heightCm} cm (${heightFtIn.feet}'${heightFtIn.inches}")` : 'Height: 0cm'}
+            <div className="text-[11px] font-mono text-slate-300 leading-snug">
+              {hasLoggedHeight ? `${profile.heightCm} cm (${heightFtIn.feet}'${heightFtIn.inches}")` : 'Height: 0 cm'}
             </div>
           </div>
-          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/10">
+          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-white/10">
             <span>{isMetric ? 'Metric' : 'Imperial'}</span>
             <span className="text-cyan-400 font-bold">Edit Bio →</span>
           </div>
@@ -206,22 +191,22 @@ export const BiometricsView: React.FC<BiometricsViewProps> = ({
         {/* WIDGET 2: BMI Spectrum & Category */}
         <div
           onClick={() => setActiveModal('bmi')}
-          className="ig-glass-card rounded-2xl p-3 flex flex-col justify-between border border-white/10 shadow-sm cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
+          className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-3 flex flex-col justify-between cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
         >
           <div className="flex items-center justify-between text-[10px] font-mono text-emerald-400 font-bold uppercase">
             <span>BMI Index</span>
-            <Activity className="w-3.5 h-3.5 text-emerald-400" />
+            <Activity className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           </div>
-          <div className="my-1">
-            <div className="text-2xl font-black font-mono text-white tabular-nums">
+          <div className="my-1.5 space-y-0.5">
+            <div className="text-xl sm:text-2xl font-black font-mono text-inherit tabular-nums leading-tight">
               {bmiData.bmi}
             </div>
-            <div className="text-[11px] font-bold text-emerald-300 mt-0.5 truncate">
+            <div className="text-[11px] font-bold text-emerald-400 leading-snug">
               {bmiData.category}
             </div>
           </div>
-          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/10">
-            <span>Optimal: 18.5–24.9</span>
+          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-white/10">
+            <span>18.5–24.9</span>
             <span className="text-emerald-400 font-bold">Spectrum →</span>
           </div>
         </div>
@@ -229,22 +214,22 @@ export const BiometricsView: React.FC<BiometricsViewProps> = ({
         {/* WIDGET 3: Body Composition & Lean Mass */}
         <div
           onClick={() => setActiveModal('body-comp')}
-          className="ig-glass-card rounded-2xl p-3 flex flex-col justify-between border border-white/10 shadow-sm cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
+          className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-3 flex flex-col justify-between cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
         >
           <div className="flex items-center justify-between text-[10px] font-mono text-violet-400 font-bold uppercase">
             <span>Body Comp</span>
-            <Percent className="w-3.5 h-3.5 text-violet-400" />
+            <Percent className="w-3.5 h-3.5 text-violet-400 shrink-0" />
           </div>
-          <div className="my-1">
-            <div className="text-2xl font-black font-mono text-white tabular-nums">
-              {bodyComp.bodyFatPct > 0 ? `${bodyComp.bodyFatPct}%` : '0%'} <span className="text-xs text-slate-400 font-normal">Fat</span>
+          <div className="my-1.5 space-y-0.5">
+            <div className="text-xl sm:text-2xl font-black font-mono text-inherit tabular-nums leading-tight">
+              {bodyComp.bodyFatPct > 0 ? `${bodyComp.bodyFatPct}% Fat` : '0% Fat'}
             </div>
-            <div className="text-[11px] font-mono text-slate-300 mt-0.5 truncate">
+            <div className="text-[11px] font-mono text-slate-300 leading-snug">
               Lean: {bodyComp.leanBodyMassKg}kg · FFMI {bodyComp.ffmi}
             </div>
           </div>
-          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/10">
-            <span>Fat Mass: {bodyComp.fatMassKg}kg</span>
+          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-white/10">
+            <span>Fat: {bodyComp.fatMassKg}kg</span>
             <span className="text-violet-400 font-bold">Details →</span>
           </div>
         </div>
@@ -252,22 +237,24 @@ export const BiometricsView: React.FC<BiometricsViewProps> = ({
         {/* WIDGET 4: BMR & TDEE Metabolism */}
         <div
           onClick={() => setActiveModal('bmr-tdee')}
-          className="ig-glass-card rounded-2xl p-3 flex flex-col justify-between border border-white/10 shadow-sm cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
+          className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-3 flex flex-col justify-between cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
         >
           <div className="flex items-center justify-between text-[10px] font-mono text-amber-400 font-bold uppercase">
             <span>TDEE Burn</span>
-            <Flame className="w-3.5 h-3.5 text-amber-400" />
+            <Flame className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           </div>
-          <div className="my-1">
-            <div className="text-2xl font-black font-mono text-white tabular-nums">
-              {tdee} <span className="text-xs text-slate-400 font-normal">kcal</span>
+          <div className="my-1.5 space-y-0.5">
+            <div className="text-xl sm:text-2xl font-black font-mono text-inherit tabular-nums leading-tight">
+              {tdee} kcal
             </div>
-            <div className="text-[11px] font-mono text-slate-300 mt-0.5 truncate">
-              {hasLoggedWeight && hasLoggedHeight ? `BMR ${bmrData.mifflinStJeor} kcal · ${profile.activityLevel}` : 'Log weight & height'}
+            <div className="text-[11px] font-mono text-slate-300 leading-snug capitalize">
+              {hasLoggedWeight && hasLoggedHeight
+                ? `BMR ${bmrData.mifflinStJeor} kcal · ${profile.activityLevel.replace('_', ' ')} activity`
+                : 'Log weight & height'}
             </div>
           </div>
-          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/10">
-            <span>Harris-B: {bmrData.harrisBenedict}k</span>
+          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-white/10">
+            <span>HB: {bmrData.harrisBenedict} kcal</span>
             <span className="text-amber-400 font-bold">Formulas →</span>
           </div>
         </div>
@@ -275,16 +262,16 @@ export const BiometricsView: React.FC<BiometricsViewProps> = ({
         {/* WIDGET 5: Macro Targets & Nutrition Split */}
         <div
           onClick={() => setActiveModal('macros')}
-          className="ig-glass-card rounded-2xl p-3 flex flex-col justify-between border border-white/10 shadow-sm cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
+          className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-3 flex flex-col justify-between cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
         >
           <div className="flex items-center justify-between text-[10px] font-mono text-rose-400 font-bold uppercase">
             <span>Macro Split</span>
-            <Target className="w-3.5 h-3.5 text-rose-400" />
+            <Target className="w-3.5 h-3.5 text-rose-400 shrink-0" />
           </div>
 
           {/* 3-way Goal Selector Pill */}
           <div
-            className="my-1.5 w-full grid grid-cols-3 gap-1 p-1 bg-slate-900/80 rounded-lg overflow-hidden border border-white/10"
+            className="pill settings-item my-1.5 w-full grid grid-cols-3 gap-1 p-1 rounded-lg overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {[
@@ -298,10 +285,10 @@ export const BiometricsView: React.FC<BiometricsViewProps> = ({
                   key={g.id}
                   type="button"
                   onClick={() => onUpdateProfile({ ...profile, goal: g.id })}
-                  className={`w-full text-[9px] font-bold py-1.5 px-0.5 text-center truncate rounded-md transition-all select-none cursor-pointer ${
+                  className={`w-full text-[9px] font-bold py-1.5 px-0.5 text-center rounded-md transition-all select-none cursor-pointer leading-tight ${
                     isSelected
                       ? 'bg-rose-500 text-white shadow font-black'
-                      : 'text-slate-300 hover:text-white hover:bg-white/5'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-inherit hover:bg-black/5 dark:hover:bg-white/5'
                   }`}
                   title={`${g.label} Macro Goal`}
                 >
@@ -311,9 +298,9 @@ export const BiometricsView: React.FC<BiometricsViewProps> = ({
             })}
           </div>
 
-          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/10">
-            <span className="truncate max-w-[100px] text-rose-300 font-semibold">
-              Goal: {profile.goal === 'maintenance' ? 'Recomp' : profile.goal === 'lean_bulk' ? 'Lean Gain' : profile.goal === 'moderate_cut' ? 'Fat Loss' : 'Custom'}
+          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-white/10">
+            <span className="text-rose-400 font-semibold">
+              {profile.goal === 'maintenance' ? 'Recomp' : profile.goal === 'lean_bulk' ? 'Lean Gain' : profile.goal === 'moderate_cut' ? 'Fat Loss' : 'Custom'}
             </span>
             <span className="text-rose-400 font-bold shrink-0">Macros →</span>
           </div>
@@ -322,19 +309,23 @@ export const BiometricsView: React.FC<BiometricsViewProps> = ({
         {/* WIDGET 6: BPL Athletic Level & Performance Radar */}
         <div
           onClick={() => setActiveModal('bpl-radar')}
-          className="ig-glass-card rounded-2xl p-3 flex flex-col justify-between border border-white/10 shadow-sm cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
+          className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-3 flex flex-col justify-between cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
         >
           <div className="flex items-center justify-between text-[10px] font-mono text-cyan-400 font-bold uppercase">
             <span>BPL Radar</span>
-            <Zap className="w-3.5 h-3.5 text-cyan-400" />
+            <Zap className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
           </div>
-          <div className="my-1 text-center">
-            <div className="text-2xl font-black font-mono text-white">{bplData.score} / 100</div>
-            <span className="text-[10px] font-bold text-cyan-300 bg-cyan-500/20 px-2 py-0.5 rounded-full inline-block mt-0.5">
-              {bplData.tier} Tier
-            </span>
+          <div className="my-1.5 space-y-1">
+            <div className="text-xl sm:text-2xl font-black font-mono text-inherit tabular-nums leading-tight">
+              {bplData.score}/100 BPL
+            </div>
+            <div>
+              <span className="pill text-[10px] font-bold text-cyan-600 dark:text-cyan-300 px-2 py-0.5 rounded-full inline-block">
+                {bplData.tier} Tier
+              </span>
+            </div>
           </div>
-          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/10">
+          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-white/10">
             <span>Strength {strengthRatio}x</span>
             <span className="text-cyan-400 font-bold">Full Radar →</span>
           </div>

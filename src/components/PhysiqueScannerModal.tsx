@@ -219,3 +219,5 @@ export const PhysiqueScannerModal: React.FC<PhysiqueScannerModalProps> = ({
     </div>
   );
 };
+
+export const AiPhysiqueScannerModal = PhysiqueScannerModal;

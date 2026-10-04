@@ -210,7 +210,7 @@ export const AIWorkoutSection: React.FC<AIWorkoutSectionProps> = ({
 
     // 1. Check if user has historical recordings for this exact exercise
     const historyMatch = exerciseHistoryLogs.find(
-      (h) => h.exerciseName.toLowerCase().trim() === exercise.name.toLowerCase().trim()
+      (h) => (h.exerciseName || h.name || '').toLowerCase().trim() === exercise.name.toLowerCase().trim()
     );
 
     // 2. Check gym liftRecords
@@ -1130,7 +1130,7 @@ export const AIWorkoutSection: React.FC<AIWorkoutSectionProps> = ({
                 <div className="space-y-2">
                   <h4 className="text-xs font-bold text-white uppercase tracking-wider">Identified Weak Points</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {(analysis?.neglectedOrNeedsWork || ['Rotator Cuff External Rotation', 'Rear Delt Isolation', 'Soleus Calf Volume']).map((item, idx) => (
+                    {(analysis?.neglectedOrNeedsWork || ['Rotator Cuff External Rotation', 'Rear Delt Isolation', 'Soleus Calf Volume']).map((item: any, idx: number) => (
                       <div key={idx} className="p-2.5 rounded-xl bg-white/[0.04] border border-amber-500/20 text-xs font-bold text-amber-200 flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
                         <span>{item}</span>
@@ -1146,7 +1146,7 @@ export const AIWorkoutSection: React.FC<AIWorkoutSectionProps> = ({
                     'Add 4 sets of Cable Face Pulls at the end of upper body sessions.',
                     'Keep rest periods strictly under 120s on compound lifts.',
                     'Perform 2-second eccentrics on all bench press and squat variations.'
-                  ]).map((fix, idx) => (
+                  ]).map((fix: any, idx: number) => (
                     <div key={idx} className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 text-xs text-slate-200 flex items-start gap-2">
                       <span className="text-xs font-black accent-text shrink-0">{idx + 1}.</span>
                       <span className="leading-snug">{fix}</span>
@@ -1328,17 +1328,17 @@ export const AIWorkoutSection: React.FC<AIWorkoutSectionProps> = ({
                   <span>Logged Performance History</span>
                 </span>
                 <span className="text-[10px] font-mono text-slate-400">
-                  {exerciseHistoryLogs.filter((h) => h.exerciseName.toLowerCase().trim() === selectedExerciseToLog.exercise.name.toLowerCase().trim()).length} recorded
+                  {exerciseHistoryLogs.filter((h) => (h.exerciseName || h.name || '').toLowerCase().trim() === selectedExerciseToLog.exercise.name.toLowerCase().trim()).length} recorded
                 </span>
               </div>
               <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
-                {exerciseHistoryLogs.filter((h) => h.exerciseName.toLowerCase().trim() === selectedExerciseToLog.exercise.name.toLowerCase().trim()).length === 0 ? (
+                {exerciseHistoryLogs.filter((h) => (h.exerciseName || h.name || '').toLowerCase().trim() === selectedExerciseToLog.exercise.name.toLowerCase().trim()).length === 0 ? (
                   <div className="text-[11px] text-slate-500 py-3 text-center bg-white/[0.02] rounded-xl border border-white/5">
                     No past logs yet for this exercise. Tap "Save Set" to record your first set!
                   </div>
                 ) : (
                   exerciseHistoryLogs
-                    .filter((h) => h.exerciseName.toLowerCase().trim() === selectedExerciseToLog.exercise.name.toLowerCase().trim())
+                    .filter((h) => (h.exerciseName || h.name || '').toLowerCase().trim() === selectedExerciseToLog.exercise.name.toLowerCase().trim())
                     .map((item) => (
                       <div key={item.id} className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between text-xs">
                         <div>

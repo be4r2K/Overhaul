@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, ArrowRight, CheckCircle2, ChevronRight, HelpCircle } from 'lucide-react';
+import { Sparkles, ChevronRight, X, HelpCircle } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface OnboardingTourProps {
@@ -13,62 +13,66 @@ interface OnboardingTourProps {
 export const OnboardingTour: React.FC<OnboardingTourProps> = ({
   isOpen,
   onClose,
-  currentTab,
   onNavigateTab,
 }) => {
-  const [step, setStep] = React.useState(1);
+  const [step, setStep] = useState(1);
 
   if (!isOpen) return null;
 
   const tourSteps = [
     {
       id: 1,
-      title: "Step 1: Overhaul Fitness Dashboard",
+      title: "1. STATS & GRIDS TARGETS",
       targetTab: "dashboard",
-      description: "Welcome to your command center! Tapping any status widget (Water, Calorie rings, Steps ring) immediately expands it to display detailed metrics, suggestions, and logging tools.",
-      tip: "Try tapping on the Water widget later to test it out!"
+      description: "Keep track of today's hydration, sports calorie burn, and steps. Tapping any grid panel expands it for detailed analytics.",
+      tip: "Tap on any metric card to expand deep analytics!"
     },
     {
       id: 2,
-      title: "Step 2: Biometrics & AI Muscle Audits",
+      title: "2. BIOMETRICS & PHYSIQUE AUDIT",
       targetTab: "biometrics",
-      description: "Navigate to the Biometrics tab to track your weight, lean muscle percentages, and upload multi-angle physical check-in photos for instant AI Posture audits and dynamic strength rating scans.",
-      tip: "Unlogged muscle groups will display as 'Unassessed' until you log relevant exercises in the Tracker."
+      description: "Monitor body weight, BMI, and BPL athletic scores. Launch the AI Physique Scanner directly for muscular audits.",
+      tip: "Log lifts in the Tracker to unlock muscle ratings."
     },
     {
       id: 3,
-      title: "Step 3: Native Samsung Health Connect",
+      title: "3. HEALTH CONNECT & GPS SYNC",
       targetTab: "settings",
-      description: "Manage real-time hardware telemetry! Link your Google Account and Samsung Health Connect natively to fetch steps counts and sleep records in the background.",
-      tip: "Toggles are readily accessible inside your App Control Center settings page."
+      description: "Manage native telemetry and sensor sync. Enable Samsung Health & GPS lock to pull real-time data seamlessly.",
+      tip: "Accurate phone GPS gives real-time local weather."
     },
     {
       id: 4,
-      title: "Step 4: Social & Address Book Sync",
+      title: "4. SOCIAL & ATHLETE PASSCODES",
       targetTab: "friends",
-      description: "Sync with your fitness crew! Tap 'Sync Contacts' in the Social page to request native permission and discover address book contacts already registered as verified Overhaul athletes.",
-      tip: "Compete on the leaderboards based on your BPL scores!"
+      description: "Share your dynamic athlete passcode to connect with friends, sync address book contacts, and maintain daily streaks.",
+      tip: "Your dynamic passcode is derived from your name!"
     },
     {
       id: 5,
-      title: "Step 5: Overhaul AI Fitness Coach",
+      title: "5. AI SPLIT COACH (FLOATING FAB)",
       targetTab: "dashboard",
-      description: "Tap the floating Sparkles button at the bottom-right of any screen to slide up the real-time AI Workout Split Adaptor. Instruct the AI to skip leg day or adapt to your busy schedule.",
-      tip: "Try simulating voice dictation by clicking the Mic icon in the chat dock!"
+      description: "The floating Sparkles FAB opens the AI Workout Split Adaptor to instantly adapt workouts and discuss routines.",
+      tip: "Tap the spark FAB anytime to launch the coach."
     }
   ];
 
   const currentStepData = tourSteps[step - 1];
 
+  const handleDismiss = () => {
+    localStorage.setItem('hasCompletedTour', 'true');
+    localStorage.setItem('overhaul_onboarding_completed_v4', 'true');
+    onClose();
+  };
+
   const handleNext = () => {
-    if (step < 5) {
+    if (step < tourSteps.length) {
       const nextStep = step + 1;
       setStep(nextStep);
       onNavigateTab(tourSteps[nextStep - 1].targetTab);
     } else {
-      // Complete Tour
-      confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
-      onClose();
+      confetti({ particleCount: 70, spread: 60, origin: { y: 0.7 } });
+      handleDismiss();
     }
   };
 
@@ -81,116 +85,89 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 select-none pointer-events-none font-sans">
-      {/* Dim overlay without heavy blur */}
-      <div className="absolute inset-0 bg-black/40 pointer-events-auto" onClick={onClose} />
-      
-      {/* Spotlight Effect - Purely visual focus */}
+    <div className="fixed inset-0 z-50 select-none font-sans pointer-events-none">
+      {/* Crisp, transparent light overlay without heavy blur */}
       <div 
-        className="absolute w-40 h-40 rounded-full border-2 border-white/20 shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] transition-all duration-500 ease-in-out pointer-events-none z-10"
-        style={{
-          top: currentStepData.targetTab === 'dashboard' ? '50%' : currentStepData.targetTab === 'biometrics' ? '30%' : '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          borderColor: 'var(--accent-hex)',
-          boxShadow: `0 0 0 9999px rgba(0,0,0,0.5), 0 0 20px var(--accent-hex)`
-        }}
+        className="absolute inset-0 bg-black/30 pointer-events-auto transition-opacity" 
+        onClick={handleDismiss} 
       />
 
-      {/* Directional Arrow */}
-      <motion.div
-        animate={{ y: [0, -10, 0] }}
-        transition={{ duration: 1.5, repeat: Infinity }}
-        className="absolute z-20 pointer-events-none"
-        style={{
-          top: 'calc(50% - 120px)',
-          left: '50%',
-          transform: 'translateX(-50%)'
-        }}
-      >
-        <ArrowRight className="w-8 h-8 rotate-90" style={{ color: 'var(--accent-hex)' }} />
-      </motion.div>
-
-      {/* Tour Modal - Sharp and Compact */}
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-sm rounded-2xl p-4 space-y-3 border bg-slate-900/95 border-white/20 shadow-2xl relative pointer-events-auto z-50 mt-40"
-        style={{
-          boxShadow: '0 10px 40px -10px rgba(0,0,0,0.5)'
-        }}
-      >
-        {/* Step Indicator Pill */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--accent-hex)' }} />
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-              System Tour
-            </span>
-          </div>
-          <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full bg-white/10 text-slate-300">
-            {step} / 5
-          </span>
-        </div>
-
-        {/* Tour Title */}
-        <div className="space-y-1">
-          <h2 className="text-sm font-black text-white uppercase tracking-tight">
-            {currentStepData.title}
-          </h2>
-          <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-            <div 
-              className="h-full transition-all duration-300 rounded-full"
-              style={{ 
-                width: `${(step / 5) * 100}%`,
-                backgroundColor: 'var(--accent-hex)'
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Tour Description Body */}
-        <div className="space-y-2 bg-white/[0.02] border border-white/5 p-3 rounded-xl">
-          <p className="text-[11px] text-slate-200 leading-normal font-medium">
-            {currentStepData.description}
-          </p>
-          <div className="flex items-start gap-1 text-[10px] text-amber-300/80 font-medium italic">
-            <HelpCircle className="w-3 h-3 shrink-0 mt-0.5" />
-            <span>{currentStepData.tip}</span>
-          </div>
-        </div>
-
-        {/* Tour Action Dock */}
-        <div className="flex items-center justify-between pt-1">
-          <button
-            type="button"
-            onClick={handlePrev}
-            disabled={step === 1}
-            className="px-3 py-1 rounded-lg text-[10px] font-bold text-slate-400 hover:text-white bg-white/5 disabled:opacity-30 cursor-pointer"
+      {/* Slim, Compact Tour Modal Card positioned near bottom above tab bar (No glowing spotlight rings) */}
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 max-w-[320px] w-[90vw] pointer-events-auto">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, y: 10, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.96 }}
+            transition={{ duration: 0.18 }}
+            className="rounded-2xl p-3.5 space-y-2 border border-white/20 bg-neutral-950 text-white shadow-2xl relative"
           >
-            Back
-          </button>
+            {/* Header with Step indicator and explicit 'X' Close Button */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--accent-hex, #10B981)' }} />
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-300 font-mono">
+                  QUICK TOUR · {step}/{tourSteps.length}
+                </span>
+              </div>
+              <button
+                onClick={handleDismiss}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                title="Close Tour"
+                aria-label="Close Tour"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3 py-1 rounded-lg text-[10px] font-bold text-slate-500 hover:text-slate-300 cursor-pointer"
-            >
-              Skip
-            </button>
-            <button
-              type="button"
-              onClick={handleNext}
-              className="px-4 py-1.5 rounded-lg text-black font-black text-[10px] uppercase flex items-center gap-1 shadow-md cursor-pointer transition-all active:scale-95"
-              style={{ backgroundColor: 'var(--accent-hex)' }}
-            >
-              <span>{step === 5 ? 'Start' : 'Next'}</span>
-              <ChevronRight className="w-3 h-3 stroke-[3]" />
-            </button>
-          </div>
-        </div>
-      </motion.div>
+            {/* Title & Description */}
+            <div className="space-y-1">
+              <h3 className="text-xs font-bold text-white uppercase tracking-tight font-sans">
+                {currentStepData.title}
+              </h3>
+              <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
+                {currentStepData.description}
+              </p>
+              <div className="flex items-center gap-1 text-[10px] text-amber-300/90 font-medium italic pt-0.5">
+                <HelpCircle className="w-3 h-3 shrink-0" />
+                <span className="truncate">{currentStepData.tip}</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-between pt-1 border-t border-white/10">
+              <button
+                type="button"
+                onClick={handlePrev}
+                disabled={step === 1}
+                className="px-2 py-1 rounded-lg text-[10px] font-bold text-slate-400 hover:text-white bg-white/5 disabled:opacity-20 cursor-pointer transition-colors"
+              >
+                Back
+              </button>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleDismiss}
+                  className="px-2 py-1 rounded-lg text-[10px] font-bold text-slate-400 hover:text-white cursor-pointer transition-colors"
+                >
+                  Skip
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  className="px-3 py-1.5 rounded-xl text-black font-extrabold text-[10px] uppercase flex items-center gap-1 shadow-md cursor-pointer transition-all active:scale-95"
+                  style={{ backgroundColor: 'var(--accent-hex, #10B981)' }}
+                >
+                  <span>{step === tourSteps.length ? 'Finish' : 'Next'}</span>
+                  <ChevronRight className="w-3 h-3 stroke-[3]" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      </div>
     </div>
   );
 };

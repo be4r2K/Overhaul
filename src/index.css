@@ -1,500 +1,622 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
 
-:root {
-  --accent-hex: #10b981;
-  --accent-hover: #34d399;
-  --accent-light: rgba(16, 185, 129, 0.15);
-  --accent-border: rgba(16, 185, 129, 0.4);
-  --ig-gradient: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+@layer base {
+  :root {
+    --bg-app-base: #050508;
+    --accent-hex: #10B981;
+    --accent-rgb: 16, 185, 129;
+    --accent-hover: #34D399;
+    --accent-light: rgba(16, 185, 129, 0.16);
+    --accent-border: rgba(16, 185, 129, 0.45);
+    --accent-glow: rgba(16, 185, 129, 0.35);
+    --accent-specular: rgba(16, 185, 129, 0.25);
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    min-height: 100vh;
+    background-color: var(--bg-app-base) !important;
+    color: #f8fafc;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
 }
 
-/* Dynamic Accent Color Engine per data-accent attribute */
-html[data-accent="cyberpunk_pink"],
-body[data-accent="cyberpunk_pink"],
-[data-accent="cyberpunk_pink"] {
-  --accent-hex: #ff2a85 !important;
-  --accent-hover: #ff5c9f !important;
-  --accent-light: rgba(255, 42, 133, 0.16) !important;
-  --accent-border: rgba(255, 42, 133, 0.45) !important;
+/* ==========================================================================
+   1. BASE BODY CANVAS (AMBIENT RADIAL ACCENT GLOW)
+   ========================================================================== */
+html.dark,
+body.dark,
+html.dark-mode,
+body.dark-mode,
+html[data-theme="dark"],
+body[data-theme="dark"] {
+  --bg-app-base: #08080C;
+  background:
+    radial-gradient(circle at 50% 95%, rgba(var(--accent-rgb), 0.18) 0%, transparent 45%),
+    radial-gradient(circle at 50% 20%, rgba(var(--accent-rgb), 0.25) 0%, #08080C 70%) !important;
+  background-color: #08080C !important;
+  color: #f8fafc;
 }
 
-html[data-accent="electric_teal"],
-body[data-accent="electric_teal"],
-[data-accent="electric_teal"] {
-  --accent-hex: #00f0ff !important;
-  --accent-hover: #4df3ff !important;
-  --accent-light: rgba(0, 240, 255, 0.16) !important;
-  --accent-border: rgba(0, 240, 255, 0.45) !important;
+html.light,
+body.light,
+html.light-mode,
+body.light-mode,
+html[data-theme="light"],
+body[data-theme="light"] {
+  --bg-app-base: #F1F5F9;
+  background:
+    radial-gradient(circle at 50% 95%, rgba(var(--accent-rgb), 0.16) 0%, transparent 45%),
+    radial-gradient(circle at 50% 20%, rgba(var(--accent-rgb), 0.22) 0%, transparent 65%),
+    linear-gradient(180deg, #F1F5F9 0%, #E2E8F0 100%) !important;
+  background-color: #F1F5F9 !important;
+  color: #0f172a;
 }
 
-html[data-accent="inferno_orange"],
-body[data-accent="inferno_orange"],
-[data-accent="inferno_orange"] {
-  --accent-hex: #ff4500 !important;
-  --accent-hover: #ff6733 !important;
-  --accent-light: rgba(255, 69, 0, 0.16) !important;
-  --accent-border: rgba(255, 69, 0, 0.45) !important;
+#root,
+.app-root-container,
+main,
+section,
+.grid,
+.card-container,
+.dashboard-layout,
+.app-screen-container {
+  background-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
-html[data-accent="acid_green"],
-body[data-accent="acid_green"],
-[data-accent="acid_green"] {
-  --accent-hex: #76ff03 !important;
-  --accent-hover: #99ff33 !important;
-  --accent-light: rgba(118, 255, 3, 0.16) !important;
-  --accent-border: rgba(118, 255, 3, 0.45) !important;
+#root,
+.app-root-container {
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  padding-bottom: 0 !important;
 }
 
-html[data-accent="solar_yellow"],
-body[data-accent="solar_yellow"],
-[data-accent="solar_yellow"] {
-  --accent-hex: #FFD700 !important;
-  --accent-hover: #FFE44D !important;
-  --accent-light: rgba(255, 215, 0, 0.16) !important;
-  --accent-border: rgba(255, 215, 0, 0.45) !important;
+body.nav-bars-hidden main,
+body.nav-bars-hidden .overflow-y-auto {
+  padding-bottom: 0.5rem !important;
 }
 
-html[data-accent="toxic_green"],
-body[data-accent="toxic_green"],
-[data-accent="toxic_green"] {
-  --accent-hex: #39FF14 !important;
-  --accent-hover: #66FF47 !important;
-  --accent-light: rgba(57, 255, 20, 0.16) !important;
-  --accent-border: rgba(57, 255, 20, 0.45) !important;
+/* ==========================================================================
+   2. DASHBOARD-ONLY TOP "OVERHAUL" HEADER WORDMARK
+   ========================================================================== */
+header {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
-html[data-accent="deep_sapphire"],
-body[data-accent="deep_sapphire"],
-[data-accent="deep_sapphire"] {
-  --accent-hex: #0F52BA !important;
-  --accent-hover: #256CEC !important;
-  --accent-light: rgba(15, 82, 186, 0.16) !important;
-  --accent-border: rgba(15, 82, 186, 0.45) !important;
+[data-active-tab]:not([data-active-tab="dashboard"]) header,
+[data-active-tab]:not([data-active-tab="dashboard"]) .top-overhaul-header {
+  display: none !important;
 }
 
-html[data-accent="crimson_red"],
-body[data-accent="crimson_red"],
-[data-accent="crimson_red"] {
-  --accent-hex: #DC143C !important;
-  --accent-hover: #E8415F !important;
-  --accent-light: rgba(220, 20, 60, 0.16) !important;
-  --accent-border: rgba(220, 20, 60, 0.45) !important;
+/* ==========================================================================
+   3. KEYBOARD AUTO-HIDE & MODAL-ACTIVE HIDING FOR AI FAB
+   ========================================================================== */
+@media (max-height: 520px) {
+  .keyboard-auto-hide,
+  .bottom-nav-container,
+  .floating-ai-fab {
+    display: none !important;
+  }
 }
 
-html[data-accent="ultra_violet"],
-body[data-accent="ultra_violet"],
-[data-accent="ultra_violet"] {
-  --accent-hex: #7928ca !important;
-  --accent-hover: #9b4de8 !important;
-  --accent-light: rgba(121, 40, 202, 0.16) !important;
-  --accent-border: rgba(121, 40, 202, 0.45) !important;
+body.keyboard-open .keyboard-auto-hide,
+body.keyboard-open .bottom-nav-container,
+body.keyboard-open .floating-ai-fab {
+  display: none !important;
+  pointer-events: none !important;
 }
 
-html[data-accent="emerald"],
-body[data-accent="emerald"],
-[data-accent="emerald"] {
-  --accent-hex: #10b981 !important;
-  --accent-hover: #34d399 !important;
-  --accent-light: rgba(16, 185, 129, 0.16) !important;
-  --accent-border: rgba(16, 185, 129, 0.45) !important;
+body:has(.glass-modal) .floating-ai-fab,
+body:has(.fixed.inset-0.z-50) .floating-ai-fab,
+body:has([role="dialog"]) .floating-ai-fab,
+body.modal-open .floating-ai-fab {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
-html[data-accent="cyan"],
-body[data-accent="cyan"],
-[data-accent="cyan"] {
-  --accent-hex: #06b6d4 !important;
-  --accent-hover: #22d3ee !important;
-  --accent-light: rgba(6, 182, 212, 0.16) !important;
-  --accent-border: rgba(6, 182, 212, 0.45) !important;
+/* ==========================================================================
+   4. UNIVERSAL LIQUID GLASS ENGINE (.liquid-glass-enabled PROPAGATION)
+   ========================================================================== */
+
+/* DARK MODE (LIQUID GLASS ON) */
+html.dark.liquid-glass-enabled .card,
+html.dark.liquid-glass-enabled .pill,
+html.dark.liquid-glass-enabled .dashboard-card,
+html.dark.liquid-glass-enabled .dashboard-item,
+html.dark.liquid-glass-enabled .settings-group,
+html.dark.liquid-glass-enabled .settings-item,
+html.dark.liquid-glass-enabled .metric-box,
+html.dark.liquid-glass-enabled .glass-nav-bar,
+html.dark.liquid-glass-enabled .nav-bar,
+html.dark.liquid-glass-enabled .ai-fab,
+html.dark.liquid-glass-enabled .ig-glass-card,
+html.dark.liquid-glass-enabled .glass-card,
+html.dark.liquid-glass-enabled .glass-card-light,
+html.dark.liquid-glass-enabled .glass-panel,
+html.dark.liquid-glass-enabled .sensor-card,
+html.dark.liquid-glass-enabled .glass-input-light,
+html.dark.liquid-glass-enabled .bottom-nav-container nav,
+body.dark.liquid-glass-enabled .card,
+body.dark.liquid-glass-enabled .pill,
+body.dark.liquid-glass-enabled .dashboard-card,
+body.dark.liquid-glass-enabled .dashboard-item,
+body.dark.liquid-glass-enabled .settings-group,
+body.dark.liquid-glass-enabled .settings-item,
+body.dark.liquid-glass-enabled .metric-box,
+body.dark.liquid-glass-enabled .glass-nav-bar,
+body.dark.liquid-glass-enabled .nav-bar,
+body.dark.liquid-glass-enabled .ai-fab,
+body.dark.liquid-glass-enabled .ig-glass-card,
+body.dark.liquid-glass-enabled .glass-card,
+body.dark.liquid-glass-enabled .glass-card-light,
+body.dark.liquid-glass-enabled .glass-panel,
+body.dark.liquid-glass-enabled .sensor-card,
+body.dark.liquid-glass-enabled .glass-input-light,
+body.dark.liquid-glass-enabled .bottom-nav-container nav,
+[data-theme="dark"]:not([data-glass="false"]) .card,
+[data-theme="dark"]:not([data-glass="false"]) .pill,
+[data-theme="dark"]:not([data-glass="false"]) .dashboard-card,
+[data-theme="dark"]:not([data-glass="false"]) .dashboard-item,
+[data-theme="dark"]:not([data-glass="false"]) .settings-group,
+[data-theme="dark"]:not([data-glass="false"]) .settings-item,
+[data-theme="dark"]:not([data-glass="false"]) .metric-box,
+[data-theme="dark"]:not([data-glass="false"]) .glass-nav-bar,
+[data-theme="dark"]:not([data-glass="false"]) .nav-bar,
+[data-theme="dark"]:not([data-glass="false"]) .ai-fab,
+[data-theme="dark"]:not([data-glass="false"]) .ig-glass-card,
+[data-theme="dark"]:not([data-glass="false"]) .glass-card,
+[data-theme="dark"]:not([data-glass="false"]) .glass-card-light,
+[data-theme="dark"]:not([data-glass="false"]) .glass-panel,
+[data-theme="dark"]:not([data-glass="false"]) .sensor-card,
+[data-theme="dark"]:not([data-glass="false"]) .glass-input-light,
+[data-theme="dark"]:not([data-glass="false"]) .bottom-nav-container nav {
+  background: rgba(22, 22, 34, 0.40) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border: 1px solid rgba(var(--accent-rgb), 0.25) !important;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 15px rgba(var(--accent-rgb), 0.12) !important;
 }
 
-html[data-accent="violet"],
-body[data-accent="violet"],
-[data-accent="violet"] {
-  --accent-hex: #8b5cf6 !important;
-  --accent-hover: #a78bfa !important;
-  --accent-light: rgba(139, 92, 246, 0.16) !important;
-  --accent-border: rgba(139, 92, 246, 0.45) !important;
+/* LIGHT MODE (LIQUID GLASS ON) */
+html.light-mode.liquid-glass-enabled .card,
+html.light-mode.liquid-glass-enabled .pill,
+html.light-mode.liquid-glass-enabled .dashboard-card,
+html.light-mode.liquid-glass-enabled .dashboard-item,
+html.light-mode.liquid-glass-enabled .settings-group,
+html.light-mode.liquid-glass-enabled .settings-item,
+html.light-mode.liquid-glass-enabled .metric-box,
+html.light-mode.liquid-glass-enabled .glass-nav-bar,
+html.light-mode.liquid-glass-enabled .nav-bar,
+html.light-mode.liquid-glass-enabled .ai-fab,
+html.light-mode.liquid-glass-enabled .ig-glass-card,
+html.light-mode.liquid-glass-enabled .glass-card,
+html.light-mode.liquid-glass-enabled .glass-card-light,
+html.light-mode.liquid-glass-enabled .glass-panel,
+html.light-mode.liquid-glass-enabled .sensor-card,
+html.light-mode.liquid-glass-enabled .glass-input-light,
+html.light-mode.liquid-glass-enabled .bottom-nav-container nav,
+body.light-mode.liquid-glass-enabled .card,
+body.light-mode.liquid-glass-enabled .pill,
+body.light-mode.liquid-glass-enabled .dashboard-card,
+body.light-mode.liquid-glass-enabled .dashboard-item,
+body.light-mode.liquid-glass-enabled .settings-group,
+body.light-mode.liquid-glass-enabled .settings-item,
+body.light-mode.liquid-glass-enabled .metric-box,
+body.light-mode.liquid-glass-enabled .glass-nav-bar,
+body.light-mode.liquid-glass-enabled .nav-bar,
+body.light-mode.liquid-glass-enabled .ai-fab,
+body.light-mode.liquid-glass-enabled .ig-glass-card,
+body.light-mode.liquid-glass-enabled .glass-card,
+body.light-mode.liquid-glass-enabled .glass-card-light,
+body.light-mode.liquid-glass-enabled .glass-panel,
+body.light-mode.liquid-glass-enabled .sensor-card,
+body.light-mode.liquid-glass-enabled .glass-input-light,
+body.light-mode.liquid-glass-enabled .bottom-nav-container nav,
+html.light.liquid-glass-enabled .card,
+html.light.liquid-glass-enabled .pill,
+html.light.liquid-glass-enabled .dashboard-card,
+html.light.liquid-glass-enabled .dashboard-item,
+html.light.liquid-glass-enabled .settings-group,
+html.light.liquid-glass-enabled .settings-item,
+html.light.liquid-glass-enabled .metric-box,
+html.light.liquid-glass-enabled .glass-nav-bar,
+html.light.liquid-glass-enabled .nav-bar,
+html.light.liquid-glass-enabled .ai-fab,
+html.light.liquid-glass-enabled .ig-glass-card,
+html.light.liquid-glass-enabled .glass-card,
+html.light.liquid-glass-enabled .glass-card-light,
+html.light.liquid-glass-enabled .glass-panel,
+html.light.liquid-glass-enabled .sensor-card,
+html.light.liquid-glass-enabled .glass-input-light,
+html.light.liquid-glass-enabled .bottom-nav-container nav,
+body.light.liquid-glass-enabled .card,
+body.light.liquid-glass-enabled .pill,
+body.light.liquid-glass-enabled .dashboard-card,
+body.light.liquid-glass-enabled .dashboard-item,
+body.light.liquid-glass-enabled .settings-group,
+body.light.liquid-glass-enabled .settings-item,
+body.light.liquid-glass-enabled .metric-box,
+body.light.liquid-glass-enabled .glass-nav-bar,
+body.light.liquid-glass-enabled .nav-bar,
+body.light.liquid-glass-enabled .ai-fab,
+body.light.liquid-glass-enabled .ig-glass-card,
+body.light.liquid-glass-enabled .glass-card,
+body.light.liquid-glass-enabled .glass-card-light,
+body.light.liquid-glass-enabled .glass-panel,
+body.light.liquid-glass-enabled .sensor-card,
+body.light.liquid-glass-enabled .glass-input-light,
+body.light.liquid-glass-enabled .bottom-nav-container nav,
+[data-theme="light"]:not([data-glass="false"]) .card,
+[data-theme="light"]:not([data-glass="false"]) .pill,
+[data-theme="light"]:not([data-glass="false"]) .dashboard-card,
+[data-theme="light"]:not([data-glass="false"]) .dashboard-item,
+[data-theme="light"]:not([data-glass="false"]) .settings-group,
+[data-theme="light"]:not([data-glass="false"]) .settings-item,
+[data-theme="light"]:not([data-glass="false"]) .metric-box,
+[data-theme="light"]:not([data-glass="false"]) .glass-nav-bar,
+[data-theme="light"]:not([data-glass="false"]) .nav-bar,
+[data-theme="light"]:not([data-glass="false"]) .ai-fab,
+[data-theme="light"]:not([data-glass="false"]) .ig-glass-card,
+[data-theme="light"]:not([data-glass="false"]) .glass-card,
+[data-theme="light"]:not([data-glass="false"]) .glass-card-light,
+[data-theme="light"]:not([data-glass="false"]) .glass-panel,
+[data-theme="light"]:not([data-glass="false"]) .sensor-card,
+[data-theme="light"]:not([data-glass="false"]) .glass-input-light,
+[data-theme="light"]:not([data-glass="false"]) .bottom-nav-container nav {
+  background: rgba(255, 255, 255, 0.65) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border: 1px solid rgba(var(--accent-rgb), 0.28) !important;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08), 0 0 15px rgba(var(--accent-rgb), 0.10) !important;
 }
 
-html[data-accent="amber"],
-body[data-accent="amber"],
-[data-accent="amber"] {
-  --accent-hex: #f59e0b !important;
-  --accent-hover: #fbbf24 !important;
-  --accent-light: rgba(245, 158, 11, 0.16) !important;
-  --accent-border: rgba(245, 158, 11, 0.45) !important;
-}
-
-html[data-accent="rose"],
-body[data-accent="rose"],
-[data-accent="rose"] {
-  --accent-hex: #f43f5e !important;
-  --accent-hover: #fb7185 !important;
-  --accent-light: rgba(244, 63, 94, 0.16) !important;
-  --accent-border: rgba(244, 63, 94, 0.45) !important;
-}
-
-html[data-accent="blue"],
-body[data-accent="blue"],
-[data-accent="blue"] {
-  --accent-hex: #3b82f6 !important;
-  --accent-hover: #60a5fa !important;
-  --accent-light: rgba(59, 130, 246, 0.16) !important;
-  --accent-border: rgba(59, 130, 246, 0.45) !important;
-}
-
-html[data-accent="cyber_violet"],
-body[data-accent="cyber_violet"],
-[data-accent="cyber_violet"] {
-  --accent-hex: #d946ef !important;
-  --accent-hover: #e879f9 !important;
-  --accent-light: rgba(217, 70, 239, 0.16) !important;
-  --accent-border: rgba(217, 70, 239, 0.45) !important;
-}
-
-html[data-accent="acid_lime"],
-body[data-accent="acid_lime"],
-[data-accent="acid_lime"] {
-  --accent-hex: #84cc16 !important;
-  --accent-hover: #a3e635 !important;
-  --accent-light: rgba(132, 204, 22, 0.16) !important;
-  --accent-border: rgba(132, 204, 22, 0.45) !important;
-}
-
-html[data-accent="blood_orange"],
-body[data-accent="blood_orange"],
-[data-accent="blood_orange"] {
-  --accent-hex: #ff5722 !important;
-  --accent-hover: #ff7043 !important;
-  --accent-light: rgba(255, 87, 34, 0.16) !important;
-  --accent-border: rgba(255, 87, 34, 0.45) !important;
-}
-
-/* Comprehensive Accent Overrides for Instant Color Changes Everywhere across all pages */
-.accent-text,
-.text-emerald-400,
-.text-emerald-300,
-.text-emerald-500,
-.group-hover\:text-emerald-400:hover,
-.group:hover .group-hover\:text-emerald-400 {
-  color: var(--accent-hex) !important;
-}
-
-.accent-bg,
-.bg-emerald-400,
-.bg-emerald-500 {
-  background-color: var(--accent-hex) !important;
-  color: #000000 !important;
-}
-
-.hover\:bg-emerald-300:hover,
-.hover\:bg-emerald-400:hover {
-  background-color: var(--accent-hover) !important;
-}
-
-.accent-bg-light,
-.bg-emerald-500\/10,
-.bg-emerald-500\/15,
-.bg-emerald-500\/20 {
-  background-color: var(--accent-light) !important;
-}
-
-.accent-border,
-.border-emerald-500\/20,
-.border-emerald-500\/30,
-.border-emerald-500\/40,
-.border-emerald-500\/50,
-.border-emerald-400 {
+[data-theme="light"] .ig-glass-card:hover,
+[data-theme="dark"] .ig-glass-card:hover {
   border-color: var(--accent-border) !important;
 }
 
-.accent-stroke,
-.stroke-emerald-400,
-.stroke-emerald-500 {
-  stroke: var(--accent-hex) !important;
+/* ==========================================================================
+   5. COMPREHENSIVE MODAL SYSTEM (LIGHT & DARK MODE LIQUID GLASS)
+   ========================================================================== */
+[data-theme="dark"] .glass-modal,
+[data-theme="dark"] .fixed.inset-0.z-50 > .bg-slate-900 {
+  background: rgba(18, 18, 28, 0.55) !important;
+  background-color: rgba(18, 18, 28, 0.55) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45) !important;
+  color: #f8fafc !important;
 }
 
-.accent-fill,
-.fill-emerald-400,
-.fill-emerald-400\/20 {
-  fill: var(--accent-hex) !important;
+[data-theme="light"] .glass-modal,
+[data-theme="light"] .fixed.inset-0.z-50 > .bg-slate-900 {
+  background: rgba(255, 255, 255, 0.60) !important;
+  background-color: rgba(255, 255, 255, 0.60) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border: 1px solid rgba(15, 23, 42, 0.14) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.09) !important;
+  color: #0f172a !important;
 }
 
-.ring-emerald-400,
-.ring-emerald-500 {
-  --tw-ring-color: var(--accent-hex) !important;
+[data-theme="light"] .fixed.inset-0.z-50 {
+  background-color: rgba(15, 23, 42, 0.35) !important;
 }
 
-.shadow-emerald-500\/20 {
-  box-shadow: 0 8px 16px -2px var(--accent-light) !important;
+/* Light Mode Typography & Input Contrast Enforcement */
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] h4,
+[data-theme="light"] label,
+[data-theme="light"] .modal-title,
+[data-theme="light"] .text-white {
+  color: #0f172a !important;
 }
 
-input[type="range"] {
-  accent-color: var(--accent-hex) !important;
+[data-theme="light"] input,
+[data-theme="light"] textarea,
+[data-theme="light"] select {
+  color: #0f172a !important;
 }
 
-[data-font="inter"] {
-  font-family: 'Inter', sans-serif !important;
-}
-[data-font="space_grotesk"] {
-  font-family: 'Space Grotesk', sans-serif !important;
-}
-[data-font="cinzel"] {
-  font-family: 'Cinzel', serif !important;
-}
-[data-font="rubik"] {
-  font-family: 'Rubik', sans-serif !important;
-}
-[data-font="mono"] {
-  font-family: 'JetBrains Mono', monospace !important;
-}
-[data-font="display"] {
-  font-family: 'Space Grotesk', system-ui, sans-serif !important;
-  letter-spacing: -0.015em;
-}
-[data-font="sans"] {
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
+[data-theme="light"] .glass-modal .text-slate-400,
+[data-theme="light"] .glass-modal .text-slate-500 {
+  color: #475569 !important;
 }
 
-/* Global Font Overrides for High-Fidelity UI */
-body,
-html,
-button,
-input,
-select,
-textarea {
-  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif !important;
+[data-theme="light"] .glass-modal .text-slate-300 {
+  color: #334155 !important;
 }
 
-.font-mono,
-code,
-pre,
-kbd,
-samp {
-  font-family: 'JetBrains Mono', monospace !important;
+/* Nested Modal Sub-Cards & Panels */
+[data-theme="dark"] .glass-card-nested {
+  background-color: rgba(18, 18, 28, 0.55) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45) !important;
 }
 
-/* iOS-Style Liquid Glassmorphism Utilities with raw WebKit support */
-.liquid-glass,
-.glass-card,
-.glass-panel,
-.ig-glass-card,
-.glass-popup,
-.glass-modal,
-.ig-glass {
-  background: rgba(255, 255, 255, 0.06) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.15), 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+[data-theme="light"] .glass-card-nested {
+  background-color: rgba(255, 255, 255, 0.60) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border: 1px solid rgba(15, 23, 42, 0.14) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.09) !important;
 }
 
-.liquid-glass:hover,
-.glass-card:hover,
-.ig-glass-card:hover {
-  background: rgba(255, 255, 255, 0.12) !important;
-  border-color: rgba(255, 255, 255, 0.25) !important;
+[data-theme="light"] .glass-modal .bg-white\/\[0\.04\],
+[data-theme="light"] .glass-modal .bg-white\/\[0\.06\],
+[data-theme="light"] .glass-modal .bg-white\/5,
+[data-theme="light"] .glass-modal .bg-white\/10,
+[data-theme="light"] .bg-slate-900,
+[data-theme="light"] .bg-slate-950 {
+  background-color: rgba(255, 255, 255, 0.60) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border: 1px solid rgba(15, 23, 42, 0.14) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.95) !important;
 }
 
-.glass-pill {
-  background-color: rgba(255, 255, 255, 0.07) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-  backdrop-filter: blur(12px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+/* Modal Inputs & Form Controls */
+[data-theme="dark"] .modal-input {
+  background-color: rgba(18, 18, 28, 0.55) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
+  color: #f8fafc !important;
 }
 
-/* Graceful degradation rules for Dark OLED mode */
-html[data-theme="dark"] .glass-panel,
-html[data-theme="dark"] .glass-card,
-html[data-theme="dark"] .ig-glass-card,
-html[data-theme="dark"] .ig-glass,
-html[data-theme="dark"] .liquid-glass {
-  background-color: #09090b !important;
+[data-theme="dark"] .modal-input:focus {
+  border-color: var(--accent-hex, #10b981) !important;
+}
+
+[data-theme="dark"] .modal-input::placeholder {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .modal-input,
+[data-theme="light"] .glass-input-light {
+  background: rgba(255, 255, 255, 0.60) !important;
+  background-color: rgba(255, 255, 255, 0.60) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border: 1px solid rgba(15, 23, 42, 0.14) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.09) !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .modal-input:focus,
+[data-theme="light"] .glass-input-light:focus {
+  border-color: var(--accent-hex, #10b981) !important;
+  box-shadow: 0 0 0 2px var(--accent-light, rgba(16, 185, 129, 0.15)) !important;
+}
+
+[data-theme="light"] .modal-input::placeholder,
+[data-theme="light"] .glass-input-light::placeholder {
+  color: #64748b !important;
+}
+
+/* Modal Close & Secondary Action Buttons */
+[data-theme="dark"] .modal-close-btn,
+[data-theme="dark"] .modal-secondary-btn {
+  background-color: rgba(18, 18, 28, 0.55) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .modal-close-btn:hover,
+[data-theme="dark"] .modal-secondary-btn:hover {
+  background-color: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .modal-close-btn,
+[data-theme="light"] .modal-secondary-btn {
+  background-color: rgba(255, 255, 255, 0.60) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border: 1px solid rgba(15, 23, 42, 0.14) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.95) !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .modal-close-btn:hover,
+[data-theme="light"] .modal-secondary-btn:hover {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  color: #000000 !important;
+}
+
+/* General Light Mode Typography Contrast Enforcement */
+[data-theme="light"] .text-slate-100,
+[data-theme="light"] .text-slate-200,
+[data-theme="light"] .text-zinc-100,
+[data-theme="light"] .text-zinc-200 {
+  color: #1e293b !important;
+}
+
+[data-theme="light"] .text-slate-300,
+[data-theme="light"] .text-slate-400,
+[data-theme="light"] .text-zinc-400 {
+  color: #475569 !important;
+}
+
+/* ==========================================================================
+   6. SOLID FLAT FALLBACK (LIQUID GLASS OFF)
+   ========================================================================== */
+[data-theme="dark"][data-glass="false"] .card,
+[data-theme="dark"][data-glass="false"] .pill,
+[data-theme="dark"][data-glass="false"] .dashboard-item,
+[data-theme="dark"][data-glass="false"] .settings-item,
+[data-theme="dark"][data-glass="false"] .nav-bar,
+[data-theme="dark"][data-glass="false"] .ai-fab,
+[data-theme="dark"][data-glass="false"] .glass-panel,
+[data-theme="dark"][data-glass="false"] .ig-glass-card,
+[data-theme="dark"][data-glass="false"] .glass-card,
+[data-theme="dark"][data-glass="false"] .glass-modal,
+[data-theme="dark"][data-glass="false"] .bottom-nav-container nav {
+  background: #0b0c10 !important;
+  background-color: #0b0c10 !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   box-shadow: none !important;
 }
 
-html[data-theme="dark"] .glass-modal,
-html[data-theme="dark"] .glass-popup {
-  background-color: #000000 !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9) !important;
-}
-
-html[data-theme="dark"] .glass-pill {
-  background-color: #18181b !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-}
-
-/* Translucent Glass Appearance Theme Option */
-html[data-theme="glass"],
-body[data-theme="glass"],
-.glass-theme {
-  background: linear-gradient(135deg, #09090b 0%, #020617 50%, #0f172a 100%) !important;
-  background-attachment: fixed !important;
-  color: #f8fafc !important;
-}
-
-html[data-theme="glass"] .glass-card,
-html[data-theme="glass"] .ig-glass-card,
-body[data-theme="glass"] .glass-card,
-body[data-theme="glass"] .ig-glass-card,
-.glass-theme .glass-card,
-.glass-theme .ig-glass-card,
-html[data-theme="glass"] .glass-popup,
-html[data-theme="glass"] .glass-modal,
-html[data-theme="glass"] .ig-glass,
-body[data-theme="glass"] .glass-popup,
-body[data-theme="glass"] .glass-modal,
-body[data-theme="glass"] .ig-glass,
-.glass-theme .glass-popup,
-.glass-theme .glass-modal,
-.glass-theme .ig-glass,
-html[data-theme="glass"] .liquid-glass,
-body[data-theme="glass"] .liquid-glass,
-.glass-theme .liquid-glass {
-  background: rgba(255, 255, 255, 0.06) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.15), 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
-}
-
-html[data-theme="glass"] .glass-card:hover,
-html[data-theme="glass"] .ig-glass-card:hover,
-html[data-theme="glass"] .liquid-glass:hover {
-  background: rgba(255, 255, 255, 0.12) !important;
-  border-color: rgba(255, 255, 255, 0.25) !important;
-}
-
-.ig-story-ring {
-  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
-}
-
-.ig-gradient-text {
-  background: linear-gradient(45deg, #f09433 0%, #e6683c 30%, #dc2743 60%, #bc1888 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-/* Smooth zoom transition for the card that becomes big */
-@keyframes cardScaleUp {
-  0% {
-    opacity: 0;
-    transform: scale(0.92) translateY(14px);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-.animate-card-expand {
-  animation: cardScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* Light Theme overrides with Instagram-grade frosted glass */
-html[data-theme="light"] {
-  color-scheme: light;
-}
-
-html[data-theme="light"] body {
-  background-color: #f8fafc !important;
-  color: #0f172a !important;
-}
-
-html[data-theme="light"] .ig-glass,
-html[data-theme="light"] .ig-glass-card {
-  background: rgba(255, 255, 255, 0.75) !important;
-  backdrop-filter: blur(24px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
-  border-color: rgba(0, 0, 0, 0.08) !important;
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05) !important;
-}
-
-html[data-theme="light"] .ig-glass-card:hover {
-  background: rgba(255, 255, 255, 0.9) !important;
-  border-color: rgba(0, 0, 0, 0.15) !important;
-}
-
-html[data-theme="light"] .bg-slate-950 {
-  background-color: #f1f5f9 !important;
-  color: #0f172a !important;
-}
-
-html[data-theme="light"] .bg-slate-900,
-html[data-theme="light"] .bg-slate-900\/80,
-html[data-theme="light"] .bg-slate-900\/70,
-html[data-theme="light"] .bg-slate-900\/60 {
-  background-color: rgba(255, 255, 255, 0.8) !important;
-  color: #0f172a !important;
-  border-color: rgba(0, 0, 0, 0.08) !important;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
-}
-
-html[data-theme="light"] .bg-slate-950\/70,
-html[data-theme="light"] .bg-slate-950\/60,
-html[data-theme="light"] .bg-slate-950\/50,
-html[data-theme="light"] .bg-slate-950\/80,
-html[data-theme="light"] .bg-slate-950\/40 {
-  background-color: rgba(241, 245, 249, 0.8) !important;
-  border-color: rgba(0, 0, 0, 0.08) !important;
-}
-
-html[data-theme="light"] .border-slate-800,
-html[data-theme="light"] .border-slate-800\/80,
-html[data-theme="light"] .border-slate-800\/70,
-html[data-theme="light"] .border-slate-800\/60,
-html[data-theme="light"] .border-slate-800\/90 {
-  border-color: rgba(0, 0, 0, 0.08) !important;
-}
-
-html[data-theme="light"] .border-slate-700 {
-  border-color: #cbd5e1 !important;
-}
-
-html[data-theme="light"] .text-white {
-  color: #0f172a !important;
-}
-
-html[data-theme="light"] .text-slate-100 {
-  color: #0f172a !important;
-}
-
-html[data-theme="light"] .text-slate-200 {
-  color: #1e293b !important;
-}
-
-html[data-theme="light"] .text-slate-300 {
-  color: #334155 !important;
-}
-
-html[data-theme="light"] .text-slate-400 {
-  color: #64748b !important;
-}
-
-html[data-theme="light"] .text-slate-500 {
-  color: #94a3b8 !important;
-}
-
-html[data-theme="light"] input,
-html[data-theme="light"] select,
-html[data-theme="light"] textarea {
+[data-theme="light"][data-glass="false"] .card,
+[data-theme="light"][data-glass="false"] .pill,
+[data-theme="light"][data-glass="false"] .dashboard-item,
+[data-theme="light"][data-glass="false"] .settings-item,
+[data-theme="light"][data-glass="false"] .nav-bar,
+[data-theme="light"][data-glass="false"] .ai-fab,
+[data-theme="light"][data-glass="false"] .glass-panel,
+[data-theme="light"][data-glass="false"] .ig-glass-card,
+[data-theme="light"][data-glass="false"] .glass-card,
+[data-theme="light"][data-glass="false"] .glass-card-light,
+[data-theme="light"][data-glass="false"] .glass-modal,
+[data-theme="light"][data-glass="false"] .bottom-nav-container nav {
+  background: #ffffff !important;
   background-color: #ffffff !important;
-  color: #0f172a !important;
-  border-color: #cbd5e1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(15, 23, 42, 0.14) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
 }
 
-html[data-theme="light"] header {
-  background-color: rgba(255, 255, 255, 0.75) !important;
-  backdrop-filter: blur(20px) !important;
-  border-color: rgba(0, 0, 0, 0.06) !important;
+/* ==========================================================================
+   7. DYNAMIC ACCENT COLOR UTILITIES & SCROLLBAR
+   ========================================================================== */
+.accent-text {
+  color: var(--accent-hex, #10B981) !important;
+}
+
+.accent-bg {
+  background-color: var(--accent-hex, #10B981) !important;
+}
+
+.accent-border {
+  border-color: var(--accent-hex, #10B981) !important;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* ==========================================================================
+   8. CIRCLE ELEMENTS LIGHT & DARK MODE CONTRAST
+   ========================================================================== */
+[data-theme="light"] .bpl-score-circle {
+  background-color: rgba(255, 255, 255, 0.60) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border: 1px solid rgba(15, 23, 42, 0.14) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.09) !important;
+}
+
+[data-theme="light"] .bpl-score-circle .bpl-number {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .bpl-score-circle .bpl-label {
+  color: #0f172a !important;
+}
+
+[data-theme="dark"] .bpl-score-circle {
+  background-color: rgba(18, 18, 28, 0.55) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
+}
+
+[data-theme="dark"] .bpl-score-circle .bpl-number {
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .bpl-score-circle .bpl-label {
+  color: #a78bfa !important;
+}
+
+[data-theme="light"] .avatar-circle {
+  background-color: rgba(255, 255, 255, 0.60) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border: 1px solid rgba(15, 23, 42, 0.14) !important;
+  color: #0f172a !important;
+}
+
+[data-theme="dark"] .avatar-circle {
+  background-color: rgba(18, 18, 28, 0.55) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+}
+
+/* ==========================================================================
+   9. ANIMATED TOP-RIGHT STREAK LIGHTNING BADGE (@keyframes lightningFlash)
+   ========================================================================== */
+@keyframes lightningFlash {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: drop-shadow(0 0 2px #EAB308);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(1.15);
+    filter: drop-shadow(0 0 8px #EAB308);
+  }
+}
+
+.lightning-flash-svg {
+  animation: lightningFlash 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lightning-flash-svg {
+    animation: none !important;
+  }
 }

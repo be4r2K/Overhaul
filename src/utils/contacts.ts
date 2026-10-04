@@ -1,50 +1,142 @@
+import { Capacitor } from '@capacitor/core';
 import { Contacts } from '@capacitor-community/contacts';
+import { NativeSettings, AndroidSettings, IOSSettings } from 'capacitor-native-settings';
 import { Toast } from '@capacitor/toast';
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('Native permission request timed out'));
+    }, timeoutMs);
+
+    promise
+      .then((res) => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
 /**
- * Checks if the Contacts plugin is loaded and available on the platform.
+ * Opens the native Android Application Details settings page so the user can enable Contacts directly in System Settings.
+ */
+export async function openNativeAppSettings(): Promise<void> {
+  try {
+    await NativeSettings.open({
+      optionAndroid: AndroidSettings.ApplicationDetails,
+      optionIOS: IOSSettings.App,
+      ...({ option: 'applicationDetails' } as any),
+    });
+    return;
+  } catch (err) {
+    console.warn('NativeSettings.open fallback:', err);
+  }
+
+  try {
+    const win = window as any;
+    if (win.AndroidNativeBridge && typeof win.AndroidNativeBridge.openAppSettings === 'function') {
+      win.AndroidNativeBridge.openAppSettings();
+    }
+  } catch {}
+}
+
+/**
+ * Checks if the Contacts plugin is loaded and available on the native platform.
  */
 export async function isContactsAvailable(): Promise<boolean> {
   try {
-    if (
-      typeof window !== 'undefined' &&
-      (window as any).Capacitor &&
-      typeof (window as any).Capacitor.isPluginAvailable === 'function' &&
-      (window as any).Capacitor.isPluginAvailable('Contacts')
-    ) {
-      return true;
+    return Capacitor.isNativePlatform() || Boolean((window as any).AndroidNativeBridge);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Checks whether native contacts permission is currently granted by the Android OS.
+ */
+export async function checkContactsPermissionsGranted(): Promise<boolean> {
+  try {
+    if (Capacitor.isNativePlatform() && Contacts && typeof Contacts.checkPermissions === 'function') {
+      const status = await withTimeout(Contacts.checkPermissions(), 3000);
+      if (status && status.contacts === 'granted') {
+        return true;
+      }
+    }
+    const win = window as any;
+    if (win.AndroidNativeBridge && typeof win.AndroidNativeBridge.hasContactsPermission === 'function') {
+      return Boolean(win.AndroidNativeBridge.hasContactsPermission());
     }
   } catch (e) {
-    console.warn('Capacitor Contacts plugin check bypassed:', e);
+    console.warn('checkContactsPermissions error:', e);
   }
   return false;
 }
 
 /**
- * Requests native contact reading permissions.
+ * Executes Capacitor's native runtime permission request directly: `await Contacts.requestPermissions()`.
+ * - If Android returns `prompt` or `granted`, immediately opens the native OS permission sheet via `Contacts.requestPermissions()`.
+ * - If Android has permanently blocked the prompt (`denied`), opens `NativeSettings.open({ option: Option.applicationDetails })`
+ *   so the user can enable Contacts directly in System Settings.
  */
 export async function requestContactsPermissions(): Promise<boolean> {
   try {
-    if (await isContactsAvailable()) {
-      if (Contacts && typeof Contacts.requestPermissions === 'function') {
-        const permission = await Contacts.requestPermissions();
-        const isGranted = permission.contacts === 'granted';
-        
-        if (!isGranted) {
-          try {
-            await Toast.show({
-              text: 'Contacts permission required to sync squad and find friends.',
-              duration: 'long'
-            });
-          } catch (e) {}
-        }
-        return isGranted;
+    // 1. Execute Capacitor's native runtime permission request directly
+    if (Contacts && typeof Contacts.requestPermissions === 'function') {
+      const startMs = Date.now();
+      const permission = await withTimeout(Contacts.requestPermissions(), 12000);
+      const elapsedMs = Date.now() - startMs;
+
+      if (permission && permission.contacts === 'granted') {
+        return true;
+      }
+
+      // If Android permanently blocked the prompt (returned 'denied' immediately without showing a sheet)
+      // or the user denied it, open Native App Settings directly so they can flip Contacts ON.
+      if (
+        permission?.contacts === 'denied' ||
+        permission?.contacts === 'prompt-with-rationale' ||
+        elapsedMs < 350
+      ) {
+        await openNativeAppSettings();
+        return false;
       }
     }
+
+    // 2. Fallback to AndroidNativeBridge if Capacitor plugin is unavailable
+    const win = window as any;
+    if (win.AndroidNativeBridge && typeof win.AndroidNativeBridge.requestContactsPermission === 'function') {
+      if (win.AndroidNativeBridge.hasContactsPermission()) {
+        return true;
+      }
+      win.AndroidNativeBridge.requestContactsPermission();
+      return false;
+    }
+
+    if (Capacitor.isNativePlatform()) {
+      await openNativeAppSettings();
+    } else {
+      Toast.show({
+        text: 'Contacts access requires permission',
+        duration: 'short',
+      }).catch(() => {});
+    }
+    return false;
   } catch (e) {
-    console.error('Failed to request contacts permissions:', e);
+    console.warn('Native Contacts.requestPermissions error or timeout:', e);
+    if (Capacitor.isNativePlatform()) {
+      await openNativeAppSettings();
+    } else {
+      Toast.show({
+        text: 'Contacts access requires permission',
+        duration: 'short',
+      }).catch(() => {});
+    }
+    return false;
   }
-  return false;
 }
 
 export interface CompactContact {
@@ -54,57 +146,58 @@ export interface CompactContact {
 }
 
 /**
- * Reads device contacts, mapping them to registered Overhaul users if phone number hashes match.
- * Falls back gracefully to high-fidelity mock matches in web/browser preview environments.
+ * Reads real device contacts ONLY when native OS permission is granted.
  */
 export async function fetchDeviceContacts(): Promise<CompactContact[]> {
   try {
-    if (await isContactsAvailable()) {
-      const hasPerms = await requestContactsPermissions();
-      if (!hasPerms) return [];
+    const hasPerms = await checkContactsPermissionsGranted();
+    if (!hasPerms) {
+      const requested = await requestContactsPermissions();
+      if (!requested) return [];
+    }
 
-      const { contacts } = await Contacts.getContacts({
-        projection: {
-          name: true,
-          phones: true,
-        } as any
-      });
-      
+    if (Contacts && typeof Contacts.getContacts === 'function') {
+      const { contacts } = await withTimeout(
+        Contacts.getContacts({
+          projection: {
+            name: true,
+            phones: true,
+            emails: true,
+          } as any,
+        }),
+        5000
+      );
+
       if (contacts && contacts.length > 0) {
         const mapped: CompactContact[] = [];
         contacts.forEach((c: any) => {
-          const display = c.name?.display || c.displayName || `${c.name?.given || ''} ${c.name?.family || ''}`.trim() || 'Unknown';
+          const display =
+            c.name?.display ||
+            c.displayName ||
+            `${c.name?.given || ''} ${c.name?.family || ''}`.trim();
           const phones = c.phones || [];
-          phones.forEach((p: any) => {
-            const num = p.number || p.value || '';
-            if (num) {
-              const cleanNum = num.replace(/\D/g, '');
-              const sumChars = cleanNum.split('').reduce((sum: number, ch: string) => sum + parseInt(ch, 10), 0);
-              mapped.push({
-                name: display,
-                phone: num,
-                isRegisteredUser: sumChars % 2 === 0 // Simulated matching algorithm
-              });
-            }
-          });
+          const emails = c.emails || [];
+          const phoneOrEmail =
+            phones[0]?.number ||
+            phones[0]?.value ||
+            emails[0]?.address ||
+            emails[0]?.value ||
+            '';
+
+          if (display && display !== 'Unknown') {
+            mapped.push({
+              name: display,
+              phone: phoneOrEmail,
+              isRegisteredUser: true,
+            });
+          }
         });
         return mapped;
       }
     }
   } catch (e) {
-    console.error('Native Contacts sync error:', e);
-    await Toast.show({
-      text: 'Contacts sync failed. Ensure plugin is correctly installed.',
-      duration: 'short'
-    });
+    console.warn('Native Contacts sync error:', e);
   }
 
-  // Premium Web Simulator fallback
-  return [
-    { name: 'Coach Marcus (Lifting Coach)', phone: '+1 (555) 019-2834', isRegisteredUser: true },
-    { name: 'Sarah Jenkins (Rower)', phone: '+1 (555) 489-1092', isRegisteredUser: true },
-    { name: 'David Goggins (Ultra-Marathoner)', phone: '+1 (555) 777-3849', isRegisteredUser: true },
-    { name: 'John Doe', phone: '+1 (555) 234-5678', isRegisteredUser: false },
-    { name: 'Jane Miller', phone: '+1 (555) 987-6543', isRegisteredUser: false }
-  ];
+  return [];
 }

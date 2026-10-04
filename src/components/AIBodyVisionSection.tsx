@@ -725,7 +725,7 @@ export const AIBodyVisionSection: React.FC<AIBodyVisionSectionProps> = ({
                 <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2">
                   <h4 className="text-xs font-bold text-white uppercase tracking-wider">Top Genetic Advantages</h4>
                   <div className="space-y-1">
-                    {safeAdvantages.map((adv, i) => (
+                    {safeAdvantages.map((adv: any, i: number) => (
                       <div key={i} className="flex items-center gap-2 text-xs text-emerald-300 font-medium">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                         <span>{adv}</span>

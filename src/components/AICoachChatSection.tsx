@@ -549,7 +549,10 @@ Tell me your constraints or injuries (e.g. "I play soccer 3x/wk, adjust my leg s
       </div>
 
       {/* 2. CHIPS & INPUT SECURE ANCHOR DOCK */}
-      <div className="p-3 border-t border-white/10 bg-slate-950/80 backdrop-blur-xl space-y-2 shrink-0">
+      <div
+        className="px-3 pt-3 pb-6 border-t border-white/10 bg-slate-950/80 backdrop-blur-xl space-y-2.5 shrink-0"
+        style={{ paddingBottom: '24px' }}
+      >
         
         {/* Quick Suggestion Chips: interactive neon-outlined pills */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-none shrink-0">

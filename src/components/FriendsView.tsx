@@ -20,6 +20,7 @@ import confetti from 'canvas-confetti';
 import { Friend, FriendPost, UserProfile, LiftRecord, SportActivity, DailyStepLog } from '../types/fitness';
 import { AIWorkoutAnalysisResult } from '../types/aiWorkout';
 import { t } from '../utils/i18n';
+import { generateUserPasscode, getAndUpdateDailyStreak } from '../utils/streak';
 
 interface FriendsViewProps {
   profile: UserProfile;
@@ -70,17 +71,33 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
   const [contactsSynced, setContactsSynced] = useState(false);
   const [addedContactCodes, setAddedContactCodes] = useState<string[]>([]);
 
-  // Absolute purge of mock athletes (Alex Rivera, Liam Carter, Sophia Martinez) from active state
+  // Enforce default collapsed state on tab switch / mount
+  React.useEffect(() => {
+    setActiveModal(null);
+  }, []);
+
+  const MOCK_NAMES = [
+    'Alex Rivera',
+    'Liam Carter',
+    'Sophia Martinez',
+    'Sarah Jenkins',
+    'Coach Marcus',
+    'David Goggins',
+    'John Doe',
+    'Jane Miller'
+  ];
+
+  // Absolute purge of mock athletes from active state
   React.useEffect(() => {
     const hasMock = friends.some((f) =>
-      ['Alex Rivera', 'Liam Carter', 'Sophia Martinez'].includes(f.name) ||
+      MOCK_NAMES.some((mockName) => f.name.toLowerCase().includes(mockName.toLowerCase())) ||
       ['ATHLETE-A3', 'ATHLETE-L1', 'ATHLETE-S2'].includes(f.friendCode)
     );
     if (hasMock) {
       onUpdateFriends(
         friends.filter(
           (f) =>
-            !['Alex Rivera', 'Liam Carter', 'Sophia Martinez'].includes(f.name) &&
+            !MOCK_NAMES.some((mockName) => f.name.toLowerCase().includes(mockName.toLowerCase())) &&
             !['ATHLETE-A3', 'ATHLETE-L1', 'ATHLETE-S2'].includes(f.friendCode)
         )
       );
@@ -91,7 +108,8 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
   const incomingRequests = friends.filter((f) => f.status === 'pending_incoming');
   const outgoingRequests = friends.filter((f) => f.status === 'pending_outgoing');
 
-  const myAthleteCode = profile.personalFriendCode || 'ATHLETE-7';
+  const myAthleteCode = generateUserPasscode(profile.name, profile.familyName, profile.personalFriendCode);
+  const streakInfo = getAndUpdateDailyStreak();
 
   // Strictly real verified athletes sorted by BPL Score descending
   const sortedRealAthletes = [...acceptedFriends].sort((a, b) => (b.bplScore || 0) - (a.bplScore || 0));
@@ -157,7 +175,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
       const cleanList = friends.filter(
         (f) =>
           f &&
-          !['Alex Rivera', 'Liam Carter', 'Sophia Martinez'].includes(f.name) &&
+          !MOCK_NAMES.some((mockName) => f.name.toLowerCase().includes(mockName.toLowerCase())) &&
           !['ATHLETE-A3', 'ATHLETE-L1', 'ATHLETE-S2'].includes(f.friendCode)
       );
 
@@ -166,9 +184,9 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
         .map((c, idx) => ({
           id: `friend-contact-${Date.now()}-${idx}`,
           name: c.name,
-          friendCode: `ATHLETE-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+          friendCode: generateUserPasscode(c.name),
           status: 'accepted' as const,
-          streak: 2,
+          streak: Math.max(1, (idx % 4) + 1),
           bplScore: 84,
           avatar: `https://images.unsplash.com/photo-${1500000000000 + Math.floor(Math.random() * 500000)}?w=150&auto=format&fit=crop&q=80`,
           bench1RM: 105,
@@ -180,9 +198,21 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
           sleepHours: 7.9,
         }));
 
-      onUpdateFriends([...cleanList, ...registeredMatches]);
-      confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
-      setContactsSynced(true);
+      if (registeredMatches.length > 0) {
+        onUpdateFriends([...cleanList, ...registeredMatches]);
+        confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+        setContactsSynced(true);
+      } else {
+        onUpdateFriends(cleanList);
+        setContactsSynced(true);
+        const { Toast } = await import('@capacitor/toast');
+        try {
+          await Toast.show({
+            text: 'No synced contacts found. Invite friends using your Athlete Passcode.',
+            duration: 'short'
+          });
+        } catch {}
+      }
     } catch (err) {
       console.warn('Contacts sync non-fatal:', err);
       setContactsSynced(true);
@@ -323,56 +353,58 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
   const targetsHitThisWeek = weekDaysActivity.filter((d) => d.status === 'done' || (d.status === 'today' && liftRecords.some(l => l.date === d.dateStr)) || d.status === 'rest').length;
 
   return (
-    <div className="h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden p-2 sm:p-3 pb-3 sm:pb-4 max-w-7xl mx-auto w-full gap-2 select-none">
+    <div className="flex-1 min-h-full flex flex-col justify-start overflow-y-auto p-2 sm:p-3 pb-16 max-w-7xl mx-auto w-full gap-2.5 select-none">
       {/* 1. TOP HEADER & COMMUNITY METADATA BAR (Compact) */}
-      <div className="ig-glass-card rounded-2xl p-2.5 sm:p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border border-white/10 shadow-sm shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center text-violet-400 shrink-0">
+      <div className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-2.5 sm:p-3 flex items-center justify-between gap-2.5 shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <div className="pill w-8 h-8 rounded-xl flex items-center justify-center text-violet-500 dark:text-violet-400 shrink-0">
             <Users className="w-4 h-4" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <h2 className="text-xs sm:text-sm font-black text-white tracking-tight">{t('social.hub', language)}</h2>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-violet-400/20 text-violet-300 font-bold border border-violet-400/30 uppercase">
-                {acceptedFriends.length} Connected Athletes
+              <h2 className="text-xs sm:text-sm font-black text-inherit tracking-tight">{t('social.hub', language)}</h2>
+              <span className="pill text-[10px] font-mono px-1.5 py-0.5 rounded-lg text-violet-600 dark:text-violet-300 font-bold uppercase">
+                {acceptedFriends.length} Athletes
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 truncate">
-              Your Passcode: <span className="text-white font-mono font-bold">{myAthleteCode}</span> · Squad Leaderboard
+            <p className="text-[11px] text-slate-400 leading-snug mt-0.5 break-words">
+              Your Passcode: <span className="text-inherit font-mono font-bold">{myAthleteCode}</span>
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+        <div className="flex items-center shrink-0">
           <button
             type="button"
             onClick={handleCopyCode}
-            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95 transition-all"
+            className="pill px-2.5 py-1.5 rounded-xl text-inherit text-[11px] font-bold flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all shrink-0"
           >
             {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copiedCode ? 'Copied' : 'My Passcode'}</span>
+            <span>{copiedCode ? 'Copied' : 'Copy Code'}</span>
           </button>
         </div>
       </div>
 
-      {/* 2. MAIN 6-WIDGET ZERO-SCROLL BENTO GRID */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 flex-1 min-h-0 overflow-hidden">
+      {/* 2. MAIN 6-WIDGET BENTO GRID */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 shrink-0">
         {/* WIDGET 1: Athlete Share Code & QR */}
         <div
           onClick={() => setActiveModal('my-code')}
-          className="ig-glass-card rounded-2xl p-3 flex flex-col justify-between border border-white/10 shadow-sm cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
+          className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-3 flex flex-col justify-between cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
         >
           <div className="flex items-center justify-between text-[10px] font-mono text-amber-400 font-bold uppercase">
             <span>Passcode</span>
-            <QrCode className="w-3.5 h-3.5 text-amber-400" />
+            <QrCode className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           </div>
-          <div className="my-1 text-center">
-            <span className="text-sm font-black font-mono text-white block tracking-wider">{myAthleteCode}</span>
-            <span className="text-[10px] font-mono text-amber-300 bg-amber-500/20 px-1.5 py-0.2 rounded-full inline-block mt-0.5">
+          <div className="my-2 flex flex-col items-center justify-center text-center gap-1">
+            <span className="text-xs sm:text-sm font-black font-mono text-inherit tracking-wide break-all leading-tight">
+              {myAthleteCode}
+            </span>
+            <span className="pill text-[10px] font-mono text-amber-600 dark:text-amber-300 px-2 py-0.5 rounded-full inline-block">
               1-Tap Share
             </span>
           </div>
-          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/10">
+          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-white/10">
             <span>Invite</span>
             <span className="text-amber-400 font-bold">QR & Share →</span>
           </div>
@@ -381,21 +413,23 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
         {/* WIDGET 2: Pending Requests & Approvals */}
         <div
           onClick={() => setActiveModal('requests')}
-          className="ig-glass-card rounded-2xl p-3 flex flex-col justify-between border border-white/10 shadow-sm cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
+          className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-3 flex flex-col justify-between cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
         >
           <div className="flex items-center justify-between text-[10px] font-mono text-rose-400 font-bold uppercase">
-            <span>Requests</span>
-            <UserPlus className="w-3.5 h-3.5 text-rose-400" />
+            <span>Friend Requests</span>
+            <UserPlus className="w-3.5 h-3.5 text-rose-400 shrink-0" />
           </div>
-          <div className="my-1 text-center">
-            <div className="text-2xl font-black font-mono text-white">
+          <div className="my-2 flex flex-col items-center justify-center text-center gap-0.5">
+            <div className="text-xl sm:text-2xl font-black font-mono text-inherit tabular-nums leading-tight">
               {incomingRequests.length + outgoingRequests.length}
             </div>
-            <span className="text-[10px] font-mono text-slate-300">
-              {incomingRequests.length} In · {outgoingRequests.length} Out
+            <span className="text-[10px] font-mono text-slate-300 leading-snug">
+              {incomingRequests.length + outgoingRequests.length === 0
+                ? 'No Pending Requests'
+                : `${incomingRequests.length} In · ${outgoingRequests.length} Out`}
             </span>
           </div>
-          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/10">
+          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-white/10">
             <span>Approvals</span>
             <span className="text-rose-400 font-bold">Manage →</span>
           </div>
@@ -404,25 +438,25 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
         {/* WIDGET 3: Athletic Podium Leaderboard */}
         <div
           onClick={() => setActiveModal('leaderboard')}
-          className="ig-glass-card rounded-2xl p-3 flex flex-col justify-between border border-white/10 shadow-sm cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
+          className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-3 flex flex-col justify-between cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
         >
           <div className="flex items-center justify-between text-[10px] font-mono text-violet-400 font-bold uppercase">
-            <span>Leaderboard</span>
-            <Trophy className="w-3.5 h-3.5 text-violet-400" />
+            <span>Squad Leaderboard</span>
+            <Trophy className="w-3.5 h-3.5 text-violet-400 shrink-0" />
           </div>
-          <div className="my-1 text-center">
+          <div className="my-2 flex flex-col items-center justify-center text-center">
             {acceptedFriends.length > 0 ? (
-              <div>
-                <div className="text-xl font-black font-mono text-white">
+              <div className="flex flex-col items-center gap-1">
+                <div className="text-base sm:text-lg font-black font-mono text-inherit leading-tight">
                   👑 {sortedRealAthletes[0].name.split(' ')[0]}
                 </div>
-                <span className="text-[10px] font-mono text-violet-300 bg-violet-500/20 px-1.5 py-0.5 rounded-full inline-block mt-0.5">
+                <span className="pill text-[10px] font-mono text-violet-600 dark:text-violet-300 px-2 py-0.5 rounded-full inline-block">
                   #{1} · BPL {sortedRealAthletes[0].bplScore}
                 </span>
               </div>
             ) : (
-              <div className="space-y-1.5 py-0.5">
-                <div className="text-xs sm:text-sm font-bold text-slate-200">Podium Empty</div>
+              <div className="w-full flex flex-col items-center justify-center text-center gap-1.5">
+                <div className="text-xs font-bold text-slate-300">Podium Empty</div>
                 <button
                   type="button"
                   onClick={async (e) => {
@@ -435,12 +469,12 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
                   title="Cross-reference device contacts for friends"
                 >
                   <Contact className="w-3.5 h-3.5 text-black shrink-0" />
-                  <span className="truncate">{isSyncingContacts ? 'Syncing Contacts...' : 'Sync Contacts to Find Friends'}</span>
+                  <span>{isSyncingContacts ? 'Syncing...' : 'Sync Contacts'}</span>
                 </button>
               </div>
             )}
           </div>
-          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/10">
+          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-white/10">
             <span>Squad Ranks</span>
             <span className="text-violet-400 font-bold">Podium →</span>
           </div>
@@ -449,21 +483,21 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
         {/* WIDGET 4: Community Activity Feed */}
         <div
           onClick={() => setActiveModal('feed')}
-          className="ig-glass-card rounded-2xl p-3 flex flex-col justify-between border border-white/10 shadow-sm cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
+          className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-3 flex flex-col justify-between cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
         >
           <div className="flex items-center justify-between text-[10px] font-mono text-cyan-400 font-bold uppercase">
             <span>Social Feed</span>
-            <MessageSquare className="w-3.5 h-3.5 text-cyan-400" />
+            <MessageSquare className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
           </div>
-          <div className="my-1">
-            <div className="text-2xl font-black font-mono text-white tabular-nums">
+          <div className="my-2 flex flex-col items-center justify-center text-center gap-0.5">
+            <div className="text-xl sm:text-2xl font-black font-mono text-inherit tabular-nums leading-tight">
               {friendPosts.length} <span className="text-xs text-slate-400 font-normal">Posts</span>
             </div>
-            <div className="text-[11px] text-slate-300 truncate">
-              {friendPosts.length > 0 ? friendPosts[0].description.slice(0, 22) + '...' : 'Post a workout PR!'}
+            <div className="text-[10px] text-slate-300 leading-snug">
+              {friendPosts.length > 0 ? friendPosts[0].description.slice(0, 24) : 'Post a workout PR!'}
             </div>
           </div>
-          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/10">
+          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-white/10">
             <span>Chalk Talk</span>
             <span className="text-cyan-400 font-bold">Open Feed →</span>
           </div>
@@ -472,17 +506,17 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
         {/* WIDGET 5: Add Athlete / Contact Sync */}
         <div
           onClick={() => setActiveModal('add-code')}
-          className="ig-glass-card rounded-2xl p-3 flex flex-col justify-between border border-white/10 shadow-sm cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
+          className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-3 flex flex-col justify-between cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
         >
           <div className="flex items-center justify-between text-[10px] font-mono text-emerald-400 font-bold uppercase">
             <span>Add Friend</span>
-            <UserPlus className="w-3.5 h-3.5 text-emerald-400" />
+            <UserPlus className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           </div>
-          <div className="my-1 text-center">
-            <span className="text-xs font-bold text-white block">Mutual Sync</span>
-            <span className="text-[10px] text-slate-400 block mt-0.5">Contacts & Code</span>
+          <div className="my-2 flex flex-col items-center justify-center text-center gap-0.5">
+            <span className="text-xs font-bold text-inherit block">Mutual Sync</span>
+            <span className="text-[10px] text-slate-400 block">Contacts & Code</span>
           </div>
-          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/10">
+          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-white/10">
             <span>Sync Contacts</span>
             <span className="text-emerald-400 font-bold">Connect →</span>
           </div>
@@ -491,19 +525,21 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
         {/* WIDGET 6: Daily Streak & Consistency */}
         <div
           onClick={() => setActiveModal('streaks')}
-          className="ig-glass-card rounded-2xl p-3 flex flex-col justify-between border border-white/10 shadow-sm cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
+          className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-3 flex flex-col justify-between cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
         >
           <div className="flex items-center justify-between text-[10px] font-mono text-amber-400 font-bold uppercase">
             <span>Streaks</span>
-            <Flame className="w-3.5 h-3.5 text-amber-400" />
+            <Flame className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           </div>
-          <div className="my-1 text-center">
-            <div className="text-2xl font-black font-mono text-white">7d Active</div>
-            <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full inline-block mt-0.5">
-              Squad Goal
+          <div className="my-2 flex flex-col items-center justify-center text-center gap-1">
+            <div className="text-xl sm:text-2xl font-black font-mono text-inherit leading-tight">
+              {streakInfo.currentStreak}d Active
+            </div>
+            <span className="pill text-[10px] font-bold text-amber-600 dark:text-amber-300 px-2 py-0.5 rounded-full inline-block">
+              {streakInfo.currentStreak > 1 ? 'Streak Burning' : 'Daily Streak'}
             </span>
           </div>
-          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/10">
+          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-white/10">
             <span>Consistency</span>
             <span className="text-amber-400 font-bold">Stats →</span>
           </div>
@@ -1086,20 +1122,22 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-0.5">
                 <span className="text-[10px] font-mono text-amber-300 uppercase block font-bold">Active Streak</span>
-                <span className="text-2xl font-black font-mono text-amber-400">7 Days</span>
-                <span className="text-[9px] text-slate-400 block">🔥 On Fire</span>
+                <span className="text-2xl font-black font-mono text-amber-400">{streakInfo.currentStreak} {streakInfo.currentStreak === 1 ? 'Day' : 'Days'}</span>
+                <span className="text-[9px] text-slate-400 block">🔥 Real-Time</span>
               </div>
 
               <div className="p-3 rounded-2xl bg-violet-500/10 border border-violet-500/30 space-y-0.5">
-                <span className="text-[10px] font-mono text-violet-300 uppercase block font-bold">All-Time Streak</span>
-                <span className="text-2xl font-black font-mono text-violet-400">24 Days</span>
-                <span className="text-[9px] text-slate-400 block">🏆 All-Time</span>
+                <span className="text-[10px] font-mono text-violet-300 uppercase block font-bold">Best Streak</span>
+                <span className="text-2xl font-black font-mono text-violet-400">{streakInfo.bestStreak} {streakInfo.bestStreak === 1 ? 'Day' : 'Days'}</span>
+                <span className="text-[9px] text-slate-400 block">🏆 Record</span>
               </div>
 
               <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-0.5">
                 <span className="text-[10px] font-mono text-emerald-300 uppercase block font-bold">Consistency Rate</span>
-                <span className="text-2xl font-black font-mono text-emerald-400">94%</span>
-                <span className="text-[9px] text-slate-400 block">⚡ Top Tier</span>
+                <span className="text-2xl font-black font-mono text-emerald-400">
+                  {Math.min(100, Math.round((targetsHitThisWeek / 7) * 100))}%
+                </span>
+                <span className="text-[9px] text-slate-400 block">⚡ {targetsHitThisWeek}/7 Days</span>
               </div>
             </div>
 

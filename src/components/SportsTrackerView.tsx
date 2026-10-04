@@ -53,6 +53,11 @@ export const SportsTrackerView: React.FC<SportsTrackerViewProps> = ({
 
   const [activeModal, setActiveModal] = useState<'log-sport' | 'sports-list' | 'steps-adjust' | 'analytics' | null>(null);
 
+  // Enforce default collapsed state on tab switch / mount
+  React.useEffect(() => {
+    setActiveModal(null);
+  }, []);
+
   // Form states
   const [activeFormTab, setActiveFormTab] = useState<SportType>('bike');
   const [title, setTitle] = useState('');

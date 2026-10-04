@@ -91,8 +91,8 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
   const [customName, setCustomName] = useState<string>('');
   const [customCategory, setCustomCategory] = useState<ExerciseCategory>('chest');
 
-  // Collapsible day accordion states: Day 1 expanded, Day 2 collapsed by default
-  const [expandedDays, setExpandedDays] = useState<{ day1: boolean; day2: boolean }>({ day1: true, day2: false });
+  // Collapsible day accordion states: strictly collapsed by default ({ day1: false, day2: false })
+  const [expandedDays, setExpandedDays] = useState<{ day1: boolean; day2: boolean }>({ day1: false, day2: false });
 
   // Inline exercise log state: tracks which exercise is currently expanded for inline logging
   const [inlineLoggingExercise, setInlineLoggingExercise] = useState<string | null>(null);
@@ -102,6 +102,13 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
   // Active modal drawer state matching Tracker cards 1-to-1:
   // 'live-execution' | 'muscle-ratings' | 'daily-highlights' | 'history' | null
   const [activeModal, setActiveModal] = useState<'live-execution' | 'muscle-ratings' | 'daily-highlights' | 'history' | null>(null);
+
+  // Enforce default collapsed state on tab switch / mount
+  useEffect(() => {
+    setExpandedDays({ day1: false, day2: false });
+    setInlineLoggingExercise(null);
+    setActiveModal(null);
+  }, []);
 
   // Read physique scan data from localStorage and listen to dynamic cross-app events
   const [bodyVisionData, setBodyVisionData] = useState<AIBodyVisionData | null>(() => {
@@ -357,7 +364,7 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
   const hasVisionScan = top3Podium.length > 0;
 
   return (
-    <div className="h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden p-2 sm:p-3 pb-3 sm:pb-4 max-w-7xl mx-auto w-full gap-2 select-none">
+    <div className="flex-1 min-h-full flex flex-col justify-start overflow-y-auto p-2 sm:p-3 pb-16 max-w-7xl mx-auto w-full gap-2.5 select-none">
       
       {/* 
         MAIN TRACKER BENTO GRID (TOP BANNER REMOVED):
@@ -368,12 +375,12 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
         3. DAILY HIGHLIGHTS -> Real-Time Daily Telemetry Drawer
         4. PERSONAL RECORDS -> PR Trophy Cabinet
       */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 flex-1 min-h-0 overflow-hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 shrink-0">
         
         {/* CARD 1: Refactored to "ACTIVE ROUTINE & EXECUTION" with clean low-detail preview */}
         <div
           onClick={() => setActiveModal('live-execution')}
-          className="ig-glass-card rounded-2xl p-3 flex flex-col justify-between border border-white/10 shadow-sm cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
+          className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-3 flex flex-col justify-between cursor-pointer hover:scale-[1.01] transition-all group relative"
         >
           <div className="flex items-center justify-between text-[10px] font-mono text-amber-400 font-bold uppercase">
             <span className="flex items-center gap-1.5">
@@ -383,34 +390,34 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
             <Dumbbell className="w-3.5 h-3.5 text-amber-400" />
           </div>
 
-          <div className="my-1 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm sm:text-base font-black text-white tracking-tight truncate">
+          <div className="my-1.5 space-y-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h3 className="text-sm sm:text-base font-black text-inherit tracking-tight leading-snug">
                 Day 1: Heavy Pressing & Pulling
               </h3>
-              <span className="text-[9px] font-mono font-bold text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded border border-amber-500/25 shrink-0">
+              <span className="pill text-[9px] font-mono font-bold text-amber-600 dark:text-amber-300 px-2 py-0.5 rounded-lg shrink-0">
                 Today's Split
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-1">
-              <span className="text-[10px] px-2 py-0.5 rounded-lg bg-white/5 border border-white/10 text-slate-300 font-medium">
+            <div className="flex flex-wrap items-center gap-1.5 py-0.5">
+              <span className="pill text-[10px] px-2.5 py-1 rounded-lg text-inherit font-medium leading-none">
                 Barbell Bench Press
               </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-lg bg-white/5 border border-white/10 text-slate-300 font-medium">
+              <span className="pill text-[10px] px-2.5 py-1 rounded-lg text-inherit font-medium leading-none">
                 Barbell Rows
               </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-lg bg-white/5 border border-white/10 text-slate-300 font-medium">
+              <span className="pill text-[10px] px-2.5 py-1 rounded-lg text-inherit font-medium leading-none">
                 Incline DB Press
               </span>
-              <span className="text-[10px] font-mono text-amber-400/90 font-bold px-1.5 py-0.5 rounded bg-amber-400/10">
+              <span className="pill text-[10px] font-mono text-amber-600 dark:text-amber-400 font-bold px-2 py-1 rounded-lg leading-none">
                 +3 more
               </span>
             </div>
 
-            <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between">
+            <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between gap-2">
               <span>Day 2: Calisthenics & Arms ready</span>
-              <span className="text-emerald-400 font-bold">
+              <span className="text-emerald-400 font-bold shrink-0">
                 {DEFAULT_DAY1_EXERCISES.filter((ex) => isMovementDoneThisWeek(ex.name)).length}/6 Done
               </span>
             </div>
@@ -418,26 +425,37 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
 
           <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-white/10">
             <span className="text-slate-400">2-Day Split Cycle</span>
-            <span className="px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold group-hover:bg-amber-500 group-hover:text-black transition-all flex items-center gap-1 shadow-sm">
+            <span className="pill px-2 py-0.5 rounded-lg text-amber-600 dark:text-amber-300 font-bold transition-all flex items-center gap-1">
               <span>Open Routine & Log Sets →</span>
             </span>
           </div>
         </div>
 
-        {/* CARD 2: Top Muscle Ratings -> Opens Muscle Rating Podium Drawer */}
+        {/* CARD 2: Top Muscle Ratings -> Opens Muscle Rating Podium Drawer or Direct Scanner Modal */}
         <div
           onClick={() => {
             if (hasVisionScan) {
               setActiveModal('muscle-ratings');
-            } else if (onNavigateToTab) {
-              onNavigateToTab('ai-coach-rating');
+            } else if (onOpenPhysiqueScanner) {
+              onOpenPhysiqueScanner();
             }
           }}
-          className="ig-glass-card rounded-2xl p-3 flex flex-col justify-between border border-white/10 shadow-sm cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
+          className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-3 flex flex-col justify-between cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
         >
           <div className="flex items-center justify-between text-[10px] font-mono text-cyan-400 font-bold uppercase">
             <span>Top Muscle Ratings</span>
-            <Trophy className="w-3.5 h-3.5 text-cyan-400" />
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onOpenPhysiqueScanner) onOpenPhysiqueScanner();
+              }}
+              className="pill p-1 rounded-lg text-cyan-500 dark:text-cyan-300 transition-all cursor-pointer active:scale-95 flex items-center justify-center"
+              title="Launch AI Physique Scanner"
+              aria-label="Launch AI Physique Scanner"
+            >
+              <Camera className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           {hasVisionScan ? (
@@ -483,32 +501,30 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
               )}
             </div>
           ) : (
-            <div className="my-1.5 p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-center space-y-1">
-              <Camera className="w-4 h-4 text-cyan-400 mx-auto" />
-              <p className="text-[11px] font-semibold text-cyan-200 leading-tight">
-                Upload physique check-in photos in AI Coach to reveal your Muscle Rating Podium.
+            <div className="pill my-1.5 p-2 rounded-xl text-center space-y-1">
+              <Camera className="w-4 h-4 text-cyan-500 dark:text-cyan-400 mx-auto" />
+              <p className="text-[11px] font-semibold text-slate-700 dark:text-cyan-200 leading-tight">
+                Upload check-in photos with the camera button to reveal your Muscle Rating Podium.
               </p>
             </div>
           )}
 
           <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1.5 border-t border-white/10">
-            <span>{hasVisionScan ? `${muscleRatingsList.length} Muscles Analyzed` : 'Scan Physique'}</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onOpenPhysiqueScanner) onOpenPhysiqueScanner();
-              }}
-              className="text-cyan-400 font-bold hover:translate-x-0.5 transition-transform cursor-pointer"
-            >
-              {hasVisionScan ? 'Full Podium →' : 'Scan Physique →'}
-            </button>
+            <span>{hasVisionScan ? `${muscleRatingsList.length} Muscles Analyzed` : 'Muscular Audit'}</span>
+            {hasVisionScan ? (
+              <span className="text-cyan-400 font-bold">Full Podium →</span>
+            ) : (
+              <span className="p-0.5 rounded-md text-cyan-400">
+                <Camera className="w-3.5 h-3.5 inline-block" />
+              </span>
+            )}
           </div>
         </div>
 
         {/* CARD 3: Daily Highlights -> Opens Real-Time Daily Telemetry Drawer */}
         <div
           onClick={() => setActiveModal('daily-highlights')}
-          className="ig-glass-card rounded-2xl p-3 flex flex-col justify-between border border-white/10 shadow-sm cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
+          className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-3 flex flex-col justify-between cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
         >
           <div className="flex items-center justify-between text-[10px] font-mono text-emerald-400 font-bold uppercase">
             <span>Daily Highlights</span>
@@ -547,7 +563,7 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
         {/* CARD 4: Personal Records -> Opens PR Trophy Cabinet */}
         <div
           onClick={() => setActiveModal('history')}
-          className="ig-glass-card rounded-2xl p-3 min-h-[72px] flex flex-col justify-between border border-white/10 shadow-sm cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
+          className="card dashboard-item ig-glass-card glass-card-light rounded-2xl p-3 min-h-[72px] flex flex-col justify-between cursor-pointer hover:scale-[1.01] transition-all group relative overflow-hidden"
         >
           <div className="flex items-center justify-between text-[10px] font-mono text-rose-400 font-bold uppercase">
             <span>Personal Records</span>
@@ -570,12 +586,12 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                 </div>
               </>
             ) : (
-              <div className="space-y-1 py-0.5">
-                <div className="text-xs font-bold text-slate-100 leading-snug group-hover:text-rose-300 transition-colors truncate" title="0 PRs Set — Log a session to unlock trophy cabinet.">
+              <div className="space-y-1.5 py-0.5">
+                <div className="text-xs font-bold text-inherit leading-snug group-hover:text-rose-300 transition-colors">
                   0 PRs Set — Log a session to unlock trophy cabinet.
                 </div>
-                <div className="inline-flex items-center gap-1.5 text-[10px] font-mono text-rose-400 font-semibold bg-rose-500/10 px-2 py-0.5 rounded-lg border border-rose-500/20">
-                  <Award className="w-3 h-3 text-rose-400 shrink-0" />
+                <div className="pill inline-flex items-center gap-1.5 text-[10px] font-mono text-rose-500 dark:text-rose-400 font-semibold px-2.5 py-1 rounded-lg">
+                  <Award className="w-3 h-3 text-rose-500 dark:text-rose-400 shrink-0" />
                   <span>Tap to open Trophy Cabinet</span>
                 </div>
               </div>
@@ -1065,16 +1081,16 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                     Upload physique check-in photos in AI Coach to generate your full 1st, 2nd, and 3rd place Muscle Rating Podium!
                   </p>
                 </div>
-                {onNavigateToTab && (
+                {onOpenPhysiqueScanner && (
                   <button
                     type="button"
                     onClick={() => {
                       setActiveModal(null);
-                      onNavigateToTab('ai-coach-rating');
+                      onOpenPhysiqueScanner();
                     }}
                     className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs shadow-md inline-flex items-center gap-1.5 cursor-pointer"
                   >
-                    <span>Open AI Coach Vision Scanner</span>
+                    <span>Launch AI Physique Scanner</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 )}

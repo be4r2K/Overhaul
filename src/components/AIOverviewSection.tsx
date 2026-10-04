@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { AIOverviewData, OverviewPeriod } from '../types/aiWorkout';
 import { DailyNutritionLog, DailyStepLog, LiftRecord, SleepLog, SportActivity, UserProfile } from '../types/fitness';
+import { getAndUpdateDailyStreak } from '../utils/streak';
 import confetti from 'canvas-confetti';
 
 interface AIOverviewSectionProps {
@@ -34,6 +35,8 @@ export const AIOverviewSection: React.FC<AIOverviewSectionProps> = ({
   const [period, setPeriod] = useState<OverviewPeriod>('daily');
   const [loading, setLoading] = useState<boolean>(false);
 
+  const realStreak = getAndUpdateDailyStreak().currentStreak;
+
   // Purely static local state by default with zero automatic background network requests on mount
   const [overview, setOverview] = useState<AIOverviewData>({
     period: 'daily',
@@ -41,9 +44,9 @@ export const AIOverviewSection: React.FC<AIOverviewSectionProps> = ({
     coachVerdict: `Discipline is locked in, ${profile?.name || 'Athlete'}. Protect your streak, maintain progressive overload, and execute your sessions with uncompromising focus.`,
     completionRate: 90,
     streakStatus: {
-      currentStreak: 3,
+      currentStreak: realStreak,
       status: 'on_fire',
-      message: '3 days strong and burning!'
+      message: `${realStreak} ${realStreak === 1 ? 'day' : 'days'} strong and burning!`
     },
     recommendations: [
       'Hydrate with at least 500ml of electrolyte water before your session.',

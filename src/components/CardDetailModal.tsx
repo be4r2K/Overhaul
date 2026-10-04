@@ -396,9 +396,9 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
           <>
             {renderCardHeader('BPL Athletic Performance', 'Body Performance Level 4-pillar index', <Award className="w-5 h-5 text-violet-400" />, 'Athletic Tier')}
 
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-violet-500/10 via-purple-500/10 to-indigo-500/10 border border-violet-500/30 flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-white/[0.04] dark:bg-white/[0.04] border border-white/10 dark:border-white/10 flex items-center justify-between">
               <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-violet-300 block">Current Rank</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">Current Rank</span>
                 <span className="text-2xl font-black text-white mt-0.5 block">Competitor Tier</span>
                 <span className="text-xs text-slate-400">Top 15% of active athletes in your age bracket</span>
               </div>

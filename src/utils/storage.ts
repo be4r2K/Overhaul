@@ -1,29 +1,22 @@
-import { DailyNutritionLog, DailyStepLog, Exercise, Friend, FriendPost, LiftRecord, SleepLog, SportActivity, UserProfile } from '../types/fitness';
-import { calculate1RM, calculateSportCalories } from './calculations';
-
-export const DEFAULT_EXERCISES: Exercise[] = [
-  { id: 'bench-press', name: 'Barbell Bench Press', category: 'chest' },
-  { id: 'back-squat', name: 'Barbell Back Squat', category: 'legs' },
-  { id: 'deadlift', name: 'Conventional Deadlift', category: 'back' },
-  { id: 'overhead-press', name: 'Standing Overhead Press (OHP)', category: 'shoulders' },
-  { id: 'barbell-row', name: 'Barbell Bent-Over Row', category: 'back' },
-  { id: 'incline-db-press', name: 'Incline Dumbbell Press', category: 'chest' },
-  { id: 'pull-ups', name: 'Weighted Pull-Ups', category: 'back' },
-  { id: 'romanian-deadlift', name: 'Romanian Deadlift (RDL)', category: 'legs' },
-  { id: 'leg-press', name: '45° Incline Leg Press', category: 'legs' },
-  { id: 'bicep-curl', name: 'Barbell Bicep Curl', category: 'arms' },
-  { id: 'tricep-dips', name: 'Parallel Bar Dips', category: 'arms' },
-  { id: 'lateral-raises', name: 'Dumbbell Lateral Raise', category: 'shoulders' },
-  { id: 'hanging-leg-raise', name: 'Hanging Leg Raise', category: 'core' },
-];
+import { 
+  UserProfile, 
+  Exercise, 
+  LiftRecord, 
+  SportActivity, 
+  DailyStepLog, 
+  DailyNutritionLog, 
+  SleepLog, 
+  Friend, 
+  FriendPost 
+} from '../types/fitness';
 
 export const DEFAULT_PROFILE: UserProfile = {
   name: 'Christian',
   familyName: 'Salameh',
   birthDate: '2001-05-18',
   gender: 'male',
-  heightCm: 0, // Kept at 0 until user logs
-  weightKg: 0, // Kept at 0 until user logs
+  heightCm: 0,
+  weightKg: 0,
   activityLevel: 'moderate',
   goal: 'lean_bulk',
   macroSplit: 'high_protein',
@@ -33,15 +26,28 @@ export const DEFAULT_PROFILE: UserProfile = {
   location: '',
   email: 'christiansalameh7@gmail.com',
   authProvider: 'local',
+  hasExplicitlyLogged: false,
+  personalFriendCode: 'CHRISTIAN-94',
 };
 
-const todayStr = new Date().toISOString().split('T')[0];
-
-function getRelativeDate(daysAgo: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - daysAgo);
-  return d.toISOString().split('T')[0];
-}
+export const DEFAULT_EXERCISES: Exercise[] = [
+  { id: 'bench-press', name: 'Barbell Bench Press', category: 'chest' },
+  { id: 'incline-db-press', name: 'Incline Dumbbell Press', category: 'chest' },
+  { id: 'dips', name: 'Chest Dips', category: 'chest' },
+  { id: 'back-squat', name: 'Barbell Back Squat', category: 'legs' },
+  { id: 'front-squat', name: 'Front Squat', category: 'legs' },
+  { id: 'leg-press', name: 'Leg Press', category: 'legs' },
+  { id: 'deadlift', name: 'Conventional Deadlift', category: 'back' },
+  { id: 'barbell-row', name: 'Barbell Bent Over Row', category: 'back' },
+  { id: 'pull-ups', name: 'Weighted Pull-Ups', category: 'back' },
+  { id: 'lat-pulldown', name: 'Lat Pulldown', category: 'back' },
+  { id: 'overhead-press', name: 'Standing Overhead Press', category: 'shoulders' },
+  { id: 'lateral-raise', name: 'Dumbbell Lateral Raise', category: 'shoulders' },
+  { id: 'barbell-curl', name: 'Barbell Bicep Curl', category: 'arms' },
+  { id: 'tricep-pushdown', name: 'Tricep Rope Pushdown', category: 'arms' },
+  { id: 'hanging-leg-raise', name: 'Hanging Leg Raise', category: 'core' },
+  { id: 'plank', name: 'Weighted Plank', category: 'core' },
+];
 
 export const DEFAULT_LIFTS: LiftRecord[] = [];
 
@@ -49,16 +55,16 @@ export const DEFAULT_SPORTS: SportActivity[] = [];
 
 export const DEFAULT_STEPS: DailyStepLog[] = [
   {
-    date: todayStr,
+    date: new Date().toISOString().split('T')[0],
     steps: 0,
     target: 10000,
     distanceKm: 0,
     caloriesBurned: 0,
-  },
+  }
 ];
 
 export const DEFAULT_NUTRITION: DailyNutritionLog = {
-  date: todayStr,
+  date: new Date().toISOString().split('T')[0],
   waterConsumedMl: 0,
   meals: [],
 };
@@ -69,123 +75,126 @@ export const DEFAULT_FRIENDS: Friend[] = [];
 
 export const DEFAULT_FRIEND_POSTS: FriendPost[] = [];
 
-export const ATHLETE_DATABASE: Record<string, Omit<Friend, 'id' | 'status'>> = {
-  'OH-8421-MARC': {
-    friendCode: 'OH-8421-MARC',
-    name: 'Marcus Vance',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    streak: 12,
-    bplScore: 86,
-    bench1RM: 125,
-    squat1RM: 170,
-    deadlift1RM: 215,
-    lastActive: '30m ago',
-    recentWorkout: 'Heavy Push & Tricep Overload',
-    overviewSnippet: 'Crushing strength goals this month. On track for 500kg Big 3 club.',
+export const INITIAL_USER_PROFILE = {
+  name: 'Christian Salameh',
+  email: 'christiansalameh7@gmail.com',
+  isGoogleConnected: true,
+  preferredUnit: 'kg' as const,
+  heightCm: 182,
+  targetWeightKg: 78.5,
+  dailyStepGoal: 10000,
+  dailyWaterGoalLiters: 3.5,
+  dailyCalorieBurnGoal: 650,
+  theme: 'dark' as const,
+  lastSyncedAt: new Date().toISOString(),
+};
+
+export const INITIAL_1RM_RECORDS = [
+  {
+    id: 'pr-1',
+    exercise: 'Barbell Back Squat',
+    category: 'Barbell' as const,
+    weight: 140,
+    reps: 3,
+    unit: 'kg' as const,
+    estimated1RM: 154,
+    formula: 'epley' as const,
+    date: '2026-09-28',
+    rpe: 9,
+    notes: 'Solid depth, clean lockout. Belt only.',
+    isPersonalRecord: true,
+  },
+  {
+    id: 'pr-2',
+    exercise: 'Flat Barbell Bench Press',
+    category: 'Barbell' as const,
+    weight: 110,
+    reps: 4,
+    unit: 'kg' as const,
+    estimated1RM: 124.7,
+    formula: 'epley' as const,
+    date: '2026-09-26',
+    rpe: 8.5,
+    notes: 'Paused on chest for 1 count.',
+    isPersonalRecord: true,
+  },
+  {
+    id: 'pr-3',
+    exercise: 'Conventional Deadlift',
+    category: 'Barbell' as const,
+    weight: 180,
+    reps: 2,
+    unit: 'kg' as const,
+    estimated1RM: 192,
+    formula: 'epley' as const,
+    date: '2026-09-24',
+    rpe: 9.5,
+    notes: 'Double overhand hook grip.',
+    isPersonalRecord: true,
+  },
+];
+
+export const INITIAL_BIOMETRICS = [
+  {
+    id: 'bio-1',
+    date: '2026-09-30',
+    weightKg: 79.2,
+    bodyFatPercent: 13.8,
+    restingHeartRate: 52,
+    systolicBp: 118,
+    diastolicBp: 76,
     sleepHours: 7.8,
-    favoriteLift: 'Deadlift'
-  },
-  'OH-3912-SARA': {
-    friendCode: 'OH-3912-SARA',
-    name: 'Sarah Connor',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
-    streak: 8,
-    bplScore: 81,
-    bench1RM: 75,
-    squat1RM: 110,
-    deadlift1RM: 140,
-    lastActive: '2h ago',
-    recentWorkout: 'Legs & Core Conditioning',
-    overviewSnippet: 'Hit a 110kg Squat PR yesterday! Calorie target met 5 days straight.',
-    sleepHours: 8.1,
-    favoriteLift: 'Back Squat'
-  },
-  'OH-5509-LEO': {
-    friendCode: 'OH-5509-LEO',
-    name: 'Leo Thorne',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-    streak: 3,
-    bplScore: 74,
-    bench1RM: 100,
-    squat1RM: 135,
-    deadlift1RM: 165,
-    lastActive: '4h ago',
-    recentWorkout: 'Pull Day & Bicep Blast',
-    overviewSnippet: 'Recovering from slight fatigue; prioritizing sleep and hydration.',
-    sleepHours: 6.9,
-    favoriteLift: 'Barbell Row'
-  },
-  'OH-6743-EMMA': {
-    friendCode: 'OH-6743-EMMA',
-    name: 'Emma Watson',
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=200&q=80',
-    streak: 15,
-    bplScore: 88,
-    bench1RM: 70,
-    squat1RM: 115,
-    deadlift1RM: 145,
-    lastActive: '1d ago',
-    recentWorkout: 'HIIT & Sprint Intervals',
-    overviewSnippet: 'Consistent 15-day streak. Ready to connect and challenge!',
-    sleepHours: 8.0,
-    favoriteLift: 'Romanian Deadlift'
+    sleepQuality: 88,
+    hrvMs: 74,
+    stepCount: 8420,
+    hydrationLiters: 2.8,
+    recoveryScore: 92,
+    notes: 'Woke up feeling energetic. Ready for leg day.',
   }
-};
+];
 
-export const SAMPLE_FRIEND_POSTS: Record<string, Omit<FriendPost, 'id' | 'friendId' | 'friendName' | 'friendAvatar'>[]> = {
-  'OH-8421-MARC': [
-    {
-      type: 'streak_milestone',
-      title: '12-Day Workout Streak Milestone 🔥',
-      description: '12 consecutive days of logging every set, hitting 10k steps and dialed-in sleep. Consistency over motivation every single day.',
-      timeAgo: '4 hours ago',
-      likes: 9,
-      userLiked: false,
-      congrats: []
-    }
-  ],
-  'OH-3912-SARA': [
-    {
-      type: 'pr',
-      title: 'New Personal Record: 110 kg Back Squat! 🏆',
-      description: 'Felt effortless today! 5 reps clean at 95kg, then hit the single at 110kg with zero form breakdown. Overhaul AI suggested moving squats first in the session and it worked wonders!',
-      timeAgo: '2 hours ago',
-      likes: 6,
-      userLiked: false,
-      congrats: []
-    }
-  ],
-  'OH-5509-LEO': [
-    {
-      type: 'workout_completed',
-      title: 'Completed Day 2 - Pull Power & Grip ⚡',
-      description: '3x3 Deadlifts at 165kg, followed by weighted pull-ups (+15kg) and heavy hammer curls. Grip strength is finally peaking.',
-      timeAgo: '6 hours ago',
-      likes: 4,
-      userLiked: false,
-      congrats: []
-    }
-  ]
-};
-
-// Storage keys
-const STORAGE_PREFIX = 'apex_fitness_';
+export const INITIAL_WORKOUTS = [
+  {
+    id: 'wo-1',
+    title: 'Heavy Lower Body & Core',
+    date: '2026-09-28',
+    durationMinutes: 72,
+    caloriesBurned: 580,
+    sportCategory: 'Strength' as const,
+    rating: 5 as const,
+    rpeAverage: 8.8,
+    notes: 'Hit a 3-rep PR on Squats.',
+    exercises: [
+      {
+        id: 'we-1',
+        name: 'Barbell Back Squat',
+        category: 'Legs',
+        sets: [
+          { setNumber: 1, weight: 100, reps: 8, completed: true, rpe: 7 },
+          { setNumber: 2, weight: 120, reps: 5, completed: true, rpe: 8 },
+          { setNumber: 3, weight: 140, reps: 3, completed: true, rpe: 9 },
+        ],
+      },
+    ],
+  }
+];
 
 export function loadFromStorage<T>(key: string, fallback: T): T {
   try {
-    const data = localStorage.getItem(STORAGE_PREFIX + key);
-    if (!data) return fallback;
-    return JSON.parse(data) as T;
-  } catch (err) {
-    console.error(`Error loading ${key} from storage:`, err);
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    if (parsed === null || parsed === undefined) return fallback;
+    return parsed as T;
+  } catch {
     return fallback;
   }
 }
 
 export function saveToStorage<T>(key: string, value: T): void {
   try {
-    localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
+    localStorage.setItem(key, JSON.stringify(value));
   } catch (err) {
-    console.error(`Error saving ${key} to storage:`, err);
+    console.warn('Failed to save to localStorage:', err);
   }
 }

@@ -34,7 +34,7 @@ import {
 } from './utils/storage';
 import { calculate1RM, calculateSportCalories } from './utils/calculations';
 import { fetchWeatherForLocation, WeatherData, getAccurateDeviceGPS } from './utils/weather';
-import { GoogleSignin, statusCodes, getAutoWebClientId, getActiveWebClientId, initGoogleAuth } from './utils/googleSignin';
+import { GoogleSignin, statusCodes, getAutoWebClientId, getActiveWebClientId, initGoogleAuth, useAuthObserver, getStoredAuthSession } from './utils/googleSignin';
 import firebaseConfig from '../firebase-applet-config.json';
 import { fetchGooglePeopleProfile } from './utils/googlePeople';
 import { applyThemeToDOM, getStoredTheme, setStoredTheme } from './utils/theme';
@@ -47,7 +47,6 @@ import { GymProgressView } from './components/GymProgressView';
 import { SportsTrackerView } from './components/SportsTrackerView';
 import { NutritionView } from './components/NutritionView';
 import { Sparkles } from 'lucide-react';
-import { AICoachHubView } from './components/AICoachHubView';
 import { AICoachChatSection } from './components/AICoachChatSection';
 import { FriendsView } from './components/FriendsView';
 import { RestTimerWidget } from './components/RestTimerWidget';
@@ -56,8 +55,10 @@ import { SettingsView } from './components/SettingsView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthGateway } from './components/AuthGateway';
 import { OnboardingTour } from './components/OnboardingTour';
-import { PhysiqueScannerModal } from './components/PhysiqueScannerModal';
+import { PhysiqueScannerModal, AiPhysiqueScannerModal } from './components/PhysiqueScannerModal';
 import { isContactsAvailable, requestContactsPermissions } from './utils/contacts';
+import { generateUserPasscode, getAndUpdateDailyStreak } from './utils/streak';
+import { useScrollDirection } from './utils/useScrollDirection';
 import { Geolocation } from '@capacitor/geolocation';
 import { Toast } from '@capacitor/toast';
 
@@ -65,6 +66,11 @@ export default function App() {
   // Application State backed by localStorage
   const [profile, setProfile] = useState<UserProfile>(() => {
     const p = loadFromStorage('profile', DEFAULT_PROFILE);
+    if (p) {
+      if (!p.personalFriendCode || p.personalFriendCode.startsWith('ATHLETE-7')) {
+        p.personalFriendCode = generateUserPasscode(p.name, p.familyName);
+      }
+    }
     // User requested: "if i didn't log in like my weight or height or steps or anything keep them at 0 and let them update in real time"
     if (p && (!p.hasExplicitlyLogged && (p.weightKg === 80 || p.heightCm === 180))) {
       return { ...p, weightKg: 0, heightCm: 0, location: p.location === 'London' ? '' : (p.location || '') };
@@ -112,11 +118,12 @@ export default function App() {
   );
   const [friends, setFriends] = useState<Friend[]>(() => {
     const stored = loadFromStorage<Friend[]>('friends', DEFAULT_FRIENDS) || [];
-    // Absolute purge of mock athletes (Alex Rivera, Liam Carter, Sophia Martinez, legacy friend-*)
+    // Absolute purge of mock athletes from storage
+    const MOCK_NAMES = ['Alex Rivera', 'Liam Carter', 'Sophia Martinez', 'Sarah Jenkins', 'Coach Marcus', 'David Goggins', 'John Doe', 'Jane Miller'];
     const cleanList = stored.filter(
       (f) =>
         f &&
-        !['Alex Rivera', 'Liam Carter', 'Sophia Martinez'].includes(f.name) &&
+        !MOCK_NAMES.some((m) => f.name.toLowerCase().includes(m.toLowerCase())) &&
         !['ATHLETE-A3', 'ATHLETE-L1', 'ATHLETE-S2'].includes(f.friendCode) &&
         !['friend-1', 'friend-2', 'friend-3', 'friend-4'].includes(f.id) &&
         !f.id.includes('ATHLETE-A3') &&
@@ -130,12 +137,17 @@ export default function App() {
   });
   const [friendPosts, setFriendPosts] = useState<FriendPost[]>(() => {
     const stored = loadFromStorage<FriendPost[]>('friend_posts', DEFAULT_FRIEND_POSTS);
-    const isLegacyMock = stored.length > 0 && stored.every((p) => ['post-1', 'post-2', 'post-3'].includes(p.id));
-    if (isLegacyMock) {
-      saveToStorage('friend_posts', []);
-      return [];
+    const MOCK_NAMES = ['Alex Rivera', 'Liam Carter', 'Sophia Martinez', 'Sarah Jenkins', 'Coach Marcus', 'David Goggins', 'John Doe', 'Jane Miller'];
+    const cleanPosts = stored.filter(
+      (p) =>
+        p &&
+        !['post-1', 'post-2', 'post-3'].includes(p.id) &&
+        !MOCK_NAMES.some((m) => (p.friendName || '').toLowerCase().includes(m.toLowerCase()))
+    );
+    if (cleanPosts.length !== stored.length) {
+      saveToStorage('friend_posts', cleanPosts);
     }
-    return stored;
+    return cleanPosts;
   });
   const [language, setLanguage] = useState<string>(() =>
     loadFromStorage('app_language', 'en')
@@ -146,6 +158,7 @@ export default function App() {
 
   // Tab & Modal State - Default is 'dashboard' (Overhaul Main page in the center)
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
+  const { showTopBar, showBottomBar } = useScrollDirection(currentTab);
   const [isRestTimerOpen, setIsRestTimerOpen] = useState<boolean>(false);
   const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
@@ -157,19 +170,60 @@ export default function App() {
   const [weatherLoading, setWeatherLoading] = useState<boolean>(false);
   const [explicitCoords, setExplicitCoords] = useState<{ latitude: number; longitude: number; cityName?: string } | undefined>(undefined);
 
-  // Auth state
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(profile.authProvider === 'google');
+  // Auth state with local session persistence check on launch/reload
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    const session = getStoredAuthSession();
+    return Boolean(session && (session.user || session.token) || profile.authProvider === 'google');
+  });
   const [authLoading, setAuthLoading] = useState<boolean>(false);
 
-  // Interactive Onboarding Tour state
-  const [onboardingStep, setOnboardingStep] = useState<number | null>(() => {
-    const done = localStorage.getItem('overhaul_onboarding_completed_v4');
-    return done ? null : 1;
+  // Interactive Onboarding Tour state: stored in localStorage ('hasCompletedTour')
+  const [isTourOpen, setIsTourOpen] = useState<boolean>(() => {
+    const isDone = localStorage.getItem('hasCompletedTour') === 'true' || localStorage.getItem('overhaul_onboarding_completed_v4') === 'true';
+    return !isDone;
   });
+
+  // Track daily login streak on app mount
+  useEffect(() => {
+    getAndUpdateDailyStreak();
+  }, []);
+
+  // 1. Navigation on Success: Transition to app dashboard and sync user profile
+  const navigateToHome = useCallback((firebaseUser?: any) => {
+    setIsAuthenticated(true);
+    setCurrentTab('dashboard');
+    if (firebaseUser) {
+      const displayName = firebaseUser.displayName || '';
+      const names = displayName ? displayName.split(' ') : [];
+      setProfile((prev) => ({
+        ...prev,
+        name: names[0] || prev.name || 'Athlete',
+        familyName: names.slice(1).join(' ') || prev.familyName || '',
+        email: firebaseUser.email || prev.email,
+        photoUrl: firebaseUser.photoURL || prev.photoUrl,
+        authProvider: 'google',
+        personalFriendCode: generateUserPasscode(names[0] || prev.name, names.slice(1).join(' ') || prev.familyName, prev.personalFriendCode),
+      }));
+    }
+  }, []);
+
+  // 3. Auth State Observer: Bind listener at root level so any successful credential check automatically redirects
+  useAuthObserver(navigateToHome);
 
   // Apply theme to DOM on mount and changes
   useEffect(() => {
     applyThemeToDOM(theme);
+    const isGlassOn = theme.liquidGlass !== false;
+    if (typeof document !== 'undefined') {
+      if (document.documentElement) {
+        document.documentElement.classList.toggle('liquid-glass-enabled', isGlassOn);
+        document.documentElement.classList.toggle('liquid-glass-active', isGlassOn);
+      }
+      if (document.body) {
+        document.body.classList.toggle('liquid-glass-enabled', isGlassOn);
+        document.body.classList.toggle('liquid-glass-active', isGlassOn);
+      }
+    }
   }, [theme]);
 
   // Sync text direction for RTL languages (Arabic)
@@ -365,10 +419,12 @@ export default function App() {
       }
       const { user, accessToken } = result;
       setIsAuthenticated(true);
-      setOnboardingStep(1);
+      if (!localStorage.getItem('hasCompletedTour')) {
+        setIsTourOpen(true);
+      }
 
       // Generate strictly unique permanent passcode for new user
-      const athleteCode = `OVH-${Math.floor(1000 + Math.random() * 9000)}-${user.uid.slice(-4).toUpperCase()}`;
+      const athleteCode = generateUserPasscode(user.displayName ? user.displayName.split(' ')[0] : 'Christian', user.displayName ? user.displayName.split(' ').slice(1).join(' ') : 'Salameh');
 
       // STRICT ZERO-STATE INITIALIZATION FOR THE NEWLY SIGNED IN ACCOUNT
       setLiftRecords([]);
@@ -496,7 +552,6 @@ export default function App() {
   const handleLogout = async () => {
     await GoogleSignin.signOut();
     setIsAuthenticated(false);
-    setOnboardingStep(0);
     // Profile reset
     setProfile(DEFAULT_PROFILE);
   };
@@ -700,62 +755,6 @@ export default function App() {
   const totalCaloriesBurnedToday =
     todayStepLog.caloriesBurned + todaySports.reduce((sum, s) => sum + s.caloriesBurned, 0);
 
-  // Step-by-Step Interactive Onboarding tour controls
-  const handleNextOnboarding = () => {
-    if (onboardingStep === null) return;
-    const next = onboardingStep + 1;
-    if (next > 5) {
-      setOnboardingStep(null);
-      localStorage.setItem('overhaul_onboarding_completed_v4', 'true');
-    } else {
-      setOnboardingStep(next);
-      if (next === 2) setCurrentTab('biometrics');
-      if (next === 3) setCurrentTab('settings');
-      if (next === 4) setCurrentTab('friends');
-      if (next === 5) setCurrentTab('dashboard');
-    }
-  };
-
-  const handleSkipOnboarding = () => {
-    setOnboardingStep(null);
-    localStorage.setItem('overhaul_onboarding_completed_v4', 'true');
-    setCurrentTab('dashboard');
-  };
-
-  const getOnboardingStepInfo = () => {
-    switch (onboardingStep) {
-      case 1:
-        return {
-          title: "1. STATS & GRIDS TARGETS",
-          desc: "This is your main dashboard. Keep track of today's hydration, sports calorie burn, and step counters. Tapping any grid panel expands it to reveal premium, real-time analytics!",
-        };
-      case 2:
-        return {
-          title: "2. BIOMETRICS & PHYSIQUE AUDIT",
-          desc: "Here you can monitor physical stats like age, weight, and BPL scores. Upload check-in photos inside the Body Vision scanner to trigger dynamic, strength-coupled AI Muscle Audits!",
-        };
-      case 3:
-        return {
-          title: "3. HEALTH CONNECT & SYNC",
-          desc: "Manage native telemetry under system integrations. Enabling Samsung Health sync grants Health Connect reading permissions to pull live step counts and sleep durations directly.",
-        };
-      case 4:
-        return {
-          title: "4. SOCIAL COMMUNITY & CONTACTS",
-          desc: "Synchronize your device address book natively to instantly match verified workout partners. Follow their current training streaks and view community liftoff milestones!",
-        };
-      case 5:
-        return {
-          title: "5. BIOMECHANICAL AI SPLIT COACH",
-          desc: "This floating spark FAB is your direct connection to Overhaul's Biomechanical Split Coach. Ask questions or click quick-action pills to adapt your workout routine in real time!",
-        };
-      default:
-        return null;
-    }
-  };
-
-  const currentStepInfo = getOnboardingStepInfo();
-
   // 1. Google OAuth Gateway Access Protection Block
   if (!isAuthenticated) {
     return (
@@ -791,8 +790,8 @@ export default function App() {
             disabled={authLoading}
             className="w-full py-3.5 rounded-2xl text-black font-black text-xs flex items-center justify-center gap-2.5 shadow-lg active:scale-95 transition-all cursor-pointer disabled:opacity-50"
             style={{
-              backgroundColor: 'var(--accent-hex)',
-              boxShadow: '0 0 15px var(--accent-hex)'
+              backgroundColor: 'var(--accent-hex, #10B981)',
+              boxShadow: '0 0 15px var(--accent-hex, #10B981)'
             }}
           >
             {authLoading ? (
@@ -805,64 +804,64 @@ export default function App() {
                   <path fill="#000" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
                   <path fill="#000" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
                 </svg>
-                <span>SIGN IN WITH GOOGLE</span>
+                <span>CONTINUE WITH GOOGLE SIGN-IN</span>
               </>
             )}
           </button>
 
-          <button
-            onClick={() => {
-              setIsAuthenticated(true);
-              setOnboardingStep(1);
-            }}
-            className="w-full py-2.5 rounded-xl border border-white/10 hover:border-white/20 bg-white/[0.04] text-slate-300 font-mono text-[11px] flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
-          >
-            <span>Continue in Offline Mode</span>
-          </button>
-
-          <p className="text-[9px] text-slate-500 font-mono">By continuing, you agree to allow background telemetry and Health Connect permissions.</p>
+          <p className="text-[9px] text-slate-500 font-mono">Secured by Google OAuth and Firebase encryption.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`h-screen max-h-screen flex flex-col justify-between ${theme.mode === 'light' ? 'bg-slate-50 text-slate-900' : 'bg-gradient-to-br from-slate-950 via-slate-900 to-black text-slate-100'} font-sans selection:bg-emerald-500/20 selection:text-emerald-300 relative transition-colors duration-200`}>
-      {/* Ambient background gradient glow spots */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10" aria-hidden="true">
-        <div className="absolute top-10 right-0 w-96 h-96 rounded-full bg-indigo-600/20 blur-[120px] pointer-events-none" />
-        <div className="absolute bottom-10 left-0 w-96 h-96 rounded-full bg-purple-600/20 blur-[120px] pointer-events-none" />
-      </div>
+    <div
+      data-active-tab={currentTab}
+      data-theme={theme.mode === 'light' ? 'light' : 'dark'}
+      data-glass={theme.liquidGlass !== false ? 'true' : 'false'}
+      className={`min-h-screen h-screen max-h-screen flex flex-col justify-between app-root-container ${
+        theme.mode === 'light' ? 'text-slate-900' : 'text-slate-100'
+      } ${theme.liquidGlass !== false ? 'liquid-glass-enabled liquid-glass-active liquid-glass glass-theme' : 'solid-flat'} font-sans selection:bg-emerald-500/20 selection:text-emerald-300 relative`}
+      style={{
+        minHeight: '100vh',
+        paddingBottom: 0,
+        paddingTop: currentTab === 'dashboard' ? 0 : 'env(safe-area-inset-top, 0px)',
+      }}
+    >
+      {/* Top Bar with Overhaul cursive wordmark: rendered EXCLUSIVELY on Dashboard */}
+      {currentTab === 'dashboard' && (
+        <TopBar
+          currentTab={currentTab}
+          onSelectTab={setCurrentTab}
+          units={profile.units}
+          onToggleUnits={handleToggleUnits}
+          onResetData={handleResetData}
+          onGoogleSignIn={handleGoogleSignIn}
+          onLogout={handleLogout}
+          isAuthenticated={isAuthenticated}
+          authLoading={authLoading}
+          profile={profile}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          theme={theme}
+          language={language}
+          isVisible={showTopBar}
+        />
+      )}
 
-      {/* Top Bar with Overhaul title, AI Notes, Google Sync & Settings */}
-      <TopBar
-        currentTab={currentTab}
-        onSelectTab={setCurrentTab}
-        units={profile.units}
-        onToggleUnits={handleToggleUnits}
-        onResetData={handleResetData}
-        onGoogleSignIn={handleGoogleSignIn}
-        onLogout={handleLogout}
-        isAuthenticated={isAuthenticated}
-        authLoading={authLoading}
-        profile={profile}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        theme={theme}
-        language={language}
-      />
-
-      {/* Main Content Area wrapped in ErrorBoundary with strict zero-scroll containment */}
-      <main className="flex-1 min-h-0 overflow-hidden max-w-7xl w-full mx-auto px-2 sm:px-4 py-1 flex flex-col justify-between">
+      {/* Main Content Area expanding to 100% viewport height when bars hide */}
+      <main
+        className="relative z-10 flex-1 min-h-0 overflow-x-hidden max-w-7xl w-full mx-auto px-2 sm:px-4 py-1 flex flex-col justify-between transition-[padding-bottom] duration-200"
+        style={{
+          paddingBottom: showBottomBar ? 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' : 0,
+          paddingTop: currentTab === 'dashboard' ? undefined : 'max(0.25rem, env(safe-area-inset-top, 0px))',
+        }}
+      >
         <ErrorBoundary>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentTab.startsWith('ai-coach') || currentTab === 'ai-workouts' ? 'ai-coach' : currentTab}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.18, ease: 'easeInOut' }}
-              className="h-full w-full flex flex-col flex-1 min-h-0 overflow-hidden"
-            >
+          <div
+            key={currentTab.startsWith('ai-coach') || currentTab === 'ai-workouts' ? 'ai-coach' : currentTab}
+            className="h-full w-full flex flex-col flex-1 min-h-0 overflow-x-hidden"
+          >
               {/* Center / Front Page: Overhaul Main Hub with Hello Christian, Weather, Highlights, Progress, Weight & Goals */}
               {currentTab === 'dashboard' && (
             <HomeMainView
@@ -892,37 +891,6 @@ export default function App() {
               onOpenPhysiqueScanner={() => setIsPhysiqueScannerOpen(true)}
               theme={theme}
               language={language}
-            />
-          )}
-
-          {/* Overhaul AI Coach Hub: Dedicated Subpages for Overview, Routines, Body Rating & AI Coach Chat */}
-          {(currentTab === 'ai-coach' || currentTab === 'ai-workouts' || currentTab === 'ai-coach-rating' || currentTab === 'ai-coach-chat') && (
-            <AICoachHubView
-              profile={profile}
-              cachedAnalysis={aiWorkoutAnalysis}
-              onSaveAnalysis={setAiWorkoutAnalysis}
-              onImportExercisesToGym={handleImportExercisesToGym}
-              onAddLift={handleAddLift}
-              liftRecords={liftRecords}
-              sportsHistory={sportsHistory}
-              stepsHistory={stepsHistory}
-              sleepHistory={sleepHistory}
-              nutritionLog={nutritionLog}
-              onOpenTimer={() => setIsRestTimerOpen(true)}
-              language={language}
-              onUpdateLanguage={(l) => {
-                setLanguage(l);
-                saveToStorage('app_language', l);
-              }}
-              initialSubTab={
-                currentTab === 'ai-coach-rating'
-                  ? 'body-rating'
-                  : currentTab === 'ai-coach-chat'
-                  ? 'coach-chat'
-                  : currentTab === 'ai-workouts'
-                  ? 'routine'
-                  : 'overview'
-              }
             />
           )}
 
@@ -1017,8 +985,7 @@ export default function App() {
               language={language}
             />
           )}
-            </motion.div>
-          </AnimatePresence>
+          </div>
         </ErrorBoundary>
       </main>
 
@@ -1044,36 +1011,43 @@ export default function App() {
       <BottomNav
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
+        language={language}
+        isVisible={showBottomBar && !isAiCoachOpen}
       />
 
-      {/* Floating AI Coach Button (FAB) */}
-      <div className="fixed bottom-[90px] right-[20px] z-50 pointer-events-auto">
-        <button
-          onClick={() => setIsAiCoachOpen(true)}
-          className="w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg cursor-pointer active:scale-95 border hover:scale-105"
-          style={{
-            backgroundColor: 'var(--accent-hex)',
-            borderColor: 'rgba(255, 255, 255, 0.25)',
-            boxShadow: '0 0 15px var(--accent-hex)'
-          }}
-          title="Open AI Coach & Real-Time Split Adaptor"
-          aria-label="Open AI Coach"
-        >
-          <Sparkles className="w-5 h-5 text-black stroke-[2.5]" />
-        </button>
-      </div>
+      {/* Floating AI Coach Button (FAB) - Dynamic Liquid Glass & elevated bottom offset (96px) */}
+      {!isAiCoachOpen && !isQuickLogOpen && !isSettingsOpen && !isRestTimerOpen && !isPhysiqueScannerOpen && !isTourOpen && (
+        <div className="floating-ai-fab keyboard-auto-hide fixed bottom-[96px] right-[20px] z-40 pointer-events-auto transition-all duration-200">
+          <button
+            onClick={() => setIsAiCoachOpen(true)}
+            className="ai-fab pill w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer active:scale-95 hover:scale-105"
+            title="Open AI Coach & Real-Time Split Adaptor"
+            aria-label="Open AI Coach"
+          >
+            <Sparkles
+              className="w-4 h-4 stroke-[2.5]"
+              style={{
+                color: theme.mode === 'light' ? '#0F172A' : 'var(--accent-hex, #10b981)',
+              }}
+            />
+          </button>
+        </div>
+      )}
 
       {/* Slide-Up AI Coach Chat Modal */}
       <AnimatePresence>
         {isAiCoachOpen && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4 pointer-events-auto">
+          <div
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-2 sm:px-4 pt-4 pointer-events-auto"
+            style={{ paddingBottom: '24px' }}
+          >
             {/* Modal Container */}
             <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className="w-full max-w-lg h-[80vh] flex flex-col liquid-glass rounded-t-3xl border border-white/20 shadow-2xl overflow-hidden relative"
+              className="card w-full max-w-lg h-[82vh] flex flex-col liquid-glass rounded-3xl border border-white/20 shadow-2xl overflow-hidden relative"
             >
               {/* Header */}
               <div className="p-3 sm:p-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-slate-950/40">
@@ -1118,50 +1092,13 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* 2. Interactive Step-by-Step Onboarding Tour Overlay */}
-      {onboardingStep !== null && currentStepInfo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm pointer-events-auto">
-          <div className="w-full max-w-sm rounded-3xl p-5 sm:p-6 space-y-4 border border-white/20 shadow-2xl relative bg-slate-900/90 backdrop-blur-xl animate-card-expand">
-            
-            {/* Step Counter Badge */}
-            <div className="flex items-center justify-between border-b border-white/5 pb-2">
-              <span className="text-[10px] font-black uppercase tracking-wider font-mono accent-text">
-                OVERHAUL QUICK TOUR · STEP {onboardingStep} OF 5
-              </span>
-              <button
-                onClick={handleSkipOnboarding}
-                className="text-[10px] font-bold text-slate-400 hover:text-white uppercase tracking-wider transition-colors cursor-pointer"
-              >
-                Skip Tour
-              </button>
-            </div>
-
-            {/* Tour content */}
-            <div className="space-y-2">
-              <h3 className="text-sm font-black text-white uppercase tracking-wide flex items-center gap-1.5 font-sans">
-                <Sparkles className="w-4 h-4 text-cyan-400 animate-spin" />
-                <span>{currentStepInfo.title}</span>
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed font-medium font-sans">
-                {currentStepInfo.desc}
-              </p>
-            </div>
-
-            {/* Navigation action buttons */}
-            <div className="flex items-center justify-between gap-3 pt-2">
-              <span className="text-[10px] font-mono text-slate-500">Auto-navigating tabs active</span>
-              <button
-                onClick={handleNextOnboarding}
-                className="px-4 py-2 rounded-xl text-black font-extrabold text-[11px] uppercase tracking-wider active:scale-95 transition-all cursor-pointer shadow-md font-sans"
-                style={{ backgroundColor: 'var(--accent-hex)' }}
-              >
-                {onboardingStep === 5 ? 'Finish Tour' : 'Next Step'}
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
+      {/* 2. Interactive Step-by-Step Onboarding Tour Overlay with Persistent State & Glow */}
+      <OnboardingTour
+        isOpen={isTourOpen}
+        onClose={() => setIsTourOpen(false)}
+        currentTab={currentTab}
+        onNavigateTab={setCurrentTab}
+      />
       {/* 3. AI Physique Multi-Photo Scanner Modal */}
       <PhysiqueScannerModal
         isOpen={isPhysiqueScannerOpen}
