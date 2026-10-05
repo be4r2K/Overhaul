@@ -7,19 +7,23 @@
     "dev": "vite --port 3000 --host",
     "build": "tsc && vite build",
     "preview": "vite preview --port 3000 --host",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "cap:sync": "cap sync android",
+    "cap:add": "cap add android"
   },
   "dependencies": {
-    "@capacitor-community/contacts": "^8.0.0",
-    "@capacitor/core": "^8.5.2",
-    "@capacitor/geolocation": "^8.2.3",
-    "@capacitor/keyboard": "^8.0.6",
-    "@capacitor/toast": "^8.0.1",
+    "@capacitor-community/contacts": "^6.0.0",
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/geolocation": "^6.0.0",
+    "@capacitor/keyboard": "^6.0.0",
+    "@capacitor/toast": "^6.0.0",
     "@codetrix-studio/capacitor-google-auth": "^3.4.0-rc.4",
     "@google/genai": "^2.27.0",
     "canvas-confetti": "^1.9.4",
     "capacitor-health-connect": "^0.7.0",
-    "capacitor-native-settings": "^8.2.0",
+    "capacitor-native-settings": "^6.0.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "firebase": "^12.19.0",
@@ -30,6 +34,7 @@
     "tailwind-merge": "^3.0.2"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.0.0",
     "@tailwindcss/vite": "^4.0.0",
     "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^22.13.0",
