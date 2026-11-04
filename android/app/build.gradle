@@ -19,16 +19,20 @@ android {
     signingConfigs {
         release {
             def keystorePath = System.getenv("KEYSTORE_FILE") ?: System.getenv("KEYSTORE_PATH")
-            if (keystorePath) {
+            def storePass = System.getenv("KEYSTORE_PASSWORD")
+            def kAlias = System.getenv("KEY_ALIAS")
+            def kPass = System.getenv("KEY_PASSWORD")
+
+            if (keystorePath && storePass && kAlias && kPass) {
                 def keystoreFile = file(keystorePath)
                 if (!keystoreFile.exists()) {
                     keystoreFile = file("app/" + keystorePath)
                 }
                 if (keystoreFile.exists()) {
                     storeFile keystoreFile
-                    storePassword System.getenv("KEYSTORE_PASSWORD")
-                    keyAlias System.getenv("KEY_ALIAS")
-                    keyPassword System.getenv("KEY_PASSWORD")
+                    storePassword storePass
+                    keyAlias kAlias
+                    keyPassword kPass
                 }
             }
         }
@@ -36,12 +40,13 @@ android {
 
     buildTypes {
         debug {
-            if (signingConfigs.release.storeFile != null) {
+            // Default to Android standard debug signing unless custom release keystore is fully defined
+            if (signingConfigs.release.storeFile != null && signingConfigs.release.storePassword != null) {
                 signingConfig signingConfigs.release
             }
         }
         release {
-            if (signingConfigs.release.storeFile != null) {
+            if (signingConfigs.release.storeFile != null && signingConfigs.release.storePassword != null) {
                 signingConfig signingConfigs.release
             }
             minifyEnabled false
