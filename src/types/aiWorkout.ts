@@ -157,6 +157,15 @@ export interface AIWorkoutExerciseLogItem {
   [key: string]: any;
 }
 
+export interface AIWorkoutProposal {
+  id: string;
+  title: string;
+  summary: string;
+  changes: string[];
+  updatedRoutine: AIWorkoutAnalysisResult;
+  status: 'pending' | 'accepted' | 'denied';
+}
+
 export interface AIChatMessage {
   id?: string;
   sender?: 'user' | 'ai';
@@ -166,6 +175,7 @@ export interface AIChatMessage {
   timestamp?: string;
   didModifyRoutine?: boolean;
   suggestedRoutineUpdate?: AIWorkoutAnalysisResult;
+  proposal?: AIWorkoutProposal;
   [key: string]: any;
 }
 

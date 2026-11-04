@@ -101,7 +101,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.96 }}
             transition={{ duration: 0.18 }}
-            className="rounded-2xl p-3.5 space-y-2 border border-white/20 bg-neutral-950 text-white shadow-2xl relative"
+            className="glass-modal modal-content dialog-sheet liquid-glass-enabled rounded-2xl p-3.5 space-y-2 border border-white/20 bg-neutral-950 text-white shadow-2xl relative"
           >
             {/* Header with Step indicator and explicit 'X' Close Button */}
             <div className="flex items-center justify-between border-b border-white/10 pb-1.5">

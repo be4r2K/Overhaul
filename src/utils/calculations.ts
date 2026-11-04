@@ -441,89 +441,99 @@ export function calculateBodyComposition(
 }
 
 /**
- * Calculates BPL (Body Performance Level) - A 0-100 composite athletic readiness and physical fitness index
- * Based on:
- * 1. Strength-to-Weight Ratio (Squat, Bench, Deadlift combined 1RM vs bodyweight)
- * 2. Aerobic capacity & step volume
- * 3. Body composition (BMI & Body Fat efficiency)
+ * Calculates BPL (Body Performance Level) - A 0-100 composite 4-pillar athletic index
+ * Pillar 1 (Strength): (Total 1RM / Bodyweight) / 2.5 * 100
+ * Pillar 2 (Cardio): (Weekly Cardio Mins / 150) * 100
+ * Pillar 3 (Body Comp): (Lean Mass Ratio) * 100
+ * Pillar 4 (Consistency): (Logged Sessions / Target) * 100
+ * Overall Score: Average(Pillars 1..4)
  */
 export function calculateBPL(
-  strengthRatio: number, // Total 1RM lifts / bodyweight (e.g. 2.5x to 4.5x)
+  strengthRatio: number, // Total 1RM lifts / bodyweight
   weeklyStepsAvg: number,
   weeklyCardioMinutes: number,
   bmi: number,
-  bodyFatPct: number
+  bodyFatPct: number,
+  loggedSessions: number = 0,
+  targetSessions: number = 5
 ): {
   score: number;
-  tier: 'Novice' | 'Active' | 'Athletic' | 'Advanced' | 'Elite';
+  tier: 'Novice Tier' | 'Intermediate Tier' | 'Advanced Tier' | 'Competitor Tier';
   color: string;
   summary: string;
   strengthScore: number;
   cardioScore: number;
   compositionScore: number;
+  consistencyScore: number;
 } {
-  if (strengthRatio <= 0 && weeklyStepsAvg <= 0 && weeklyCardioMinutes <= 0 && (bmi <= 0 || bodyFatPct <= 0)) {
+  const hasStrength = strengthRatio > 0;
+  const hasCardio = weeklyCardioMinutes > 0;
+  const hasBiometrics = bmi > 0 && bodyFatPct > 0;
+  const hasConsistency = loggedSessions > 0 && targetSessions > 0;
+
+  if (!hasStrength && !hasCardio && !hasBiometrics && !hasConsistency) {
     return {
       score: 0,
-      tier: 'Novice',
+      tier: 'Novice Tier',
       color: 'text-slate-400',
-      summary: 'Log your metrics or workout notes to compute your BPL level',
+      summary: 'Log workouts, PRs, or biometrics to compute your BPL rank',
       strengthScore: 0,
       cardioScore: 0,
       compositionScore: 0,
+      consistencyScore: 0,
     };
   }
 
-  // 1. Strength Score (0-35 pts)
-  const strengthScore = strengthRatio > 0 ? Math.min(35, Math.max(5, Math.round(strengthRatio * 8.5))) : 0;
+  // Pillar 1 (Strength): (Total 1RM / Bodyweight) / 2.5 * 100
+  const strengthScore = hasStrength
+    ? Math.min(100, Math.max(0, Math.round((strengthRatio / 2.5) * 100)))
+    : 0;
 
-  // 2. Cardio & Steps Score (0-35 pts)
-  const stepComponent = Math.min(18, Math.round((weeklyStepsAvg / 10000) * 18));
-  const cardioComponent = Math.min(17, Math.round((weeklyCardioMinutes / 150) * 17));
-  const cardioScore = (weeklyStepsAvg > 0 || weeklyCardioMinutes > 0) ? Math.min(35, stepComponent + cardioComponent) : 0;
+  // Pillar 2 (Cardio): (Weekly Cardio Mins / 150) * 100
+  const cardioScore = hasCardio
+    ? Math.min(100, Math.max(0, Math.round((weeklyCardioMinutes / 150) * 100)))
+    : 0;
 
-  // 3. Composition Score (0-30 pts)
-  let compositionScore = 0;
-  if (bmi > 0 && bodyFatPct > 0) {
-    let compBmi = 15 - Math.abs(bmi - 22.5) * 1.8;
-    compBmi = Math.max(0, Math.min(15, compBmi));
+  // Pillar 3 (Body Comp): (Lean Mass Ratio) * 100
+  const leanMassRatio = hasBiometrics ? Math.max(0, Math.min(1, (100 - bodyFatPct) / 100)) : 0;
+  const compositionScore = hasBiometrics
+    ? Math.min(100, Math.max(0, Math.round(leanMassRatio * 100)))
+    : 0;
 
-    let compFat = 15 - Math.abs(bodyFatPct - 14) * 1.2;
-    compFat = Math.max(0, Math.min(15, compFat));
-    compositionScore = Math.round(compBmi + compFat);
-  }
+  // Pillar 4 (Consistency): (Logged Sessions / Target) * 100
+  const consistencyScore = hasConsistency
+    ? Math.min(100, Math.max(0, Math.round((loggedSessions / targetSessions) * 100)))
+    : 0;
 
-  const rawSum = strengthScore + cardioScore + compositionScore;
-  const totalScore = rawSum > 0 ? Math.min(100, Math.max(0, rawSum)) : 0;
+  // Overall Score: Average(Pillars 1..4)
+  const totalScore = Math.min(
+    100,
+    Math.max(0, Math.round((strengthScore + cardioScore + compositionScore + consistencyScore) / 4))
+  );
 
-  let tier: 'Novice' | 'Active' | 'Athletic' | 'Advanced' | 'Elite' = 'Novice';
+  let tier: 'Novice Tier' | 'Intermediate Tier' | 'Advanced Tier' | 'Competitor Tier' = 'Novice Tier';
   let color = 'text-slate-400';
-  let summary = 'Foundational phase - great room for progressive overload and aerobic gains';
+  let summary = 'Foundational phase — log workouts, PRs, and biometrics to build your rank';
 
-  if (totalScore === 0) {
-    tier = 'Novice';
+  if (totalScore <= 25) {
+    tier = 'Novice Tier';
     color = 'text-slate-400';
-    summary = 'Log your lifts, workouts or biometrics to compute your BPL level';
-  } else if (totalScore < 45) {
-    tier = 'Novice';
-    color = 'text-slate-400';
-    summary = 'Foundational phase - great room for progressive overload and aerobic gains';
-  } else if (totalScore < 60) {
-    tier = 'Active';
+    summary =
+      totalScore === 0
+        ? 'Log workouts, PRs, or biometrics to compute your BPL rank'
+        : 'Foundational athletic phase — room for progressive overload and conditioning';
+  } else if (totalScore <= 50) {
+    tier = 'Intermediate Tier';
     color = 'text-cyan-400';
-    summary = 'Consistent active fitness base with solid cardiovascular conditioning';
-  } else if (totalScore < 75) {
-    tier = 'Athletic';
+    summary = 'Solid athletic foundation with developing strength and aerobic work capacity';
+  } else if (totalScore <= 75) {
+    tier = 'Advanced Tier';
     color = 'text-emerald-400';
-    summary = 'High physical performance with strong power-to-weight and aerobic endurance';
-  } else if (totalScore < 90) {
-    tier = 'Advanced';
-    color = 'text-amber-400';
-    summary = 'Exceptional strength and sports conditioning ranking in top percentiles';
+    summary = 'High physical performance with strong power-to-weight and conditioning';
   } else {
-    tier = 'Elite';
+    tier = 'Competitor Tier';
     color = 'text-violet-400';
-    summary = 'Peak athletic condition with extraordinary power output and cardiovascular capacity';
+    summary = 'Top percentile athletic readiness across strength, cardio, lean mass, and consistency';
   }
 
   return {
@@ -534,6 +544,7 @@ export function calculateBPL(
     strengthScore,
     cardioScore,
     compositionScore,
+    consistencyScore,
   };
 }
 

@@ -20,7 +20,7 @@ export const SleepCard: React.FC<SleepCardProps> = ({
   const [showManualEdit, setShowManualEdit] = useState(false);
 
   const totalMin = sleepLog?.totalMinutes || 0;
-  const [inputHours, setInputHours] = useState(totalMin > 0 ? (totalMin / 60).toFixed(1) : '7.5');
+  const [inputHours, setInputHours] = useState(totalMin > 0 ? (totalMin / 60).toFixed(1) : '0.0');
 
   const hours = Math.floor(totalMin / 60);
   const minutes = totalMin % 60;

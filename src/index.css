@@ -1,9 +1,18 @@
 @import "tailwindcss";
+@import './App.css';
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@800;900&display=swap');
 @custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
 
 @layer base {
   :root {
-    --bg-app-base: #050508;
+    --bg-app-base: #08080C;
+    --bg-primary: #08080C;
+    --glass-card-bg: rgba(22, 18, 36, 0.65);
+    --glass-card-border: rgba(255, 255, 255, 0.12);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --glass-text-primary: #ffffff;
+    --glass-text-secondary: rgba(255, 255, 255, 0.65);
+    --accent-primary: #10B981;
     --accent-hex: #10B981;
     --accent-rgb: 16, 185, 129;
     --accent-hover: #34D399;
@@ -11,6 +20,26 @@
     --accent-border: rgba(16, 185, 129, 0.45);
     --accent-glow: rgba(16, 185, 129, 0.35);
     --accent-specular: rgba(16, 185, 129, 0.25);
+  }
+
+  :root[data-theme="dark"],
+  html[data-theme="dark"],
+  body[data-theme="dark"] {
+    --glass-card-bg: rgba(22, 18, 36, 0.65);
+    --glass-card-border: rgba(255, 255, 255, 0.12);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --glass-text-primary: #ffffff;
+    --glass-text-secondary: rgba(255, 255, 255, 0.65);
+  }
+
+  :root[data-theme="light"],
+  html[data-theme="light"],
+  body[data-theme="light"] {
+    --glass-card-bg: rgba(255, 255, 255, 0.72);
+    --glass-card-border: rgba(0, 0, 0, 0.08);
+    --glass-border: rgba(0, 0, 0, 0.08);
+    --glass-text-primary: #0f172a;
+    --glass-text-secondary: rgba(15, 23, 42, 0.65);
   }
 
   body {
@@ -27,7 +56,7 @@
 }
 
 /* ==========================================================================
-   1. BASE BODY CANVAS (AMBIENT RADIAL ACCENT GLOW)
+   1. BASE BODY CANVAS (CLEAN SOLID NO SPOTLIGHT BLEED)
    ========================================================================== */
 html.dark,
 body.dark,
@@ -36,26 +65,28 @@ body.dark-mode,
 html[data-theme="dark"],
 body[data-theme="dark"] {
   --bg-app-base: #08080C;
-  background:
-    radial-gradient(circle at 50% 95%, rgba(var(--accent-rgb), 0.18) 0%, transparent 45%),
-    radial-gradient(circle at 50% 20%, rgba(var(--accent-rgb), 0.25) 0%, #08080C 70%) !important;
+  --bg-primary: #08080C;
+  --glass-card-bg: rgba(22, 18, 36, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  background: #08080C !important;
   background-color: #08080C !important;
   color: #f8fafc;
 }
 
+/* Light Mode Canvas */
 html.light,
 body.light,
 html.light-mode,
 body.light-mode,
 html[data-theme="light"],
 body[data-theme="light"] {
-  --bg-app-base: #F1F5F9;
-  background:
-    radial-gradient(circle at 50% 95%, rgba(var(--accent-rgb), 0.16) 0%, transparent 45%),
-    radial-gradient(circle at 50% 20%, rgba(var(--accent-rgb), 0.22) 0%, transparent 65%),
-    linear-gradient(180deg, #F1F5F9 0%, #E2E8F0 100%) !important;
-  background-color: #F1F5F9 !important;
-  color: #0f172a;
+  --bg-app-base: #f8fafc;
+  --bg-primary: #f8fafc;
+  --glass-card-bg: rgba(255, 255, 255, 0.65);
+  --glass-border: rgba(15, 23, 42, 0.12);
+  background: #f8fafc !important;
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
 }
 
 #root,
@@ -71,11 +102,49 @@ section,
   box-shadow: none !important;
 }
 
+html,
+body {
+  height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  background-attachment: fixed;
+}
+
 #root,
 .app-root-container {
-  min-height: 100vh !important;
-  min-height: 100dvh !important;
-  padding-bottom: 0 !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+}
+
+[data-active-tab="dashboard"] #root,
+[data-active-tab="dashboard"] .app-root-container,
+[data-active-tab="gym"] #root,
+[data-active-tab="gym"] .app-root-container,
+[data-active-tab="biometrics"] #root,
+[data-active-tab="biometrics"] .app-root-container,
+[data-active-tab="friends"] #root,
+[data-active-tab="friends"] .app-root-container {
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  touch-action: none !important;
+}
+
+[data-active-tab="settings"] #root,
+[data-active-tab="settings"] .app-root-container {
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
 }
 
 body.nav-bars-hidden main,
@@ -84,7 +153,7 @@ body.nav-bars-hidden .overflow-y-auto {
 }
 
 /* ==========================================================================
-   2. DASHBOARD-ONLY TOP "OVERHAUL" HEADER WORDMARK
+   2. PERMANENT TOP "OVERHAUL" HEADER WORDMARK ACROSS ALL TABS
    ========================================================================== */
 header {
   background: transparent !important;
@@ -95,9 +164,58 @@ header {
   -webkit-backdrop-filter: none !important;
 }
 
-[data-active-tab]:not([data-active-tab="dashboard"]) header,
-[data-active-tab]:not([data-active-tab="dashboard"]) .top-overhaul-header {
-  display: none !important;
+.overhaul-logo-wordmark,
+.dark-mode .overhaul-logo-wordmark,
+[data-theme="dark"] .overhaul-logo-wordmark {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-size: 19px !important;
+  letter-spacing: 3.5px !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  line-height: 1 !important;
+  color: #ffffff !important;
+  display: inline-block !important;
+  vertical-align: baseline !important;
+  transform: none !important;
+  width: auto !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+.light-mode .overhaul-logo-wordmark,
+html.light .overhaul-logo-wordmark,
+body.light .overhaul-logo-wordmark,
+[data-theme="light"] .overhaul-logo-wordmark {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-size: 19px !important;
+  letter-spacing: 3.5px !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  line-height: 1 !important;
+  color: #0f172a !important;
+  display: inline-block !important;
+  vertical-align: baseline !important;
+  transform: none !important;
+  width: auto !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+.brand-accent,
+.overhaul-logo-wordmark .brand-accent {
+  color: var(--accent-hex, var(--accent-color, #10b981)) !important;
+  display: inline-block !important;
+  vertical-align: baseline !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  line-height: inherit !important;
+  letter-spacing: inherit !important;
+  transform: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  text-shadow: none !important;
+  filter: none !important;
 }
 
 /* ==========================================================================
@@ -121,7 +239,12 @@ body.keyboard-open .floating-ai-fab {
 body:has(.glass-modal) .floating-ai-fab,
 body:has(.fixed.inset-0.z-50) .floating-ai-fab,
 body:has([role="dialog"]) .floating-ai-fab,
-body.modal-open .floating-ai-fab {
+body.modal-open .floating-ai-fab,
+.app-root-container[data-modal-open="true"] .bottom-nav-container,
+.app-root-container[data-modal-open="true"] .glass-nav-bar,
+.app-root-container[data-modal-open="true"] .floating-ai-fab,
+body:has(.glass-modal) .bottom-nav-container,
+body:has(.fixed.inset-0.z-50) .bottom-nav-container {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
@@ -129,161 +252,212 @@ body.modal-open .floating-ai-fab {
 }
 
 /* ==========================================================================
-   4. UNIVERSAL LIQUID GLASS ENGINE (.liquid-glass-enabled PROPAGATION)
+   4. SUBTLE LIQUID GLASS STYLES (.liquid-glass-enabled)
    ========================================================================== */
 
-/* DARK MODE (LIQUID GLASS ON) */
+/* DARK MODE SUBTLE LIQUID GLASS (.liquid-glass-enabled ACTIVE IN DARK MODE) */
 html.dark.liquid-glass-enabled .card,
 html.dark.liquid-glass-enabled .pill,
+html.dark.liquid-glass-enabled .exercise-pill-badge,
 html.dark.liquid-glass-enabled .dashboard-card,
 html.dark.liquid-glass-enabled .dashboard-item,
 html.dark.liquid-glass-enabled .settings-group,
 html.dark.liquid-glass-enabled .settings-item,
 html.dark.liquid-glass-enabled .metric-box,
-html.dark.liquid-glass-enabled .glass-nav-bar,
-html.dark.liquid-glass-enabled .nav-bar,
+html.dark.liquid-glass-enabled .top-glass-bar,
 html.dark.liquid-glass-enabled .ai-fab,
+html.dark.liquid-glass-enabled .floating-ai-fab button,
 html.dark.liquid-glass-enabled .ig-glass-card,
 html.dark.liquid-glass-enabled .glass-card,
 html.dark.liquid-glass-enabled .glass-card-light,
 html.dark.liquid-glass-enabled .glass-panel,
 html.dark.liquid-glass-enabled .sensor-card,
 html.dark.liquid-glass-enabled .glass-input-light,
-html.dark.liquid-glass-enabled .bottom-nav-container nav,
 body.dark.liquid-glass-enabled .card,
 body.dark.liquid-glass-enabled .pill,
+body.dark.liquid-glass-enabled .exercise-pill-badge,
 body.dark.liquid-glass-enabled .dashboard-card,
 body.dark.liquid-glass-enabled .dashboard-item,
 body.dark.liquid-glass-enabled .settings-group,
 body.dark.liquid-glass-enabled .settings-item,
 body.dark.liquid-glass-enabled .metric-box,
-body.dark.liquid-glass-enabled .glass-nav-bar,
-body.dark.liquid-glass-enabled .nav-bar,
+body.dark.liquid-glass-enabled .top-glass-bar,
 body.dark.liquid-glass-enabled .ai-fab,
+body.dark.liquid-glass-enabled .floating-ai-fab button,
 body.dark.liquid-glass-enabled .ig-glass-card,
 body.dark.liquid-glass-enabled .glass-card,
 body.dark.liquid-glass-enabled .glass-card-light,
 body.dark.liquid-glass-enabled .glass-panel,
 body.dark.liquid-glass-enabled .sensor-card,
 body.dark.liquid-glass-enabled .glass-input-light,
-body.dark.liquid-glass-enabled .bottom-nav-container nav,
+#root.dark.liquid-glass-enabled .card,
+#root.dark.liquid-glass-enabled .pill,
+#root.dark.liquid-glass-enabled .exercise-pill-badge,
+#root.dark.liquid-glass-enabled .dashboard-card,
+#root.dark.liquid-glass-enabled .dashboard-item,
+#root.dark.liquid-glass-enabled .settings-group,
+#root.dark.liquid-glass-enabled .settings-item,
+#root.dark.liquid-glass-enabled .metric-box,
+#root.dark.liquid-glass-enabled .top-glass-bar,
+#root.dark.liquid-glass-enabled .ai-fab,
+#root.dark.liquid-glass-enabled .floating-ai-fab button,
+#root.dark.liquid-glass-enabled .ig-glass-card,
+#root.dark.liquid-glass-enabled .glass-card,
+#root.dark.liquid-glass-enabled .glass-card-light,
+#root.dark.liquid-glass-enabled .glass-panel,
+#root.dark.liquid-glass-enabled .sensor-card,
+#root.dark.liquid-glass-enabled .glass-input-light,
 [data-theme="dark"]:not([data-glass="false"]) .card,
 [data-theme="dark"]:not([data-glass="false"]) .pill,
+[data-theme="dark"]:not([data-glass="false"]) .exercise-pill-badge,
 [data-theme="dark"]:not([data-glass="false"]) .dashboard-card,
 [data-theme="dark"]:not([data-glass="false"]) .dashboard-item,
 [data-theme="dark"]:not([data-glass="false"]) .settings-group,
 [data-theme="dark"]:not([data-glass="false"]) .settings-item,
 [data-theme="dark"]:not([data-glass="false"]) .metric-box,
-[data-theme="dark"]:not([data-glass="false"]) .glass-nav-bar,
-[data-theme="dark"]:not([data-glass="false"]) .nav-bar,
+[data-theme="dark"]:not([data-glass="false"]) .top-glass-bar,
 [data-theme="dark"]:not([data-glass="false"]) .ai-fab,
+[data-theme="dark"]:not([data-glass="false"]) .floating-ai-fab button,
 [data-theme="dark"]:not([data-glass="false"]) .ig-glass-card,
 [data-theme="dark"]:not([data-glass="false"]) .glass-card,
 [data-theme="dark"]:not([data-glass="false"]) .glass-card-light,
 [data-theme="dark"]:not([data-glass="false"]) .glass-panel,
 [data-theme="dark"]:not([data-glass="false"]) .sensor-card,
-[data-theme="dark"]:not([data-glass="false"]) .glass-input-light,
-[data-theme="dark"]:not([data-glass="false"]) .bottom-nav-container nav {
-  background: rgba(22, 22, 34, 0.40) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border: 1px solid rgba(var(--accent-rgb), 0.25) !important;
-  border-top: 1.5px solid rgba(255, 255, 255, 0.22) !important;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 15px rgba(var(--accent-rgb), 0.12) !important;
+[data-theme="dark"]:not([data-glass="false"]) .glass-input-light {
+  background: rgba(255, 255, 255, 0.04) !important;
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(140%) !important;
+  backdrop-filter: blur(12px) saturate(140%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.15), 0 8px 24px rgba(0, 0, 0, 0.3) !important;
 }
 
-/* LIGHT MODE (LIQUID GLASS ON) */
+/* LIGHT MODE + LIQUID GLASS ENABLED */
 html.light-mode.liquid-glass-enabled .card,
 html.light-mode.liquid-glass-enabled .pill,
+html.light-mode.liquid-glass-enabled .exercise-pill-badge,
 html.light-mode.liquid-glass-enabled .dashboard-card,
 html.light-mode.liquid-glass-enabled .dashboard-item,
 html.light-mode.liquid-glass-enabled .settings-group,
 html.light-mode.liquid-glass-enabled .settings-item,
 html.light-mode.liquid-glass-enabled .metric-box,
-html.light-mode.liquid-glass-enabled .glass-nav-bar,
-html.light-mode.liquid-glass-enabled .nav-bar,
-html.light-mode.liquid-glass-enabled .ai-fab,
+html.light-mode.liquid-glass-enabled .top-glass-bar,
 html.light-mode.liquid-glass-enabled .ig-glass-card,
 html.light-mode.liquid-glass-enabled .glass-card,
 html.light-mode.liquid-glass-enabled .glass-card-light,
 html.light-mode.liquid-glass-enabled .glass-panel,
 html.light-mode.liquid-glass-enabled .sensor-card,
 html.light-mode.liquid-glass-enabled .glass-input-light,
-html.light-mode.liquid-glass-enabled .bottom-nav-container nav,
 body.light-mode.liquid-glass-enabled .card,
 body.light-mode.liquid-glass-enabled .pill,
+body.light-mode.liquid-glass-enabled .exercise-pill-badge,
 body.light-mode.liquid-glass-enabled .dashboard-card,
 body.light-mode.liquid-glass-enabled .dashboard-item,
 body.light-mode.liquid-glass-enabled .settings-group,
 body.light-mode.liquid-glass-enabled .settings-item,
 body.light-mode.liquid-glass-enabled .metric-box,
-body.light-mode.liquid-glass-enabled .glass-nav-bar,
-body.light-mode.liquid-glass-enabled .nav-bar,
-body.light-mode.liquid-glass-enabled .ai-fab,
+body.light-mode.liquid-glass-enabled .top-glass-bar,
 body.light-mode.liquid-glass-enabled .ig-glass-card,
 body.light-mode.liquid-glass-enabled .glass-card,
 body.light-mode.liquid-glass-enabled .glass-card-light,
 body.light-mode.liquid-glass-enabled .glass-panel,
 body.light-mode.liquid-glass-enabled .sensor-card,
 body.light-mode.liquid-glass-enabled .glass-input-light,
-body.light-mode.liquid-glass-enabled .bottom-nav-container nav,
 html.light.liquid-glass-enabled .card,
 html.light.liquid-glass-enabled .pill,
+html.light.liquid-glass-enabled .exercise-pill-badge,
 html.light.liquid-glass-enabled .dashboard-card,
 html.light.liquid-glass-enabled .dashboard-item,
 html.light.liquid-glass-enabled .settings-group,
 html.light.liquid-glass-enabled .settings-item,
 html.light.liquid-glass-enabled .metric-box,
-html.light.liquid-glass-enabled .glass-nav-bar,
-html.light.liquid-glass-enabled .nav-bar,
-html.light.liquid-glass-enabled .ai-fab,
+html.light.liquid-glass-enabled .top-glass-bar,
 html.light.liquid-glass-enabled .ig-glass-card,
 html.light.liquid-glass-enabled .glass-card,
 html.light.liquid-glass-enabled .glass-card-light,
 html.light.liquid-glass-enabled .glass-panel,
 html.light.liquid-glass-enabled .sensor-card,
 html.light.liquid-glass-enabled .glass-input-light,
-html.light.liquid-glass-enabled .bottom-nav-container nav,
 body.light.liquid-glass-enabled .card,
 body.light.liquid-glass-enabled .pill,
+body.light.liquid-glass-enabled .exercise-pill-badge,
 body.light.liquid-glass-enabled .dashboard-card,
 body.light.liquid-glass-enabled .dashboard-item,
 body.light.liquid-glass-enabled .settings-group,
 body.light.liquid-glass-enabled .settings-item,
 body.light.liquid-glass-enabled .metric-box,
-body.light.liquid-glass-enabled .glass-nav-bar,
-body.light.liquid-glass-enabled .nav-bar,
-body.light.liquid-glass-enabled .ai-fab,
+body.light.liquid-glass-enabled .top-glass-bar,
 body.light.liquid-glass-enabled .ig-glass-card,
 body.light.liquid-glass-enabled .glass-card,
 body.light.liquid-glass-enabled .glass-card-light,
 body.light.liquid-glass-enabled .glass-panel,
 body.light.liquid-glass-enabled .sensor-card,
 body.light.liquid-glass-enabled .glass-input-light,
-body.light.liquid-glass-enabled .bottom-nav-container nav,
 [data-theme="light"]:not([data-glass="false"]) .card,
 [data-theme="light"]:not([data-glass="false"]) .pill,
+[data-theme="light"]:not([data-glass="false"]) .exercise-pill-badge,
 [data-theme="light"]:not([data-glass="false"]) .dashboard-card,
 [data-theme="light"]:not([data-glass="false"]) .dashboard-item,
 [data-theme="light"]:not([data-glass="false"]) .settings-group,
 [data-theme="light"]:not([data-glass="false"]) .settings-item,
 [data-theme="light"]:not([data-glass="false"]) .metric-box,
-[data-theme="light"]:not([data-glass="false"]) .glass-nav-bar,
-[data-theme="light"]:not([data-glass="false"]) .nav-bar,
-[data-theme="light"]:not([data-glass="false"]) .ai-fab,
+[data-theme="light"]:not([data-glass="false"]) .top-glass-bar,
 [data-theme="light"]:not([data-glass="false"]) .ig-glass-card,
 [data-theme="light"]:not([data-glass="false"]) .glass-card,
 [data-theme="light"]:not([data-glass="false"]) .glass-card-light,
 [data-theme="light"]:not([data-glass="false"]) .glass-panel,
 [data-theme="light"]:not([data-glass="false"]) .sensor-card,
-[data-theme="light"]:not([data-glass="false"]) .glass-input-light,
-[data-theme="light"]:not([data-glass="false"]) .bottom-nav-container nav {
-  background: rgba(255, 255, 255, 0.65) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border: 1px solid rgba(var(--accent-rgb), 0.28) !important;
-  border-top: 1.5px solid rgba(255, 255, 255, 0.95) !important;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08), 0 0 15px rgba(var(--accent-rgb), 0.10) !important;
+[data-theme="light"]:not([data-glass="false"]) .glass-input-light {
+  background: rgba(255, 255, 255, 0.45) !important;
+  background-color: rgba(255, 255, 255, 0.45) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+  backdrop-filter: blur(18px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.9), 0 8px 32px rgba(15, 23, 42, 0.08) !important;
+  color: #0f172a !important;
+}
+
+/* Floating AI FAB in Light Mode - True Liquid Glass when glass is on, clean white pill when off */
+.light-mode.liquid-glass-enabled .ai-fab,
+.light-mode.liquid-glass-enabled .floating-ai-fab button,
+html.light.liquid-glass-enabled .ai-fab,
+body.light.liquid-glass-enabled .ai-fab,
+[data-theme="light"]:not([data-glass="false"]) .ai-fab,
+[data-theme="light"]:not([data-glass="false"]) .floating-ai-fab button {
+  background: rgba(255, 255, 255, 0.45) !important;
+  background-color: rgba(255, 255, 255, 0.45) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+  backdrop-filter: blur(18px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.9), 0 8px 32px rgba(15, 23, 42, 0.08) !important;
+}
+
+.light-mode:not(.liquid-glass-enabled) .ai-fab,
+.light-mode:not(.liquid-glass-enabled) .floating-ai-fab button,
+html.light:not(.liquid-glass-enabled) .ai-fab,
+body.light:not(.liquid-glass-enabled) .ai-fab,
+[data-theme="light"][data-glass="false"] .ai-fab,
+[data-theme="light"][data-glass="false"] .floating-ai-fab button {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+}
+
+/* AI Logo (Sparkles Icon) in button MUST be the accent colour in all modes */
+.ai-fab svg,
+.floating-ai-fab button svg,
+.light-mode .ai-fab svg,
+.light-mode .floating-ai-fab button svg,
+[data-theme="light"] .ai-fab svg,
+[data-theme="light"] .floating-ai-fab button svg,
+[data-theme="dark"] .ai-fab svg,
+[data-theme="dark"] .floating-ai-fab button svg {
+  color: var(--accent-hex, #10b981) !important;
+  stroke: var(--accent-hex, #10b981) !important;
+  filter: drop-shadow(0 0 6px rgba(var(--accent-rgb, 16, 185, 129), 0.5)) !important;
 }
 
 [data-theme="light"] .ig-glass-card:hover,
@@ -292,79 +466,236 @@ body.light.liquid-glass-enabled .bottom-nav-container nav,
 }
 
 /* ==========================================================================
-   5. COMPREHENSIVE MODAL SYSTEM (LIGHT & DARK MODE LIQUID GLASS)
+   5. COMPREHENSIVE MODAL SYSTEM (SLEEK DARK & LIGHT MODALS)
    ========================================================================== */
-[data-theme="dark"] .glass-modal,
-[data-theme="dark"] .fixed.inset-0.z-50 > .bg-slate-900 {
-  background: rgba(18, 18, 28, 0.55) !important;
-  background-color: rgba(18, 18, 28, 0.55) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45) !important;
+[data-theme="dark"] .fixed.inset-0.z-50:has(.glass-modal),
+[data-theme="dark"] .fixed.inset-0.z-\[60\]:has(.glass-modal) {
+  background-color: rgba(0, 0, 0, 0.45) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+[data-theme="dark"]:not([data-glass="false"]) .glass-modal,
+[data-theme="dark"]:not([data-glass="false"]) .modal-content,
+[data-theme="dark"]:not([data-glass="false"]) .dialog-sheet,
+html.dark.liquid-glass-enabled .glass-modal,
+html.dark.liquid-glass-enabled .modal-content,
+html.dark.liquid-glass-enabled .dialog-sheet,
+body.dark.liquid-glass-enabled .glass-modal,
+body.dark.liquid-glass-enabled .modal-content,
+body.dark.liquid-glass-enabled .dialog-sheet,
+#root.dark.liquid-glass-enabled .glass-modal,
+#root.dark.liquid-glass-enabled .modal-content,
+#root.dark.liquid-glass-enabled .dialog-sheet,
+[data-theme="dark"]:not([data-glass="false"]) .fixed.inset-0.z-50 > .bg-slate-900 {
+  background: rgba(255, 255, 255, 0.04) !important;
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(140%) !important;
+  backdrop-filter: blur(12px) saturate(140%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.15), 0 8px 24px rgba(0, 0, 0, 0.3) !important;
   color: #f8fafc !important;
 }
 
-[data-theme="light"] .glass-modal,
-[data-theme="light"] .fixed.inset-0.z-50 > .bg-slate-900 {
-  background: rgba(255, 255, 255, 0.60) !important;
-  background-color: rgba(255, 255, 255, 0.60) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border: 1px solid rgba(15, 23, 42, 0.14) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.95) !important;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.09) !important;
+/* AI Coach Sheet in Dark Mode */
+[data-theme="dark"]:not([data-glass="false"]) .ai-coach-acrylic-sheet,
+html.dark.liquid-glass-enabled .ai-coach-acrylic-sheet {
+  background: rgba(255, 255, 255, 0.04) !important;
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(140%) !important;
+  backdrop-filter: blur(12px) saturate(140%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.15), 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Inner Sub-Cards, Panels & Inputs inside Dark Mode Popups */
+[data-theme="dark"]:not([data-glass="false"]) .glass-modal .bg-white\/5,
+[data-theme="dark"]:not([data-glass="false"]) .glass-modal .bg-white\/\[0\.04\],
+[data-theme="dark"]:not([data-glass="false"]) .glass-modal .bg-white\/\[0\.03\],
+[data-theme="dark"]:not([data-glass="false"]) .glass-modal .bg-white\/10,
+[data-theme="dark"]:not([data-glass="false"]) .glass-modal .bg-slate-950,
+[data-theme="dark"]:not([data-glass="false"]) .glass-modal .bg-slate-950\/80,
+[data-theme="dark"]:not([data-glass="false"]) .glass-modal .bg-slate-950\/90,
+[data-theme="dark"]:not([data-glass="false"]) .glass-modal .bg-slate-900,
+[data-theme="dark"]:not([data-glass="false"]) .glass-modal .bg-slate-900\/80,
+[data-theme="dark"]:not([data-glass="false"]) .glass-modal .bg-black\/90,
+[data-theme="dark"]:not([data-glass="false"]) .glass-modal .bg-black\/60,
+[data-theme="dark"]:not([data-glass="false"]) .glass-modal .bg-black\/40 {
+  background: rgba(255, 255, 255, 0.04) !important;
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(140%) !important;
+  backdrop-filter: blur(12px) saturate(140%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.15), 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Light Mode + Liquid Glass Modals */
+[data-theme="light"]:not([data-glass="false"]) .glass-modal,
+[data-theme="light"]:not([data-glass="false"]) .modal-content,
+[data-theme="light"]:not([data-glass="false"]) .dialog-sheet,
+html.light.liquid-glass-enabled .glass-modal,
+html.light.liquid-glass-enabled .modal-content,
+html.light.liquid-glass-enabled .dialog-sheet,
+body.light.liquid-glass-enabled .glass-modal,
+body.light.liquid-glass-enabled .modal-content,
+body.light.liquid-glass-enabled .dialog-sheet,
+#root.light.liquid-glass-enabled .glass-modal,
+#root.light.liquid-glass-enabled .modal-content,
+#root.light.liquid-glass-enabled .dialog-sheet,
+[data-theme="light"]:not([data-glass="false"]) .fixed.inset-0.z-50 > .bg-slate-900 {
+  background: rgba(255, 255, 255, 0.45) !important;
+  background-color: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(18px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.9), 0 8px 32px rgba(15, 23, 42, 0.08) !important;
   color: #0f172a !important;
 }
 
-[data-theme="light"] .fixed.inset-0.z-50 {
-  background-color: rgba(15, 23, 42, 0.35) !important;
-}
-
-/* Light Mode Typography & Input Contrast Enforcement */
-[data-theme="light"] h1,
-[data-theme="light"] h2,
-[data-theme="light"] h3,
-[data-theme="light"] h4,
-[data-theme="light"] label,
-[data-theme="light"] .modal-title,
-[data-theme="light"] .text-white {
+[data-theme="light"]:not([data-glass="false"]) .ai-coach-acrylic-sheet,
+html.light.liquid-glass-enabled .ai-coach-acrylic-sheet,
+body.light.liquid-glass-enabled .ai-coach-acrylic-sheet,
+#root.light.liquid-glass-enabled .ai-coach-acrylic-sheet {
+  background: rgba(255, 255, 255, 0.45) !important;
+  background-color: rgba(255, 255, 255, 0.45) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+  backdrop-filter: blur(18px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.9), 0 8px 32px rgba(15, 23, 42, 0.08) !important;
   color: #0f172a !important;
 }
 
+[data-theme="light"] .fixed.inset-0.z-50:has(.glass-modal),
+[data-theme="light"] .fixed.inset-0.z-\[60\]:has(.glass-modal) {
+  background-color: rgba(15, 23, 42, 0.10) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Light Mode Typography, Border & Contrast Enforcement */
+.light-mode h1:not(.overhaul-logo-wordmark):not(.keep-white),
+.light-mode h2:not(.keep-white),
+.light-mode h3:not(.keep-white),
+.light-mode h4:not(.keep-white),
+.light-mode label:not(.keep-white),
+.light-mode .modal-title:not(.keep-white),
+[data-theme="light"] h1:not(.overhaul-logo-wordmark):not(.keep-white),
+[data-theme="light"] h2:not(.keep-white),
+[data-theme="light"] h3:not(.keep-white),
+[data-theme="light"] h4:not(.keep-white),
+[data-theme="light"] label:not(.keep-white),
+[data-theme="light"] .modal-title:not(.keep-white),
+[data-theme="light"] .text-white:not(.overhaul-logo-wordmark):not(.keep-white):not(.bg-rose-500):not(.bg-emerald-500):not(.bg-cyan-500):not(.bg-amber-500):not(.bg-violet-500) {
+  color: #0f172a !important;
+}
+
+.light-mode input,
+.light-mode textarea,
+.light-mode select,
+.light-mode input::placeholder,
+.light-mode textarea::placeholder,
 [data-theme="light"] input,
 [data-theme="light"] textarea,
-[data-theme="light"] select {
+[data-theme="light"] select,
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
   color: #0f172a !important;
 }
 
+.light-mode .text-slate-200,
+.light-mode .text-slate-300,
+.light-mode .text-slate-400,
+.light-mode .text-slate-500,
+[data-theme="light"] .text-slate-200,
+[data-theme="light"] .text-slate-200\/85,
+[data-theme="light"] .text-slate-300,
+[data-theme="light"] .text-slate-300\/85,
+[data-theme="light"] .text-slate-300\/80,
+[data-theme="light"] .text-slate-300\/75,
+[data-theme="light"] .text-slate-400,
+[data-theme="light"] .text-slate-500,
+[data-theme="light"] .glass-modal .text-slate-300,
 [data-theme="light"] .glass-modal .text-slate-400,
 [data-theme="light"] .glass-modal .text-slate-500 {
-  color: #475569 !important;
+  color: #0f172a !important;
 }
 
-[data-theme="light"] .glass-modal .text-slate-300 {
-  color: #334155 !important;
+/* Deepen neon-pastel accent text utilities in Light Mode for razor-sharp readability */
+[data-theme="light"] .text-amber-300,
+[data-theme="light"] .text-amber-400 {
+  color: #d97706 !important;
+}
+
+[data-theme="light"] .text-cyan-300,
+[data-theme="light"] .text-cyan-400 {
+  color: #0284c7 !important;
+}
+
+[data-theme="light"] .text-emerald-300,
+[data-theme="light"] .text-emerald-400 {
+  color: #059669 !important;
+}
+
+[data-theme="light"] .text-violet-300,
+[data-theme="light"] .text-violet-400 {
+  color: #7c3aed !important;
+}
+
+[data-theme="light"] .text-rose-300,
+[data-theme="light"] .text-rose-400 {
+  color: #e11d48 !important;
+}
+
+/* Ensure subtle card dividers (border-white/10, border-white/15, etc.) are crisp in Light Mode */
+[data-theme="light"] .border-t.border-white\/10,
+[data-theme="light"] .border-b.border-white\/10,
+[data-theme="light"] .border-t.border-white\/15,
+[data-theme="light"] .border-b.border-white\/15,
+[data-theme="light"] .border-t.border-white\/20,
+[data-theme="light"] .border-b.border-white\/20 {
+  border-color: rgba(15, 23, 42, 0.12) !important;
 }
 
 /* Nested Modal Sub-Cards & Panels */
-[data-theme="dark"] .glass-card-nested {
-  background-color: rgba(18, 18, 28, 0.55) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45) !important;
+.dark-mode.liquid-glass-enabled .glass-card-nested,
+[data-theme="dark"]:not([data-glass="false"]) .glass-card-nested {
+  background: rgba(255, 255, 255, 0.04) !important;
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  backdrop-filter: blur(12px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(140%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.15), 0 8px 24px rgba(0, 0, 0, 0.3) !important;
 }
 
-[data-theme="light"] .glass-card-nested {
-  background-color: rgba(255, 255, 255, 0.60) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border: 1px solid rgba(15, 23, 42, 0.14) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.95) !important;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.09) !important;
+.dark-mode:not(.liquid-glass-enabled) .glass-card-nested,
+[data-theme="dark"][data-glass="false"] .glass-card-nested {
+  background: #141024 !important;
+  background-color: #141024 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+}
+
+.light-mode.liquid-glass-enabled .glass-card-nested,
+[data-theme="light"]:not([data-glass="false"]) .glass-card-nested {
+  background: rgba(255, 255, 255, 0.75) !important;
+  background-color: rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.9) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+  color: #0f172a !important;
+}
+
+.light-mode:not(.liquid-glass-enabled) .glass-card-nested,
+[data-theme="light"][data-glass="false"] .glass-card-nested {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
 }
 
 [data-theme="light"] .glass-modal .bg-white\/\[0\.04\],
@@ -373,141 +704,432 @@ body.light.liquid-glass-enabled .bottom-nav-container nav,
 [data-theme="light"] .glass-modal .bg-white\/10,
 [data-theme="light"] .bg-slate-900,
 [data-theme="light"] .bg-slate-950 {
-  background-color: rgba(255, 255, 255, 0.60) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border: 1px solid rgba(15, 23, 42, 0.14) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.95) !important;
-}
-
-/* Modal Inputs & Form Controls */
-[data-theme="dark"] .modal-input {
-  background-color: rgba(18, 18, 28, 0.55) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
-  color: #f8fafc !important;
-}
-
-[data-theme="dark"] .modal-input:focus {
-  border-color: var(--accent-hex, #10b981) !important;
-}
-
-[data-theme="dark"] .modal-input::placeholder {
-  color: #64748b !important;
-}
-
-[data-theme="light"] .modal-input,
-[data-theme="light"] .glass-input-light {
-  background: rgba(255, 255, 255, 0.60) !important;
-  background-color: rgba(255, 255, 255, 0.60) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border: 1px solid rgba(15, 23, 42, 0.14) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.95) !important;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.09) !important;
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
   color: #0f172a !important;
 }
 
+/* Modal & Settings Inputs & Form Controls */
+.settings-input,
+.modal-input,
+.glass-input-light {
+  font-weight: 600 !important;
+}
+
+.dark-mode.liquid-glass-enabled .modal-input,
+[data-theme="dark"]:not([data-glass="false"]) .modal-input {
+  background: rgba(255, 255, 255, 0.04) !important;
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  backdrop-filter: blur(12px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(140%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+}
+
+.dark-mode:not(.liquid-glass-enabled) .modal-input,
+[data-theme="dark"][data-glass="false"] .modal-input {
+  background: #141024 !important;
+  background-color: #141024 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .settings-input,
+.dark-mode .settings-input,
+[data-theme="dark"] .modal-input,
+.dark-mode .modal-input {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="dark"] .settings-input::placeholder,
+.dark-mode .settings-input::placeholder,
+[data-theme="dark"] .modal-input::placeholder,
+.dark-mode .modal-input::placeholder {
+  color: rgba(255, 255, 255, 0.65) !important;
+  opacity: 1 !important;
+}
+
+[data-theme="dark"] .modal-input:focus,
+[data-theme="dark"] .settings-input:focus {
+  border-color: var(--accent-hex, #10b981) !important;
+}
+
+[data-theme="light"] .modal-input,
+[data-theme="light"] .glass-input-light,
+[data-theme="light"] .settings-input,
+.light-mode .settings-input {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  font-weight: 600 !important;
+}
+
 [data-theme="light"] .modal-input:focus,
-[data-theme="light"] .glass-input-light:focus {
+[data-theme="light"] .glass-input-light:focus,
+[data-theme="light"] .settings-input:focus {
   border-color: var(--accent-hex, #10b981) !important;
   box-shadow: 0 0 0 2px var(--accent-light, rgba(16, 185, 129, 0.15)) !important;
 }
 
 [data-theme="light"] .modal-input::placeholder,
-[data-theme="light"] .glass-input-light::placeholder {
-  color: #64748b !important;
+[data-theme="light"] .glass-input-light::placeholder,
+[data-theme="light"] .settings-input::placeholder,
+.light-mode .settings-input::placeholder {
+  color: rgba(15, 23, 42, 0.65) !important;
+  opacity: 1 !important;
 }
 
-/* Modal Close & Secondary Action Buttons */
-[data-theme="dark"] .modal-close-btn,
-[data-theme="dark"] .modal-secondary-btn {
-  background-color: rgba(18, 18, 28, 0.55) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
-  color: #f8fafc !important;
+/* AI Coach Bottom Panel, Quick Suggestion Chips & Input Row */
+.ai-coach-bottom-panel,
+.glass-modal .ai-coach-bottom-panel {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 12px 16px !important;
 }
 
-[data-theme="dark"] .modal-close-btn:hover,
-[data-theme="dark"] .modal-secondary-btn:hover {
-  background-color: rgba(255, 255, 255, 0.18) !important;
+.ai-quick-chip,
+.ai-coach-chip,
+.glass-modal .ai-quick-chip,
+.glass-modal .ai-coach-chip {
+  border-radius: 20px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  backdrop-filter: blur(12px) !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  transition: all 0.18s ease !important;
+}
+
+.ai-quick-chip:hover,
+.ai-quick-chip:active,
+.ai-coach-chip:hover,
+.ai-coach-chip:active,
+.glass-modal .ai-quick-chip:hover,
+.glass-modal .ai-quick-chip:active,
+.glass-modal .ai-coach-chip:hover,
+.glass-modal .ai-coach-chip:active {
+  background: var(--accent-hex, var(--accent-color, #10b981)) !important;
+  border-color: var(--accent-hex, var(--accent-color, #10b981)) !important;
   color: #ffffff !important;
 }
 
+.ai-input-row,
+.glass-modal .ai-input-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-top: 8px !important;
+}
+
+.ai-chat-input,
+.glass-modal .ai-chat-input {
+  border-radius: 24px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  padding: 10px 16px !important;
+  color: #ffffff !important;
+}
+
+/* AI Workout Routine Builder Modal Liquid Glass */
+.ai-routine-builder-modal-content,
+.ai-routine-builder-modal-content.glass-card {
+  background: rgba(18, 14, 28, 0.65) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(180%) !important;
+  backdrop-filter: blur(30px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+  border-radius: 28px !important;
+  color: #ffffff !important;
+}
+
+.raw-routine-textarea,
+.ai-routine-builder-modal-content .raw-routine-textarea {
+  background: rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 16px !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  backdrop-filter: blur(10px) !important;
+  color: #ffffff !important;
+}
+
+/* Personal Records Card & Trophy Shelf Spacing */
+.pr-card-container,
+.trophy-shelf-preview {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  padding-bottom: 12px !important;
+}
+
+.pr-card-container .border-t {
+  margin-bottom: 6px !important;
+}
+
+/* Modal Close & Secondary Action Buttons */
+.modal-close-btn,
+#root .modal-close-btn,
+[data-theme="dark"] .modal-close-btn,
 [data-theme="light"] .modal-close-btn,
+.dark-mode .modal-close-btn,
+.light-mode .modal-close-btn {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 4px !important;
+  color: var(--text-primary) !important;
+  cursor: pointer !important;
+  border-radius: 0 !important;
+  outline: none !important;
+}
+
+.modal-close-btn:hover,
+#root .modal-close-btn:hover,
+[data-theme="dark"] .modal-close-btn:hover,
+[data-theme="light"] .modal-close-btn:hover {
+  background: transparent !important;
+  background-color: transparent !important;
+  opacity: 0.75 !important;
+}
+
+.modal-title-badge {
+  display: none !important;
+}
+
+.dark-mode.liquid-glass-enabled .modal-secondary-btn,
+[data-theme="dark"]:not([data-glass="false"]) .modal-secondary-btn {
+  background: rgba(255, 255, 255, 0.04) !important;
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  backdrop-filter: blur(12px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(140%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #f8fafc !important;
+}
+
+.dark-mode:not(.liquid-glass-enabled) .modal-secondary-btn,
+[data-theme="dark"][data-glass="false"] .modal-secondary-btn {
+  background: #141024 !important;
+  background-color: #141024 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .modal-secondary-btn:hover {
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  color: #ffffff !important;
+}
+
 [data-theme="light"] .modal-secondary-btn {
-  background-color: rgba(255, 255, 255, 0.60) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border: 1px solid rgba(15, 23, 42, 0.14) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.95) !important;
+  background-color: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
   color: #0f172a !important;
 }
 
-[data-theme="light"] .modal-close-btn:hover,
 [data-theme="light"] .modal-secondary-btn:hover {
-  background-color: rgba(255, 255, 255, 0.95) !important;
-  color: #000000 !important;
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
 }
 
 /* General Light Mode Typography Contrast Enforcement */
+.light-mode .text-slate-100,
+.light-mode .text-slate-200,
+.light-mode .text-zinc-100,
+.light-mode .text-zinc-200,
+.light-mode .text-slate-300,
+.light-mode .text-slate-400,
+.light-mode .text-slate-500,
+.light-mode .text-zinc-400,
 [data-theme="light"] .text-slate-100,
 [data-theme="light"] .text-slate-200,
 [data-theme="light"] .text-zinc-100,
-[data-theme="light"] .text-zinc-200 {
-  color: #1e293b !important;
-}
-
+[data-theme="light"] .text-zinc-200,
 [data-theme="light"] .text-slate-300,
 [data-theme="light"] .text-slate-400,
+[data-theme="light"] .text-slate-500,
 [data-theme="light"] .text-zinc-400 {
-  color: #475569 !important;
+  color: #0f172a !important;
 }
 
 /* ==========================================================================
-   6. SOLID FLAT FALLBACK (LIQUID GLASS OFF)
+   6. CLEAN SOLID STYLES (WHEN LIQUID GLASS IS OFF)
    ========================================================================== */
+html.dark:not(.liquid-glass-enabled) .card,
+html.dark:not(.liquid-glass-enabled) .pill,
+html.dark:not(.liquid-glass-enabled) .exercise-pill-badge,
+html.dark:not(.liquid-glass-enabled) .dashboard-card,
+html.dark:not(.liquid-glass-enabled) .dashboard-item,
+html.dark:not(.liquid-glass-enabled) .settings-group,
+html.dark:not(.liquid-glass-enabled) .settings-item,
+html.dark:not(.liquid-glass-enabled) .metric-box,
+html.dark:not(.liquid-glass-enabled) .ai-fab,
+html.dark:not(.liquid-glass-enabled) .floating-ai-fab button,
+html.dark:not(.liquid-glass-enabled) .glass-panel,
+html.dark:not(.liquid-glass-enabled) .ig-glass-card,
+html.dark:not(.liquid-glass-enabled) .glass-card,
+html.dark:not(.liquid-glass-enabled) .glass-card-light,
+html.dark:not(.liquid-glass-enabled) .glass-modal,
+html.dark:not(.liquid-glass-enabled) .modal-content,
+html.dark:not(.liquid-glass-enabled) .dialog-sheet,
+html.dark:not(.liquid-glass-enabled) .ai-coach-acrylic-sheet,
+body.dark:not(.liquid-glass-enabled) .card,
+body.dark:not(.liquid-glass-enabled) .pill,
+body.dark:not(.liquid-glass-enabled) .exercise-pill-badge,
+body.dark:not(.liquid-glass-enabled) .dashboard-card,
+body.dark:not(.liquid-glass-enabled) .dashboard-item,
+body.dark:not(.liquid-glass-enabled) .settings-group,
+body.dark:not(.liquid-glass-enabled) .settings-item,
+body.dark:not(.liquid-glass-enabled) .metric-box,
+body.dark:not(.liquid-glass-enabled) .ai-fab,
+body.dark:not(.liquid-glass-enabled) .floating-ai-fab button,
+body.dark:not(.liquid-glass-enabled) .glass-panel,
+body.dark:not(.liquid-glass-enabled) .ig-glass-card,
+body.dark:not(.liquid-glass-enabled) .glass-card,
+body.dark:not(.liquid-glass-enabled) .glass-card-light,
+body.dark:not(.liquid-glass-enabled) .glass-modal,
+body.dark:not(.liquid-glass-enabled) .modal-content,
+body.dark:not(.liquid-glass-enabled) .dialog-sheet,
+body.dark:not(.liquid-glass-enabled) .ai-coach-acrylic-sheet,
+#root.dark:not(.liquid-glass-enabled) .card,
+#root.dark:not(.liquid-glass-enabled) .pill,
+#root.dark:not(.liquid-glass-enabled) .exercise-pill-badge,
+#root.dark:not(.liquid-glass-enabled) .dashboard-card,
+#root.dark:not(.liquid-glass-enabled) .dashboard-item,
+#root.dark:not(.liquid-glass-enabled) .settings-group,
+#root.dark:not(.liquid-glass-enabled) .settings-item,
+#root.dark:not(.liquid-glass-enabled) .metric-box,
+#root.dark:not(.liquid-glass-enabled) .ai-fab,
+#root.dark:not(.liquid-glass-enabled) .floating-ai-fab button,
+#root.dark:not(.liquid-glass-enabled) .glass-panel,
+#root.dark:not(.liquid-glass-enabled) .ig-glass-card,
+#root.dark:not(.liquid-glass-enabled) .glass-card,
+#root.dark:not(.liquid-glass-enabled) .glass-card-light,
+#root.dark:not(.liquid-glass-enabled) .glass-modal,
+#root.dark:not(.liquid-glass-enabled) .modal-content,
+#root.dark:not(.liquid-glass-enabled) .dialog-sheet,
+#root.dark:not(.liquid-glass-enabled) .ai-coach-acrylic-sheet,
 [data-theme="dark"][data-glass="false"] .card,
 [data-theme="dark"][data-glass="false"] .pill,
+[data-theme="dark"][data-glass="false"] .exercise-pill-badge,
+[data-theme="dark"][data-glass="false"] .dashboard-card,
 [data-theme="dark"][data-glass="false"] .dashboard-item,
+[data-theme="dark"][data-glass="false"] .settings-group,
 [data-theme="dark"][data-glass="false"] .settings-item,
-[data-theme="dark"][data-glass="false"] .nav-bar,
+[data-theme="dark"][data-glass="false"] .metric-box,
 [data-theme="dark"][data-glass="false"] .ai-fab,
+[data-theme="dark"][data-glass="false"] .floating-ai-fab button,
 [data-theme="dark"][data-glass="false"] .glass-panel,
 [data-theme="dark"][data-glass="false"] .ig-glass-card,
 [data-theme="dark"][data-glass="false"] .glass-card,
+[data-theme="dark"][data-glass="false"] .glass-card-light,
 [data-theme="dark"][data-glass="false"] .glass-modal,
-[data-theme="dark"][data-glass="false"] .bottom-nav-container nav {
-  background: #0b0c10 !important;
-  background-color: #0b0c10 !important;
+[data-theme="dark"][data-glass="false"] .modal-content,
+[data-theme="dark"][data-glass="false"] .dialog-sheet,
+[data-theme="dark"][data-glass="false"] .ai-coach-acrylic-sheet,
+html.dark.solid-flat .card,
+html.dark.solid-flat .pill,
+html.dark.solid-flat .ai-fab,
+html.dark.solid-flat .floating-ai-fab button,
+body.dark.solid-flat .card,
+body.dark.solid-flat .pill,
+body.dark.solid-flat .ai-fab,
+body.dark.solid-flat .floating-ai-fab button {
+  background: #141024 !important;
+  background-color: #141024 !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  box-shadow: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
 }
 
+/* LIGHT MODE CLEAN SOLID STYLES (WHEN LIQUID GLASS IS OFF) */
+html.light:not(.liquid-glass-enabled) .card,
+html.light:not(.liquid-glass-enabled) .pill,
+html.light:not(.liquid-glass-enabled) .exercise-pill-badge,
+html.light:not(.liquid-glass-enabled) .dashboard-card,
+html.light:not(.liquid-glass-enabled) .dashboard-item,
+html.light:not(.liquid-glass-enabled) .settings-group,
+html.light:not(.liquid-glass-enabled) .settings-item,
+html.light:not(.liquid-glass-enabled) .metric-box,
+html.light:not(.liquid-glass-enabled) .glass-panel,
+html.light:not(.liquid-glass-enabled) .ig-glass-card,
+html.light:not(.liquid-glass-enabled) .glass-card,
+html.light:not(.liquid-glass-enabled) .glass-card-light,
+html.light:not(.liquid-glass-enabled) .glass-modal,
+html.light:not(.liquid-glass-enabled) .modal-content,
+html.light:not(.liquid-glass-enabled) .dialog-sheet,
+html.light:not(.liquid-glass-enabled) .ai-coach-acrylic-sheet,
+body.light:not(.liquid-glass-enabled) .card,
+body.light:not(.liquid-glass-enabled) .pill,
+body.light:not(.liquid-glass-enabled) .exercise-pill-badge,
+body.light:not(.liquid-glass-enabled) .dashboard-card,
+body.light:not(.liquid-glass-enabled) .dashboard-item,
+body.light:not(.liquid-glass-enabled) .settings-group,
+body.light:not(.liquid-glass-enabled) .settings-item,
+body.light:not(.liquid-glass-enabled) .metric-box,
+body.light:not(.liquid-glass-enabled) .glass-panel,
+body.light:not(.liquid-glass-enabled) .ig-glass-card,
+body.light:not(.liquid-glass-enabled) .glass-card,
+body.light:not(.liquid-glass-enabled) .glass-card-light,
+body.light:not(.liquid-glass-enabled) .glass-modal,
+body.light:not(.liquid-glass-enabled) .modal-content,
+body.light:not(.liquid-glass-enabled) .dialog-sheet,
+body.light:not(.liquid-glass-enabled) .ai-coach-acrylic-sheet,
+#root.light:not(.liquid-glass-enabled) .card,
+#root.light:not(.liquid-glass-enabled) .pill,
+#root.light:not(.liquid-glass-enabled) .exercise-pill-badge,
+#root.light:not(.liquid-glass-enabled) .dashboard-card,
+#root.light:not(.liquid-glass-enabled) .dashboard-item,
+#root.light:not(.liquid-glass-enabled) .settings-group,
+#root.light:not(.liquid-glass-enabled) .settings-item,
+#root.light:not(.liquid-glass-enabled) .metric-box,
+#root.light:not(.liquid-glass-enabled) .glass-panel,
+#root.light:not(.liquid-glass-enabled) .ig-glass-card,
+#root.light:not(.liquid-glass-enabled) .glass-card,
+#root.light:not(.liquid-glass-enabled) .glass-card-light,
+#root.light:not(.liquid-glass-enabled) .glass-modal,
+#root.light:not(.liquid-glass-enabled) .modal-content,
+#root.light:not(.liquid-glass-enabled) .dialog-sheet,
+#root.light:not(.liquid-glass-enabled) .ai-coach-acrylic-sheet,
 [data-theme="light"][data-glass="false"] .card,
 [data-theme="light"][data-glass="false"] .pill,
+[data-theme="light"][data-glass="false"] .exercise-pill-badge,
+[data-theme="light"][data-glass="false"] .dashboard-card,
 [data-theme="light"][data-glass="false"] .dashboard-item,
+[data-theme="light"][data-glass="false"] .settings-group,
 [data-theme="light"][data-glass="false"] .settings-item,
-[data-theme="light"][data-glass="false"] .nav-bar,
-[data-theme="light"][data-glass="false"] .ai-fab,
+[data-theme="light"][data-glass="false"] .metric-box,
 [data-theme="light"][data-glass="false"] .glass-panel,
 [data-theme="light"][data-glass="false"] .ig-glass-card,
 [data-theme="light"][data-glass="false"] .glass-card,
 [data-theme="light"][data-glass="false"] .glass-card-light,
 [data-theme="light"][data-glass="false"] .glass-modal,
-[data-theme="light"][data-glass="false"] .bottom-nav-container nav {
+[data-theme="light"][data-glass="false"] .modal-content,
+[data-theme="light"][data-glass="false"] .dialog-sheet,
+[data-theme="light"][data-glass="false"] .ai-coach-acrylic-sheet,
+html.light.solid-flat .card,
+html.light.solid-flat .pill,
+body.light.solid-flat .card,
+body.light.solid-flat .pill,
+.light-mode:not(.liquid-glass-enabled) .card,
+.light-mode:not(.liquid-glass-enabled) .pill,
+.light-mode:not(.liquid-glass-enabled) .modal-content,
+.light-mode:not(.liquid-glass-enabled) .glass-modal,
+.light-mode:not(.liquid-glass-enabled) .dialog-sheet {
   background: #ffffff !important;
   background-color: #ffffff !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  border: 1px solid rgba(15, 23, 42, 0.14) !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+  color: #0f172a !important;
 }
 
 /* ==========================================================================
@@ -547,12 +1169,9 @@ body.light.liquid-glass-enabled .bottom-nav-container nav,
    8. CIRCLE ELEMENTS LIGHT & DARK MODE CONTRAST
    ========================================================================== */
 [data-theme="light"] .bpl-score-circle {
-  background-color: rgba(255, 255, 255, 0.60) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border: 1px solid rgba(15, 23, 42, 0.14) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.95) !important;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.09) !important;
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
 }
 
 [data-theme="light"] .bpl-score-circle .bpl-number {
@@ -563,12 +1182,22 @@ body.light.liquid-glass-enabled .bottom-nav-container nav,
   color: #0f172a !important;
 }
 
-[data-theme="dark"] .bpl-score-circle {
-  background-color: rgba(18, 18, 28, 0.55) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
+.dark-mode.liquid-glass-enabled .bpl-score-circle,
+[data-theme="dark"]:not([data-glass="false"]) .bpl-score-circle {
+  background: rgba(255, 255, 255, 0.04) !important;
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  backdrop-filter: blur(12px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(140%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.dark-mode:not(.liquid-glass-enabled) .bpl-score-circle,
+[data-theme="dark"][data-glass="false"] .bpl-score-circle {
+  background: #141024 !important;
+  background-color: #141024 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
 }
 
 [data-theme="dark"] .bpl-score-circle .bpl-number {
@@ -580,18 +1209,28 @@ body.light.liquid-glass-enabled .bottom-nav-container nav,
 }
 
 [data-theme="light"] .avatar-circle {
-  background-color: rgba(255, 255, 255, 0.60) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border: 1px solid rgba(15, 23, 42, 0.14) !important;
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
   color: #0f172a !important;
 }
 
-[data-theme="dark"] .avatar-circle {
-  background-color: rgba(18, 18, 28, 0.55) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+.dark-mode.liquid-glass-enabled .avatar-circle,
+[data-theme="dark"]:not([data-glass="false"]) .avatar-circle {
+  background: rgba(255, 255, 255, 0.04) !important;
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  backdrop-filter: blur(12px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(140%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+}
+
+.dark-mode:not(.liquid-glass-enabled) .avatar-circle,
+[data-theme="dark"][data-glass="false"] .avatar-circle {
+  background: #141024 !important;
+  background-color: #141024 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
   color: #ffffff !important;
 }
 
@@ -620,3 +1259,880 @@ body.light.liquid-glass-enabled .bottom-nav-container nav,
     animation: none !important;
   }
 }
+
+/* ==========================================================================
+   10. FLOATING ISLAND PILL NAVIGATION BAR & SPOTLIGHT BLEED PURGE
+   ========================================================================== */
+.bottom-nav-container,
+.nav-bar-container,
+.bottomNavContainer,
+#bottomNavContainer {
+  position: fixed !important;
+  bottom: 12px !important;
+  left: 12px !important;
+  right: 12px !important;
+  width: calc(100% - 24px) !important;
+  max-width: 440px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  z-index: 100 !important;
+  box-shadow: none !important;
+  border: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  pointer-events: none !important;
+}
+
+.nav-bar,
+.glass-nav-bar,
+.bottom-nav-container nav {
+  border-radius: 28px !important;
+  height: 60px !important;
+  padding: 0 8px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-around !important;
+  pointer-events: auto !important;
+  width: 100% !important;
+}
+
+.dark-mode .nav-bar,
+.dark-mode .glass-nav-bar,
+.dark-mode .bottom-nav-container nav,
+[data-theme="dark"] .nav-bar,
+[data-theme="dark"] .glass-nav-bar,
+[data-theme="dark"] .bottom-nav-container nav,
+html.dark .nav-bar,
+body.dark .nav-bar {
+  background: rgba(18, 14, 28, 0.85) !important;
+  background-color: rgba(18, 14, 28, 0.85) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5) !important;
+  filter: none !important;
+}
+
+.light-mode.liquid-glass-enabled .nav-bar,
+.light-mode.liquid-glass-enabled .glass-nav-bar,
+.light-mode.liquid-glass-enabled .bottom-nav-container nav,
+[data-theme="light"]:not([data-glass="false"]) .nav-bar,
+[data-theme="light"]:not([data-glass="false"]) .glass-nav-bar,
+[data-theme="light"]:not([data-glass="false"]) .bottom-nav-container nav,
+html.light.liquid-glass-enabled .nav-bar,
+body.light.liquid-glass-enabled .nav-bar {
+  background: rgba(255, 255, 255, 0.45) !important;
+  background-color: rgba(255, 255, 255, 0.45) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+  backdrop-filter: blur(18px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.9), 0 8px 32px rgba(15, 23, 42, 0.08) !important;
+  filter: none !important;
+}
+
+.light-mode:not(.liquid-glass-enabled) .nav-bar,
+.light-mode:not(.liquid-glass-enabled) .glass-nav-bar,
+.light-mode:not(.liquid-glass-enabled) .bottom-nav-container nav,
+[data-theme="light"][data-glass="false"] .nav-bar,
+[data-theme="light"][data-glass="false"] .glass-nav-bar,
+[data-theme="light"][data-glass="false"] .bottom-nav-container nav,
+html.light:not(.liquid-glass-enabled) .nav-bar,
+body.light:not(.liquid-glass-enabled) .nav-bar,
+html.light.solid-flat .nav-bar,
+body.light.solid-flat .nav-bar {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+  filter: none !important;
+}
+
+.nav-item,
+.nav-item-active,
+.nav-dashboard-button,
+.nav-dashboard-active,
+.nav-item.dashboard {
+  margin: 0 !important;
+  top: 0 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+.nav-item-active,
+.nav-dashboard-active,
+.nav-tab-active {
+  transform: translateY(-4px) !important;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+.nav-tab-inactive {
+  transform: translateY(0px) !important;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+.nav-item *,
+.nav-dashboard-button *,
+.nav-item.dashboard * {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+/* Floating AI Coach FAB Position & Spring Entrance Animation */
+@keyframes fabEntrance {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.7);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.floating-ai-fab,
+.ai-coach-fab {
+  position: fixed !important;
+  bottom: 84px !important;
+  right: 16px !important;
+  z-index: 120 !important;
+  animation: fabEntrance 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+}
+
+/* Weather Widget Layout & Spacing */
+.weather-bar-card .weather-info-container {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 0 4px !important;
+  width: 100% !important;
+}
+
+/* Light Mode Nav Icons & Labels Contrast & Spotlight Glow Purge */
+.light-mode .nav-bar,
+.light-mode .nav-bar-container,
+.light-mode .bottom-nav-container,
+.light-mode .nav-item,
+.light-mode .nav-item-active,
+.light-mode .nav-tab-active,
+.light-mode .nav-dashboard-button,
+.light-mode .nav-dashboard-active,
+[data-theme="light"] .nav-bar,
+[data-theme="light"] .nav-bar-container,
+[data-theme="light"] .bottom-nav-container,
+[data-theme="light"] .nav-item,
+[data-theme="light"] .nav-item-active,
+[data-theme="light"] .nav-tab-active,
+[data-theme="light"] .nav-dashboard-button,
+[data-theme="light"] .nav-dashboard-active {
+  background-image: none !important;
+  filter: none !important;
+}
+
+.light-mode .nav-item,
+.light-mode .nav-item-active,
+.light-mode .nav-tab-active,
+.light-mode .nav-tab-inactive,
+.light-mode .nav-dashboard-button,
+.light-mode .nav-dashboard-active,
+[data-theme="light"] .nav-item,
+[data-theme="light"] .nav-item-active,
+[data-theme="light"] .nav-tab-active,
+[data-theme="light"] .nav-tab-inactive,
+[data-theme="light"] .nav-dashboard-button,
+[data-theme="light"] .nav-dashboard-active {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+.light-mode .nav-item-active,
+.light-mode .nav-tab-active,
+.light-mode .nav-dashboard-active,
+[data-theme="light"] .nav-item-active,
+[data-theme="light"] .nav-tab-active,
+[data-theme="light"] .nav-dashboard-active {
+  transform: translateY(-2px) !important;
+}
+
+.light-mode .nav-tab-inactive,
+.light-mode .nav-tab-inactive span,
+.light-mode .nav-tab-inactive svg,
+[data-theme="light"] .nav-tab-inactive,
+[data-theme="light"] .nav-tab-inactive span,
+[data-theme="light"] .nav-tab-inactive svg {
+  color: #64748b !important;
+}
+
+.light-mode .nav-tab-active:not(.nav-dashboard-button),
+.light-mode .nav-tab-active span,
+.light-mode .nav-item-active svg,
+[data-theme="light"] .nav-tab-active:not(.nav-dashboard-button),
+[data-theme="light"] .nav-tab-active span,
+[data-theme="light"] .nav-item-active svg {
+  color: #7c3aed !important;
+}
+
+.bottom-nav-container button::before,
+.bottom-nav-container button::after,
+.bottom-nav-container div::before,
+.bottom-nav-container div::after,
+.bottom-nav-container *::before,
+.bottom-nav-container *::after,
+.nav-item.dashboard::before,
+.nav-item.dashboard::after,
+.nav-dashboard-button::before,
+.nav-dashboard-button::after {
+  display: none !important;
+  content: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+/* ==========================================================================
+   11. VIEWPORT FLEX LAYOUT (HARD VIEWPORT CONTAINMENT & ZERO SCROLL)
+   ========================================================================== */
+[data-active-tab="dashboard"] main,
+[data-active-tab="gym"] main,
+[data-active-tab="biometrics"] main,
+[data-active-tab="friends"] main,
+[data-active-tab="dashboard"] main > div,
+[data-active-tab="gym"] main > div,
+[data-active-tab="biometrics"] main > div,
+[data-active-tab="friends"] main > div {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
+  box-sizing: border-box !important;
+}
+
+[data-active-tab="dashboard"] main,
+[data-active-tab="gym"] main,
+[data-active-tab="biometrics"] main,
+[data-active-tab="friends"] main {
+  padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+.dashboard-page {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
+  padding: 6px 12px 10px 12px !important;
+  box-sizing: border-box !important;
+}
+
+.page-container:not(.settings-page):not(.dashboard-page) {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
+  padding-bottom: 6px !important;
+  box-sizing: border-box !important;
+}
+
+.biometrics-banner,
+.social-banner {
+  margin-bottom: 8px !important;
+}
+
+.exercise-pills-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 4px 6px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+.exercise-pill-badge {
+  font-size: 11px !important;
+  padding: 4px 8px !important;
+  white-space: nowrap !important;
+  max-width: 100% !important;
+  text-overflow: ellipsis !important;
+  overflow: hidden !important;
+  flex-shrink: 0 !important;
+}
+
+[data-active-tab="settings"] main,
+[data-active-tab="settings"] main > div {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  padding-bottom: 0 !important;
+}
+
+.settings-page {
+  overflow-y: auto !important;
+  overscroll-behavior-y: contain !important;
+  touch-action: pan-y !important;
+}
+
+[data-active-tab="settings"] main {
+  padding-bottom: 0 !important;
+}
+
+body.nav-bars-hidden[data-active-tab="settings"] main,
+body.nav-bars-hidden [data-active-tab="settings"] main {
+  padding-bottom: 0 !important;
+}
+
+.telemetry-ring-arc {
+  transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.top-overhaul-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 50 !important;
+  flex-shrink: 0 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+@media (min-width: 640px) {
+  .sensor-sync-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+}
+
+/* Lock Viewport Scrolling on non-Settings routes */
+html, body, #root {
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
+}
+
+/* Allow scrolling ONLY on Settings (.settings-page is the single scroll container) */
+.settings-page {
+  height: 100% !important;
+  max-height: 100% !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
+  padding-bottom: 96px !important;
+}
+
+html:has(.settings-page),
+body:has(.settings-page),
+#root:has(.settings-page) {
+  touch-action: pan-y !important;
+}
+
+/* Athlete Career Profile Sheet Padding & Gap */
+.profile-modal-container,
+.profile-modal-content {
+  max-height: 85vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  gap: 6px !important;
+  padding: 16px !important;
+}
+
+/* Weather Metric Value & Label Alignment */
+.weather-metric-value {
+  white-space: nowrap !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.weather-metric-value * {
+  white-space: nowrap !important;
+}
+
+.weather-metric-label {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+/* Sleep Telemetry Single Line Alignment */
+.sleep-telemetry-row {
+  white-space: nowrap !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.sleep-telemetry-row * {
+  white-space: nowrap !important;
+}
+
+/* Metabolism TDEE Display */
+.tdee-value-display {
+  font-size: 28px !important;
+  white-space: nowrap !important;
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 6px !important;
+}
+
+/* Macro Modal Overflow & Cards */
+.macro-modal-container {
+  margin-top: 32px !important;
+  max-height: 80vh !important;
+  overflow-y: auto !important;
+  padding: 16px !important;
+}
+
+.macro-goal-card {
+  padding: 10px 6px !important;
+}
+
+/* Macro Option Item Styling */
+.macro-option-item,
+.goal-option-item {
+  white-space: nowrap !important;
+  font-size: 14px !important;
+  padding: 12px 16px !important;
+}
+
+/* Target Calorie Display */
+.target-calorie-display {
+  font-size: 26px !important;
+  white-space: nowrap !important;
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: center !important;
+  gap: 8px !important;
+}
+
+.target-calorie-display * {
+  white-space: nowrap !important;
+}
+
+/* Compact Top Macro Target Cards */
+.macro-target-card {
+  padding: 10px 8px !important;
+  gap: 4px !important;
+}
+
+/* Body Scale Save & Recalculate Button */
+.save-recalculate-btn {
+  margin-top: 12px !important;
+  height: 46px !important;
+  font-weight: 700 !important;
+}
+
+/* BPL Athletic Score Hero Container */
+.bpl-hero-container {
+  padding: 16px 0 !important;
+}
+
+/* ==========================================================================
+   AI COACH BOTTOM INPUT PANEL & AI WORKOUT ROUTINE BUILDER LIQUID GLASS
+   ========================================================================== */
+.ai-coach-bottom-panel,
+[data-theme="dark"] .ai-coach-bottom-panel,
+[data-theme="light"] .ai-coach-bottom-panel,
+.glass-modal .ai-coach-bottom-panel {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 12px 16px !important;
+}
+
+.ai-quick-chip,
+[data-theme="dark"] .ai-quick-chip,
+[data-theme="light"] .ai-quick-chip,
+.glass-modal .ai-quick-chip {
+  border-radius: 20px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  backdrop-filter: blur(12px) !important;
+  color: #ffffff !important;
+}
+
+.ai-input-row,
+[data-theme="dark"] .ai-input-row,
+[data-theme="light"] .ai-input-row,
+.glass-modal .ai-input-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-top: 8px !important;
+}
+
+.ai-chat-input,
+[data-theme="dark"] input.ai-chat-input,
+[data-theme="light"] input.ai-chat-input,
+.glass-modal input.ai-chat-input {
+  border-radius: 24px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  padding: 10px 16px !important;
+  color: #ffffff !important;
+}
+
+.ai-chat-input::placeholder,
+[data-theme="dark"] input.ai-chat-input::placeholder,
+[data-theme="light"] input.ai-chat-input::placeholder {
+  color: rgba(255, 255, 255, 0.55) !important;
+}
+
+.ai-routine-builder-modal-content,
+.ai-routine-builder-modal-content.glass-card,
+[data-theme="dark"] .ai-routine-builder-modal-content,
+[data-theme="light"] .ai-routine-builder-modal-content,
+#root .ai-routine-builder-modal-content,
+#root .ai-routine-builder-modal-content.glass-card,
+html.dark.liquid-glass-enabled #root .ai-routine-builder-modal-content.glass-card,
+html.dark:not(.liquid-glass-enabled) #root .ai-routine-builder-modal-content.glass-card,
+html.light.liquid-glass-enabled #root .ai-routine-builder-modal-content.glass-card,
+html.light:not(.liquid-glass-enabled) #root .ai-routine-builder-modal-content.glass-card,
+body.dark.liquid-glass-enabled .ai-routine-builder-modal-content.glass-card,
+body.dark:not(.liquid-glass-enabled) .ai-routine-builder-modal-content.glass-card,
+.fixed.inset-0.z-50 > .ai-routine-builder-modal-content {
+  background: rgba(18, 14, 28, 0.65) !important;
+  background-color: rgba(18, 14, 28, 0.65) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(180%) !important;
+  backdrop-filter: blur(30px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+  border-radius: 28px !important;
+  color: #ffffff !important;
+}
+
+.raw-routine-textarea,
+#root .raw-routine-textarea,
+[data-theme="dark"] textarea.raw-routine-textarea,
+[data-theme="light"] textarea.raw-routine-textarea,
+.ai-routine-builder-modal-content textarea.raw-routine-textarea {
+  background: rgba(0, 0, 0, 0.3) !important;
+  background-color: rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 16px !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  backdrop-filter: blur(10px) !important;
+  color: #ffffff !important;
+}
+
+.raw-routine-textarea::placeholder,
+[data-theme="dark"] textarea.raw-routine-textarea::placeholder,
+[data-theme="light"] textarea.raw-routine-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* ==========================================================================
+   SOCIAL TAB REFACTOR: COMMUNITY FEED CLEARANCE, SOCIAL LIQUID GLASS & PODIUM
+   ========================================================================== */
+/* ==========================================================================
+   SOCIAL TAB REFACTOR: COMMUNITY FEED CLEARANCE, SOCIAL LIQUID GLASS & PODIUM
+   ========================================================================== */
+
+/* Outer Community Feed Container Background */
+[data-theme="dark"] .community-feed-container:not(.liquid-glass-enabled),
+html.dark .community-feed-container:not(.liquid-glass-enabled),
+body.dark .community-feed-container:not(.liquid-glass-enabled) {
+  background: var(--bg-primary, #08080c) !important;
+  background-color: var(--bg-primary, #08080c) !important;
+}
+
+[data-theme="light"] .community-feed-container:not(.liquid-glass-enabled),
+html.light .community-feed-container:not(.liquid-glass-enabled),
+body.light .community-feed-container:not(.liquid-glass-enabled) {
+  background: var(--bg-primary, #f8fafc) !important;
+  background-color: var(--bg-primary, #f8fafc) !important;
+}
+
+/* Liquid Glass Mode Active overriding backgrounds */
+.liquid-glass-enabled.community-feed-container,
+.community-feed-container.liquid-glass-enabled,
+[data-glass="true"] .community-feed-container,
+html.liquid-glass-enabled .community-feed-container,
+body.liquid-glass-enabled .community-feed-container,
+#root.liquid-glass-enabled .community-feed-container {
+  background: var(--glass-card-bg, rgba(18, 14, 28, 0.65)) !important;
+  background-color: var(--glass-card-bg, rgba(18, 14, 28, 0.65)) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+}
+
+.community-feed-container,
+#root .community-feed-container {
+  padding-top: 0 !important;
+  touch-action: auto !important;
+}
+
+.community-feed-container .overflow-y-auto,
+#root .community-feed-container .overflow-y-auto {
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch !important;
+  overflow-y: auto !important;
+  user-select: auto !important;
+  -webkit-user-select: auto !important;
+}
+
+.community-feed-top-bar,
+#root .community-feed-top-bar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 8px 16px !important;
+}
+
+/* 1. DARK MODE LIQUID GLASS CARDS & MODALS */
+html.dark.liquid-glass-enabled .feed-filter-bar,
+html.dark.liquid-glass-enabled .feed-post-card,
+html.dark.liquid-glass-enabled .feed-composer-card,
+html.dark.liquid-glass-enabled .feed-empty-state-card,
+html.dark.liquid-glass-enabled .feed-textarea,
+html.dark.liquid-glass-enabled .social-modal-card,
+html.dark.liquid-glass-enabled .leaderboard-modal-content,
+html.dark.liquid-glass-enabled .friend-requests-modal,
+html.dark.liquid-glass-enabled .add-partner-modal,
+html.dark.liquid-glass-enabled .streak-stats-modal,
+html.dark.liquid-glass-enabled .modal-content,
+html.dark.liquid-glass-enabled .glass-modal,
+html.dark.liquid-glass-enabled .dialog-sheet,
+[data-theme="dark"] .feed-filter-bar,
+[data-theme="dark"] .feed-post-card,
+[data-theme="dark"] .feed-composer-card,
+[data-theme="dark"] .feed-empty-state-card,
+[data-theme="dark"] .feed-textarea,
+[data-theme="dark"] .social-modal-card,
+[data-theme="dark"] .leaderboard-modal-content,
+[data-theme="dark"] .friend-requests-modal,
+[data-theme="dark"] .add-partner-modal,
+[data-theme="dark"] .streak-stats-modal,
+[data-theme="dark"] .modal-content,
+[data-theme="dark"] .glass-modal,
+[data-theme="dark"] .dialog-sheet {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(22, 18, 36, 0.68) 100%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+  border-radius: 20px !important;
+}
+
+/* 2. LIGHT MODE LIQUID GLASS CARDS & MODALS */
+html.light.liquid-glass-enabled .feed-filter-bar,
+html.light.liquid-glass-enabled .feed-post-card,
+html.light.liquid-glass-enabled .feed-composer-card,
+html.light.liquid-glass-enabled .feed-empty-state-card,
+html.light.liquid-glass-enabled .feed-textarea,
+html.light.liquid-glass-enabled .social-modal-card,
+html.light.liquid-glass-enabled .leaderboard-modal-content,
+html.light.liquid-glass-enabled .friend-requests-modal,
+html.light.liquid-glass-enabled .add-partner-modal,
+html.light.liquid-glass-enabled .streak-stats-modal,
+html.light.liquid-glass-enabled .modal-content,
+html.light.liquid-glass-enabled .glass-modal,
+html.light.liquid-glass-enabled .dialog-sheet,
+[data-theme="light"] .feed-filter-bar,
+[data-theme="light"] .feed-post-card,
+[data-theme="light"] .feed-composer-card,
+[data-theme="light"] .feed-empty-state-card,
+[data-theme="light"] .feed-textarea,
+[data-theme="light"] .social-modal-card,
+[data-theme="light"] .leaderboard-modal-content,
+[data-theme="light"] .friend-requests-modal,
+[data-theme="light"] .add-partner-modal,
+[data-theme="light"] .streak-stats-modal,
+[data-theme="light"] .modal-content,
+[data-theme="light"] .glass-modal,
+[data-theme="light"] .dialog-sheet {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.62) 100%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.95) !important;
+  color: #0f172a !important;
+  border-radius: 20px !important;
+}
+
+/* 3. SOLID FLAT (LIQUID GLASS OFF) FALLBACKS */
+html.dark.solid-flat .feed-filter-bar,
+html.dark.solid-flat .feed-post-card,
+html.dark.solid-flat .feed-composer-card,
+html.dark.solid-flat .feed-empty-state-card,
+html.dark.solid-flat .feed-textarea,
+html.dark.solid-flat .social-modal-card,
+html.dark.solid-flat .modal-content,
+[data-theme="dark"][data-glass="false"] .feed-filter-bar,
+[data-theme="dark"][data-glass="false"] .feed-post-card,
+[data-theme="dark"][data-glass="false"] .feed-composer-card,
+[data-theme="dark"][data-glass="false"] .feed-empty-state-card,
+[data-theme="dark"][data-glass="false"] .feed-textarea,
+[data-theme="dark"][data-glass="false"] .social-modal-card,
+[data-theme="dark"][data-glass="false"] .modal-content {
+  background: #161224 !important;
+  background-color: #161224 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+  border-radius: 20px !important;
+}
+
+html.light.solid-flat .feed-filter-bar,
+html.light.solid-flat .feed-post-card,
+html.light.solid-flat .feed-composer-card,
+html.light.solid-flat .feed-empty-state-card,
+html.light.solid-flat .feed-textarea,
+html.light.solid-flat .social-modal-card,
+html.light.solid-flat .modal-content,
+[data-theme="light"][data-glass="false"] .feed-filter-bar,
+[data-theme="light"][data-glass="false"] .feed-post-card,
+[data-theme="light"][data-glass="false"] .feed-composer-card,
+[data-theme="light"][data-glass="false"] .feed-empty-state-card,
+[data-theme="light"][data-glass="false"] .feed-textarea,
+[data-theme="light"][data-glass="false"] .social-modal-card,
+[data-theme="light"][data-glass="false"] .modal-content {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  color: #0f172a !important;
+  border-radius: 20px !important;
+}
+
+.feed-post-card,
+#root .feed-post-card,
+[data-theme="dark"] .feed-post-card,
+[data-theme="light"] .feed-post-card {
+  transition: box-shadow 0.22s ease, border-color 0.22s ease !important;
+  will-change: auto;
+}
+
+.feed-post-card:hover,
+#root .feed-post-card:hover,
+[data-theme="dark"] .feed-post-card:hover,
+[data-theme="light"] .feed-post-card:hover {
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.feed-tab-active,
+.post-update-btn,
+#root .feed-tab-active,
+#root .post-update-btn,
+[data-theme="dark"] .feed-tab-active,
+[data-theme="dark"] .post-update-btn,
+[data-theme="light"] .feed-tab-active,
+[data-theme="light"] .post-update-btn,
+.feed-filter-bar .feed-tab-active,
+.feed-filter-bar button.feed-tab-active,
+.feed-post-card button.post-update-btn {
+  background: var(--accent-primary, #10b981) !important;
+  background-color: var(--accent-primary, #10b981) !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border: none !important;
+}
+
+.feed-tab-active,
+#root .feed-tab-active,
+[data-theme="dark"] .feed-tab-active,
+[data-theme="light"] .feed-tab-active,
+.feed-filter-bar .feed-tab-active {
+  border-radius: 16px !important;
+}
+
+.social-modal-card,
+.leaderboard-modal-content,
+.friend-requests-modal,
+.add-partner-modal,
+.streak-stats-modal,
+#root .social-modal-card,
+#root .leaderboard-modal-content,
+#root .friend-requests-modal,
+#root .add-partner-modal,
+#root .streak-stats-modal,
+[data-theme="dark"] .social-modal-card,
+[data-theme="dark"] .leaderboard-modal-content,
+[data-theme="dark"] .friend-requests-modal,
+[data-theme="dark"] .add-partner-modal,
+[data-theme="dark"] .streak-stats-modal,
+[data-theme="light"] .social-modal-card,
+[data-theme="light"] .leaderboard-modal-content,
+[data-theme="light"] .friend-requests-modal,
+[data-theme="light"] .add-partner-modal,
+[data-theme="light"] .streak-stats-modal,
+html.dark.liquid-glass-enabled #root .social-modal-card,
+html.dark.liquid-glass-enabled #root .leaderboard-modal-content,
+html.dark.liquid-glass-enabled #root .friend-requests-modal,
+html.dark.liquid-glass-enabled #root .add-partner-modal,
+html.dark.liquid-glass-enabled #root .streak-stats-modal,
+html.dark:not(.liquid-glass-enabled) #root .social-modal-card,
+html.dark:not(.liquid-glass-enabled) #root .leaderboard-modal-content,
+html.dark:not(.liquid-glass-enabled) #root .friend-requests-modal,
+html.dark:not(.liquid-glass-enabled) #root .add-partner-modal,
+html.dark:not(.liquid-glass-enabled) #root .streak-stats-modal,
+body.dark.liquid-glass-enabled .social-modal-card,
+body.dark:not(.liquid-glass-enabled) .social-modal-card {
+  background: rgba(22, 18, 36, 0.76) !important;
+  background-color: rgba(22, 18, 36, 0.76) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+}
+
+.podium-username,
+#root .podium-username,
+.leaderboard-modal-content .podium-username {
+  white-space: normal !important;
+  text-overflow: clip !important;
+  overflow: visible !important;
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+}
+
+
+

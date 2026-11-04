@@ -1,4 +1,41 @@
 // Web Audio API helper for sound feedback (Gym timer beeps and PR fanfare)
+import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
+
+export const triggerLightHaptic = async () => {
+  try {
+    await Haptics.impact({ style: ImpactStyle.Light });
+  } catch {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(10);
+    }
+  }
+};
+
+export const triggerMediumHaptic = async () => {
+  try {
+    await Haptics.impact({ style: ImpactStyle.Medium });
+  } catch {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(25);
+    }
+  }
+};
+
+export const triggerPRHaptic = async () => {
+  try {
+    await Haptics.notification({ type: NotificationType.Success });
+    setTimeout(async () => {
+      try {
+        await Haptics.impact({ style: ImpactStyle.Heavy });
+      } catch {}
+    }, 150);
+  } catch {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate([80, 40, 120]);
+    }
+  }
+};
+
 let audioCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext | null {

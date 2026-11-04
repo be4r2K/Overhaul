@@ -1,0 +1,294 @@
+/* ==========================================================================
+   COMMUNITY FEED COMPLETE OVERHAUL: LIQUID GLASS, DYNAMIC ACCENTS & CLEARANCE
+   ========================================================================== */
+
+[data-theme="dark"] .community-feed-container:not(.liquid-glass-enabled),
+html.dark .community-feed-container:not(.liquid-glass-enabled),
+body.dark .community-feed-container:not(.liquid-glass-enabled) {
+  background: var(--bg-primary, #08080c) !important;
+  background-color: var(--bg-primary, #08080c) !important;
+}
+
+[data-theme="light"] .community-feed-container:not(.liquid-glass-enabled),
+html.light .community-feed-container:not(.liquid-glass-enabled),
+body.light .community-feed-container:not(.liquid-glass-enabled) {
+  background: var(--bg-primary, #f8fafc) !important;
+  background-color: var(--bg-primary, #f8fafc) !important;
+}
+
+/* Liquid Glass Mode Active overriding backgrounds */
+.liquid-glass-enabled.community-feed-container,
+.community-feed-container.liquid-glass-enabled,
+[data-glass="true"] .community-feed-container,
+html.liquid-glass-enabled .community-feed-container,
+body.liquid-glass-enabled .community-feed-container,
+#root.liquid-glass-enabled .community-feed-container {
+  background: var(--glass-card-bg, rgba(18, 14, 28, 0.65)) !important;
+  background-color: var(--glass-card-bg, rgba(18, 14, 28, 0.65)) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+}
+
+.community-feed-container,
+#root .community-feed-container,
+[data-theme="dark"] .community-feed-container,
+[data-theme="light"] .community-feed-container {
+  padding-top: 0 !important;
+  touch-action: auto !important;
+}
+
+.community-feed-container .overflow-y-auto,
+#root .community-feed-container .overflow-y-auto {
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch !important;
+  overflow-y: auto !important;
+  user-select: auto !important;
+  -webkit-user-select: auto !important;
+}
+
+.community-feed-top-bar,
+.community-feed-header-row,
+#root .community-feed-top-bar,
+#root .community-feed-header-row,
+[data-theme="dark"] .community-feed-top-bar,
+[data-theme="dark"] .community-feed-header-row,
+[data-theme="light"] .community-feed-top-bar,
+[data-theme="light"] .community-feed-header-row {
+  margin-top: 38px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 0 16px !important;
+}
+
+/* 1. DEFINE & APPLY LIQUID GLASS TO FEED CONTAINERS */
+:root[data-theme="dark"],
+html[data-theme="dark"],
+body[data-theme="dark"] {
+  --glass-card-bg: rgba(22, 18, 36, 0.65);
+  --glass-card-border: rgba(255, 255, 255, 0.12);
+  --glass-text-primary: #ffffff;
+  --glass-text-secondary: rgba(255, 255, 255, 0.65);
+}
+
+:root[data-theme="light"],
+html[data-theme="light"],
+body[data-theme="light"] {
+  --glass-card-bg: rgba(255, 255, 255, 0.72);
+  --glass-card-border: rgba(0, 0, 0, 0.08);
+  --glass-text-primary: #0f172a;
+  --glass-text-secondary: rgba(15, 23, 42, 0.65);
+}
+
+.glass-card,
+#root .glass-card,
+.feed-filter-bar,
+.feed-post-card,
+.feed-empty-state-card,
+.feed-textarea,
+#root .feed-filter-bar,
+#root .feed-post-card,
+#root .feed-empty-state-card,
+#root .feed-textarea,
+[data-theme="dark"] .feed-filter-bar,
+[data-theme="dark"] .feed-post-card,
+[data-theme="dark"] .feed-empty-state-card,
+[data-theme="dark"] .feed-textarea,
+[data-theme="light"] .feed-filter-bar,
+[data-theme="light"] .feed-post-card,
+[data-theme="light"] .feed-empty-state-card,
+[data-theme="light"] .feed-textarea,
+html.dark.liquid-glass-enabled #root .feed-filter-bar,
+html.dark.liquid-glass-enabled #root .feed-post-card,
+html.dark.liquid-glass-enabled #root .feed-empty-state-card,
+html.dark.liquid-glass-enabled #root .feed-textarea,
+html.light.liquid-glass-enabled #root .feed-filter-bar,
+html.light.liquid-glass-enabled #root .feed-post-card,
+html.light.liquid-glass-enabled #root .feed-empty-state-card,
+html.light.liquid-glass-enabled #root .feed-textarea {
+  background: var(--glass-card-bg) !important;
+  background-color: var(--glass-card-bg) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  border: 1px solid var(--glass-card-border) !important;
+  color: var(--glass-text-primary) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+  border-radius: 20px !important;
+}
+
+.feed-post-card,
+#root .feed-post-card,
+[data-theme="dark"] .feed-post-card,
+[data-theme="light"] .feed-post-card {
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  contain: layout style;
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.22s ease, border-color 0.22s ease !important;
+}
+
+.feed-post-card:hover,
+.feed-post-card:active,
+#root .feed-post-card:hover,
+#root .feed-post-card:active,
+[data-theme="dark"] .feed-post-card:hover,
+[data-theme="dark"] .feed-post-card:active,
+[data-theme="light"] .feed-post-card:hover,
+[data-theme="light"] .feed-post-card:active {
+  transform: scale(1.02) translateZ(0) !important;
+}
+
+/* 2. BIND ACTIVE TABS AND POST BUTTON TO THEME ACCENT */
+.feed-tab-active,
+.post-update-btn,
+#root .feed-tab-active,
+#root .post-update-btn,
+[data-theme="dark"] .feed-tab-active,
+[data-theme="dark"] .post-update-btn,
+[data-theme="light"] .feed-tab-active,
+[data-theme="light"] .post-update-btn,
+.feed-filter-bar .feed-tab-active,
+.feed-filter-bar button.feed-tab-active,
+.feed-post-card button.post-update-btn {
+  background: var(--accent-primary, #10b981) !important;
+  background-color: var(--accent-primary, #10b981) !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border: none !important;
+}
+
+.feed-tab-active,
+#root .feed-tab-active,
+[data-theme="dark"] .feed-tab-active,
+[data-theme="light"] .feed-tab-active,
+.feed-filter-bar .feed-tab-active {
+  border-radius: 16px !important;
+}
+
+/* 3. CLEAN MODAL HEADERS AND CLOSE BUTTON (ALL MODALS) */
+.modal-close-btn,
+#root .modal-close-btn,
+[data-theme="dark"] .modal-close-btn,
+[data-theme="light"] .modal-close-btn,
+.dark-mode .modal-close-btn,
+.light-mode .modal-close-btn {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 4px !important;
+  color: var(--text-primary, #ffffff) !important;
+  cursor: pointer !important;
+  border-radius: 0 !important;
+  outline: none !important;
+}
+
+.modal-close-btn:hover,
+#root .modal-close-btn:hover,
+[data-theme="dark"] .modal-close-btn:hover,
+[data-theme="light"] .modal-close-btn:hover {
+  background: transparent !important;
+  background-color: transparent !important;
+  opacity: 0.75 !important;
+}
+
+.modal-title-badge {
+  display: none !important;
+}
+
+/* ==========================================================================
+   GLOBAL LIQUID GLASS AUDIT: MODALS, FEED & CARDS
+   ========================================================================== */
+
+/* Dark Mode Liquid Glass */
+html.dark .modal-content,
+html.dark .glass-card,
+html.dark .glass-modal,
+html.dark .dialog-sheet,
+html.dark .social-modal-card,
+html.dark .feed-filter-bar,
+html.dark .feed-post-card,
+html.dark .feed-empty-state-card,
+html.dark .feed-textarea,
+[data-theme="dark"] .modal-content,
+[data-theme="dark"] .glass-card,
+[data-theme="dark"] .glass-modal,
+[data-theme="dark"] .dialog-sheet,
+[data-theme="dark"] .social-modal-card,
+[data-theme="dark"] .feed-filter-bar,
+[data-theme="dark"] .feed-post-card,
+[data-theme="dark"] .feed-empty-state-card,
+[data-theme="dark"] .feed-textarea {
+  background: rgba(22, 18, 36, 0.68) !important;
+  background-color: rgba(22, 18, 36, 0.68) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+}
+
+/* Light Mode Liquid Glass */
+html.light .modal-content,
+html.light .glass-card,
+html.light .glass-modal,
+html.light .dialog-sheet,
+html.light .social-modal-card,
+html.light .feed-filter-bar,
+html.light .feed-post-card,
+html.light .feed-empty-state-card,
+html.light .feed-textarea,
+[data-theme="light"] .modal-content,
+[data-theme="light"] .glass-card,
+[data-theme="light"] .glass-modal,
+[data-theme="light"] .dialog-sheet,
+[data-theme="light"] .social-modal-card,
+[data-theme="light"] .feed-filter-bar,
+[data-theme="light"] .feed-post-card,
+[data-theme="light"] .feed-empty-state-card,
+[data-theme="light"] .feed-textarea {
+  background: rgba(255, 255, 255, 0.75) !important;
+  background-color: rgba(255, 255, 255, 0.75) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: #0f172a !important;
+}
+
+/* STREAK MODAL METRIC PILL TYPOGRAPHY */
+.streak-stat-pill .streak-pill-header {
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+.streak-stat-pill .streak-pill-value {
+  font-size: 32px !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+  line-height: 1.1 !important;
+  margin: 4px 0 !important;
+}
+
+.streak-stat-pill .streak-pill-subtitle {
+  font-size: 13px !important;
+  text-align: center !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.settings-page-container {
+  padding-bottom: 120px !important;
+}
+
+.settings-input,
+.settings-page-container input,
+.settings-page-container .pill.glass-input-light {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 12px !important;
+}
+

@@ -10,7 +10,8 @@ import {
   RotateCcw,
   Dumbbell,
   AlertTriangle,
-  Scale
+  Scale,
+  CheckCircle2
 } from 'lucide-react';
 import { AIChatMessage, AIWorkoutAnalysisResult } from '../types/aiWorkout';
 import { UserProfile } from '../types/fitness';
@@ -25,11 +26,27 @@ interface AICoachChatSectionProps {
   onNavigateToRoutine?: () => void;
 }
 
+export interface AIWorkoutProposal {
+  id: string;
+  title: string;
+  summary: string;
+  changes: string[];
+  updatedRoutine: AIWorkoutAnalysisResult;
+  status: 'pending' | 'accepted' | 'denied';
+}
+
 function processCoachRoutineModification(
   userText: string,
   currentRoutine: AIWorkoutAnalysisResult | null,
   userName: string
-): { updatedRoutine: AIWorkoutAnalysisResult; reply: string; didModify: boolean } | null {
+): { 
+  updatedRoutine: AIWorkoutAnalysisResult; 
+  reply: string; 
+  didModify: boolean;
+  proposalTitle: string;
+  proposalSummary: string;
+  changes: string[];
+} | null {
   const lower = userText.toLowerCase();
 
   const baseRoutine: AIWorkoutAnalysisResult = currentRoutine ? { ...currentRoutine } : {
@@ -145,8 +162,11 @@ function processCoachRoutineModification(
 
     return {
       updatedRoutine,
-      reply: `Split updated to a 2-Day Condensed Schedule to accommodate your 2 jobs and university schedule. Your core compound lifts from your initial workout have been compressed into 2 high-efficiency sessions.`,
+      reply: `I have constructed a 2-Day Condensed Schedule to accommodate your work and university demands. Your core compound lifts have been compressed into 2 high-efficiency sessions. Review and accept the proposal below to apply these changes.`,
       didModify: true,
+      proposalTitle: '2-Day Ultra-Efficient Condensed Split',
+      proposalSummary: 'Condensed full-body compound split into 2 high-stimulus days.',
+      changes: ['Day 1: Upper Body Heavy (Chest, Lats, Delts, Arms)', 'Day 2: Lower Body & Core Power (Quads, Hamstrings, Abs)', 'Optimized for university and busy work schedules'],
     };
   }
 
@@ -186,8 +206,11 @@ function processCoachRoutineModification(
 
     return {
       updatedRoutine,
-      reply: `Leg day completely removed from your active split. Work constraints acknowledged—your routine has been re-structured to Push/Pull/Mobility so your performance at work isn't compromised.`,
-      didModify: true
+      reply: `I have prepared a split modification that completely removes heavy leg sessions and replaces them with an Active Mobility & Core recovery protocol. Review the proposal below.`,
+      didModify: true,
+      proposalTitle: 'Push / Pull / Active Mobility Split (No Legs)',
+      proposalSummary: 'Removed heavy leg sessions to preserve energy for work and field athletics.',
+      changes: ['Removed Squats, Leg Press, and RDL heavy volume', 'Added Day 3: Active Recovery, Mobility & Core decompression', 'Preserved upper body progressive overload'],
     };
   }
 
@@ -230,12 +253,67 @@ function processCoachRoutineModification(
     const updatedRoutine: AIWorkoutAnalysisResult = {
       ...baseRoutine,
       parsedDays: swappedDays,
+      summaryTitle: 'Shoulder Impingement Recovery Protocol',
     };
 
     return {
       updatedRoutine,
-      reply: `Shoulder impingement protocol activated. Heavy overhead pressing movements have been removed from your active split and swapped for Incline Neutral-Grip Dumbbell Press and 4 sets of Cable Face Pulls for rotator cuff stability. Your routines are updated in real time.`,
-      didModify: true
+      reply: `Shoulder impingement protocol prepared. Heavy vertical overhead presses have been replaced with Incline Neutral-Grip Dumbbell Presses and Cable Face Pulls for rotator cuff stability. Review and accept below.`,
+      didModify: true,
+      proposalTitle: 'Shoulder Impingement Recovery Protocol',
+      proposalSummary: 'Replaced heavy overhead vertical pressing with joint-safe neutral dumbbell presses.',
+      changes: ['Replaced Overhead Press with Incline Neutral-Grip DB Press', 'Added Cable Face Pulls (4x15) for rotator cuff health', 'Eliminated direct anterior delt impingement angles'],
+    };
+  }
+
+  // INTENT 3: Arm specialization / arms / bicep / tricep
+  const isArmIntent =
+    lower.includes('arm') ||
+    lower.includes('bicep') ||
+    lower.includes('tricep') ||
+    lower.includes('arms lagging');
+
+  if (isArmIntent) {
+    const updatedDays = parsedDays.map((d) => {
+      const dayTitle = (d.dayTitle || '').toLowerCase();
+      if (dayTitle.includes('push') || dayTitle.includes('upper') || dayTitle.includes('day 1')) {
+        const exs = [...(d.exercises || [])];
+        if (!exs.some((e) => e.name.toLowerCase().includes('incline dumbbell curl'))) {
+          exs.push({
+            name: 'Incline DB Bicep Curls (2s Eccentric)',
+            setsReps: '4x10-12',
+            targetMuscle: 'Biceps Long Head',
+            rating: 10,
+            substitution: 'Cable Bicep Curls',
+          });
+        }
+        if (!exs.some((e) => e.name.toLowerCase().includes('overhead cable extension'))) {
+          exs.push({
+            name: 'Overhead Cable Tricep Extensions',
+            setsReps: '4x12',
+            targetMuscle: 'Triceps Long Head',
+            rating: 9,
+            substitution: 'Skull Crushers',
+          });
+        }
+        return { ...d, exercises: exs };
+      }
+      return d;
+    });
+
+    const updatedRoutine: AIWorkoutAnalysisResult = {
+      ...baseRoutine,
+      parsedDays: updatedDays,
+      summaryTitle: 'Arm-Specialization Hypertrophy Split',
+    };
+
+    return {
+      updatedRoutine,
+      reply: `Arm specialization protocol structured. I have integrated dedicated antagonist arm supersets with strict 2-second eccentrics to trigger arm hypertrophy without causing excessive fatigue. Review the proposal below to apply it to your split.`,
+      didModify: true,
+      proposalTitle: 'Arm-Specialization Hypertrophy Split',
+      proposalSummary: 'Integrated dedicated antagonist bicep/tricep supersets with 2s eccentric overload.',
+      changes: ['Added Incline DB Bicep Curls (4x10-12)', 'Added Overhead Cable Tricep Extensions (4x12)', 'Targeted bicep long head and tricep long head'],
     };
   }
 
@@ -299,13 +377,19 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
   onNavigateToRoutine,
 }) => {
   const userName = profile?.name || 'Athlete';
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Defensive state initialization: default to empty array or fallback initial message
   const [chatMessages, setChatMessages] = useState<AIChatMessage[]>(() => {
+    const shortGreeting = 'Overhaul AI active. Ask me anything about your split, routine adjustments, or nutrition.';
     try {
       const saved = loadFromStorage<AIChatMessage[]>('ai_coach_chat_history', []);
       if (Array.isArray(saved) && saved.length > 0) {
-        return saved;
+        return saved.map((m, idx) =>
+          idx === 0 && m.role === 'assistant'
+            ? { ...m, content: shortGreeting }
+            : m
+        );
       }
     } catch (e) {
       console.warn('Failed to load chat history:', e);
@@ -314,10 +398,7 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
       {
         id: 'm-0',
         role: 'assistant',
-        content: `I'm your Overhaul AI Coach & Real-Time Split Adaptor. 
-
-No sugarcoating, no fluff, and no excuses. Ask me about training, nutrition, or plateau fixes.
-Tell me your constraints or injuries (e.g. "I play soccer 3x/wk, adjust my leg split", "Shoulder impingement, replace overhead press", "Add arm specialization") and I will rewrite your actual active split in real time!`,
+        content: shortGreeting,
         timestamp: 'Just now',
       },
     ];
@@ -326,6 +407,13 @@ Tell me your constraints or injuries (e.g. "I play soccer 3x/wk, adjust my leg s
   const [inputMsg, setInputMsg] = useState<string>('');
   const [chatLoading, setChatLoading] = useState<boolean>(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  };
 
   // Sync with storage on change
   useEffect(() => {
@@ -347,6 +435,48 @@ Tell me your constraints or injuries (e.g. "I play soccer 3x/wk, adjust my leg s
     }
   }, [chatMessages, chatLoading]);
 
+  const handleAcceptProposal = (msgId: string, proposal: AIWorkoutProposal) => {
+    if (onUpdateRoutine && proposal.updatedRoutine) {
+      onUpdateRoutine(proposal.updatedRoutine);
+    }
+
+    setChatMessages((prev) =>
+      prev.map((m) => {
+        if (m.id === msgId && m.proposal) {
+          return {
+            ...m,
+            proposal: {
+              ...m.proposal,
+              status: 'accepted' as const,
+            },
+          };
+        }
+        return m;
+      })
+    );
+
+    confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+    showToast('✓ Routine modifications accepted and synced to active split!');
+  };
+
+  const handleDenyProposal = (msgId: string) => {
+    setChatMessages((prev) =>
+      prev.map((m) => {
+        if (m.id === msgId && m.proposal) {
+          return {
+            ...m,
+            proposal: {
+              ...m.proposal,
+              status: 'denied' as const,
+            },
+          };
+        }
+        return m;
+      })
+    );
+    showToast('Proposal dismissed. Active routine was not modified.');
+  };
+
   const executeSendMessage = async (textToSend: string) => {
     const userText = textToSend.trim();
     if (!userText || chatLoading) return;
@@ -366,68 +496,38 @@ Tell me your constraints or injuries (e.g. "I play soccer 3x/wk, adjust my leg s
     // First, check local intent parser for instant zero-latency routine modification & exact required messages
     const modResult = processCoachRoutineModification(userText, currentRoutine || null, userName);
     if (modResult) {
-      if (onUpdateRoutine) {
-        onUpdateRoutine(modResult.updatedRoutine);
-      }
+      const proposal: AIWorkoutProposal = {
+        id: 'prop-' + Date.now(),
+        title: modResult.proposalTitle,
+        summary: modResult.proposalSummary,
+        changes: modResult.changes,
+        updatedRoutine: modResult.updatedRoutine,
+        status: 'pending',
+      };
+
       const assistantMsg: AIChatMessage = {
         id: 'msg-' + (Date.now() + 1),
         role: 'assistant',
         content: modResult.reply,
         timestamp: 'Just now',
-        didModifyRoutine: true,
+        proposal,
       };
       setChatMessages((prev) => [...(Array.isArray(prev) ? prev : []), assistantMsg]);
-      confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
       return;
     }
 
     setChatLoading(true);
 
     try {
-      const res = await fetch('/api/ai/chat-routine', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userText,
-          currentRoutine: currentRoutine || null,
-          userProfile: profile || {},
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error('Coach service error');
-      }
-
-      const data = await res.json();
-      const assistantMsg: AIChatMessage = {
-        id: 'msg-' + (Date.now() + 1),
-        role: 'assistant',
-        content: data.reply || generateBrutalCoachReply(userText, userName, profile).reply,
-        timestamp: 'Just now',
-        didModifyRoutine: Boolean(data.didModifyRoutine),
-      };
-
-      setChatMessages((prev) => [...(Array.isArray(prev) ? prev : []), assistantMsg]);
-
-      // If routine was modified by the AI in real time
-      if (data.didModifyRoutine && Array.isArray(data.updatedParsedDays) && currentRoutine && onUpdateRoutine) {
-        const updated: AIWorkoutAnalysisResult = {
-          ...currentRoutine,
-          parsedDays: data.updatedParsedDays,
-        };
-        onUpdateRoutine(updated);
-        confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
-      }
-    } catch (err: any) {
-      // Brutally honest offline fallback generator with metric validation
-      const { reply, didModify } = generateBrutalCoachReply(userText, userName, profile);
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      const { reply } = generateBrutalCoachReply(userText, userName, profile);
 
       const assistantMsg: AIChatMessage = {
         id: 'msg-' + (Date.now() + 1),
         role: 'assistant',
         content: reply,
         timestamp: 'Just now',
-        didModifyRoutine: didModify,
+        didModifyRoutine: false,
       };
 
       setChatMessages((prev) => [...(Array.isArray(prev) ? prev : []), assistantMsg]);
@@ -470,12 +570,22 @@ Tell me your constraints or injuries (e.g. "I play soccer 3x/wk, adjust my leg s
   };
 
   return (
-    <div className="h-full flex flex-col justify-between overflow-hidden select-none">
+    <div className="h-full flex flex-col justify-between overflow-hidden select-none relative bg-transparent">
       
+      {/* Toast Notification Banner */}
+      {toastMessage && (
+        <div className="pill absolute top-2 left-3 right-3 z-50 p-2.5 rounded-xl bg-white/10 border border-emerald-400/50 backdrop-blur-xl shadow-[0_0_20px_rgba(16,185,129,0.25)] text-emerald-300 text-xs font-bold flex items-center gap-2 animate-card-expand">
+          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {/* 1. SCROLLABLE MESSAGES CONTAINER */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-3.5 scrollbar-none">
+      <div className="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-3 scrollbar-none bg-transparent">
         {safeMessages?.map((msg) => {
           const isAI = msg?.role === 'assistant';
+          const proposal = msg?.proposal;
+
           return (
             <div
               key={msg?.id || Math.random()}
@@ -491,42 +601,109 @@ Tell me your constraints or injuries (e.g. "I play soccer 3x/wk, adjust my leg s
               )}
 
               <div
-                className={`max-w-[85%] sm:max-w-[78%] p-3 rounded-2xl text-xs leading-relaxed shadow-lg transition-all duration-300 ${
+                className={`pill ai-coach-bubble max-w-[92%] sm:max-w-[85%] p-3 rounded-2xl text-xs leading-relaxed transition-all duration-300 ${
                   !isAI
-                    ? 'bg-white/[0.08] text-slate-100 rounded-tr-none border border-white/5 shadow-inner'
-                    : 'bg-black/90 text-white rounded-tl-none border shadow-[0_0_15px_rgba(0,255,255,0.05)]'
+                    ? 'bg-white/[0.10] text-inherit rounded-tr-none border border-white/25'
+                    : 'bg-white/[0.08] text-inherit rounded-tl-none border border-white/30'
                 }`}
                 style={isAI ? { borderColor: 'var(--accent-hex)' } : undefined}
               >
                 <p className="whitespace-pre-line break-words font-sans">{msg?.content || ''}</p>
 
-                {msg?.didModifyRoutine && (
-                  <div className="mt-2.5 pt-2.5 border-t border-emerald-500/20 flex items-center justify-between gap-2 text-[10px] font-bold text-emerald-300">
-                    <div className="flex items-center gap-1">
-                      <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                      <span>Workout Split Adjusted Instantly</span>
+                {/* PROPOSAL CARD (ACCEPT / DENY CONFIRMATION FLOW) */}
+                {proposal && (
+                  <div className="pill mt-3 p-3 rounded-xl bg-white/[0.08] border border-cyan-400/35 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2 border-b border-white/15 pb-2">
+                      <div className="flex items-center gap-1.5">
+                        <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                        <span className="text-[10px] font-black uppercase tracking-wider text-cyan-300">
+                          {proposal.title}
+                        </span>
+                      </div>
+                      <span className={`text-[8px] font-mono uppercase px-1.5 py-0.5 rounded ${
+                        proposal.status === 'accepted' 
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                          : proposal.status === 'denied'
+                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                          : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                      }`}>
+                        {proposal.status}
+                      </span>
                     </div>
-                    {onNavigateToRoutine && (
-                      <button
-                        type="button"
-                        onClick={onNavigateToRoutine}
-                        className="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[9px] font-extrabold flex items-center gap-0.5 transition-colors cursor-pointer"
-                      >
-                        <span>View</span>
-                        <ChevronRight className="w-2.5 h-2.5" />
-                      </button>
+
+                    <p className="text-[11px] text-slate-200">{proposal.summary}</p>
+
+                    {proposal.changes && proposal.changes.length > 0 && (
+                      <div className="space-y-1 bg-white/[0.05] p-2 rounded-lg border border-white/15">
+                        <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wider block">Planned Adjustments:</span>
+                        {proposal.changes.map((ch, idx) => (
+                          <div key={idx} className="flex items-start gap-1.5 text-[10px] text-slate-100">
+                            <span className="text-cyan-400 shrink-0 font-bold">•</span>
+                            <span>{ch}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Pending Action Buttons */}
+                    {proposal.status === 'pending' && (
+                      <div className="pt-1 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleAcceptProposal(msg.id || '', proposal)}
+                          className="flex-1 py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(16,185,129,0.4)] active:scale-95 transition-all cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 stroke-[2.5]" />
+                          <span>ACCEPT CHANGES</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDenyProposal(msg.id || '')}
+                          className="pill flex-1 py-2 px-3 rounded-xl border border-rose-500/50 hover:bg-rose-500/15 text-rose-300 font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>DENY CHANGES</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Accepted State */}
+                    {proposal.status === 'accepted' && (
+                      <div className="pt-1 flex items-center justify-between gap-2 text-emerald-400 text-[10px] font-bold">
+                        <div className="flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Changes Applied to Active Split</span>
+                        </div>
+                        {onNavigateToRoutine && (
+                          <button
+                            type="button"
+                            onClick={onNavigateToRoutine}
+                            className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[9px] font-extrabold flex items-center gap-0.5 transition-colors cursor-pointer"
+                          >
+                            <span>View Split</span>
+                            <ChevronRight className="w-2.5 h-2.5" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Denied State */}
+                    {proposal.status === 'denied' && (
+                      <div className="pt-1 flex items-center gap-1 text-rose-400 text-[10px] font-medium">
+                        <span>✕ Proposal declined. Your current routine was kept intact.</span>
+                      </div>
                     )}
                   </div>
                 )}
 
-                <div className="text-[8px] text-slate-500 mt-1.5 text-right font-mono">
+                <div className="text-[8px] text-slate-500 dark:text-slate-300/80 mt-1 text-right font-mono">
                   {msg?.timestamp || 'Just now'}
                 </div>
               </div>
 
               {!isAI && (
-                <div className="w-7 h-7 rounded-xl bg-white/10 flex items-center justify-center text-white shrink-0 mt-0.5 border border-white/15 shadow-md">
-                  <UserIcon className="w-4 h-4 text-slate-300" />
+                <div className="pill w-7 h-7 rounded-xl bg-white/10 flex items-center justify-center text-inherit shrink-0 mt-0.5 border border-white/25">
+                  <UserIcon className="w-4 h-4 text-slate-700 dark:text-slate-200" />
                 </div>
               )}
             </div>
@@ -534,55 +711,78 @@ Tell me your constraints or injuries (e.g. "I play soccer 3x/wk, adjust my leg s
         })}
 
         {chatLoading && (
-          <div className="flex items-center gap-2 text-xs text-slate-400 p-2.5 bg-black/45 border border-white/5 rounded-2xl animate-pulse max-w-[85%]">
+          <div className="pill flex items-center gap-2 text-xs text-inherit p-2.5 bg-white/[0.08] border border-white/20 rounded-2xl animate-pulse max-w-[85%]">
             <div
               className="w-5 h-5 rounded-lg flex items-center justify-center text-black"
               style={{ backgroundColor: 'var(--accent-hex)' }}
             >
               <Bot className="w-3.5 h-3.5 text-black animate-spin" />
             </div>
-            <span className="font-mono text-[10px]">Processing biomechanics & updating split...</span>
+            <span className="font-mono text-[10px]">Analyzing biomechanics & structuring proposal...</span>
           </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 2. CHIPS & INPUT SECURE ANCHOR DOCK */}
+      {/* 2. CHIPS & INPUT SECURE ANCHOR DOCK (Ultra-Translucent Acrylic) */}
       <div
-        className="px-3 pt-3 pb-6 border-t border-white/10 bg-slate-950/80 backdrop-blur-xl space-y-2.5 shrink-0"
-        style={{ paddingBottom: '24px' }}
+        className="ai-coach-bottom-panel shrink-0"
+        style={{
+          background: 'transparent',
+          border: 'none',
+          boxShadow: 'none',
+          padding: '12px 16px',
+        }}
       >
         
-        {/* Quick Suggestion Chips: interactive neon-outlined pills */}
+        {/* Quick Suggestion Chips: interactive Liquid Glass pills */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-none shrink-0">
           {[
             'Skip Leg Day',
+            'Add Arm Specialization',
             'Condense to 2-Day Split',
-            'Adjust Macro Split',
+            'Shoulder Pain Fix',
           ].map((promptText) => (
             <button
               key={promptText}
               type="button"
               onClick={() => executeSendMessage(promptText)}
               disabled={chatLoading}
-              className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap px-3 py-1.5 rounded-full bg-slate-950 border transition-all cursor-pointer shrink-0 active:scale-95 flex items-center gap-1 shadow-[0_0_10px_rgba(0,0,0,0.5)] disabled:opacity-50"
-              style={{ borderColor: 'var(--accent-hex)', color: 'var(--accent-hex)' }}
+              className="ai-quick-chip ai-coach-chip text-xs font-semibold whitespace-nowrap px-3.5 py-1.5 transition-all cursor-pointer shrink-0 active:scale-95 flex items-center gap-1.5 disabled:opacity-50"
+              style={{
+                borderRadius: '20px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                color: '#ffffff',
+                fontWeight: 600,
+              }}
             >
-              <Zap className="w-2.5 h-2.5" />
+              <Zap className="w-3 h-3 accent-text" />
               <span>{promptText}</span>
             </button>
           ))}
         </div>
 
         {/* Message Input Form with Voice Dictation Trigger */}
-        <form onSubmit={handleSendMessage} className="flex items-center gap-2 shrink-0">
+        <form
+          onSubmit={handleSendMessage}
+          className="ai-input-row flex items-center shrink-0"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginTop: '8px',
+          }}
+        >
           {/* Simulated Mic button */}
           <button
             type="button"
             onClick={handleVoiceInputSimulate}
             title="Simulate Voice Input Dictation"
-            className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-cyan-400 hover:text-cyan-300 transition-colors active:scale-90 cursor-pointer shrink-0"
+            className="pill p-2.5 rounded-full bg-white/[0.08] border border-white/15 hover:bg-white/15 accent-text transition-colors active:scale-90 cursor-pointer shrink-0"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
@@ -593,14 +793,21 @@ Tell me your constraints or injuries (e.g. "I play soccer 3x/wk, adjust my leg s
             type="text"
             value={inputMsg}
             onChange={(e) => setInputMsg(e.target.value)}
-            placeholder="Instruct Coach Goggins or ask for split adjustments..."
-            className="flex-1 bg-white/[0.06] border border-white/15 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white/40 font-sans"
+            placeholder="Ask for routine modifications or split adjustments..."
+            className="ai-chat-input flex-1 text-xs placeholder-slate-400 focus:outline-none focus:border-white/30 font-sans"
+            style={{
+              borderRadius: '24px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              padding: '10px 16px',
+              color: '#ffffff',
+            }}
           />
 
           <button
             type="submit"
             disabled={!inputMsg.trim() || chatLoading}
-            className="p-2.5 rounded-xl text-black font-extrabold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-md shrink-0 flex items-center justify-center"
+            className="p-2.5 rounded-full text-black font-extrabold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-md shrink-0 flex items-center justify-center"
             style={{ backgroundColor: 'var(--accent-hex)' }}
           >
             <Send className="w-4 h-4 text-black" />

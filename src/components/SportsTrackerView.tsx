@@ -124,7 +124,7 @@ export const SportsTrackerView: React.FC<SportsTrackerViewProps> = ({
   const totalSportCalories = sportsHistory.reduce((sum, s) => sum + s.caloriesBurned, 0);
 
   return (
-    <div className="h-[calc(100vh-80px)] flex flex-col justify-between overflow-hidden p-2 sm:p-3 max-w-7xl mx-auto w-full gap-2 select-none">
+    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col justify-between p-2 sm:p-3 pb-[78px] max-w-7xl mx-auto w-full gap-[6px] select-none">
       {/* 1. TOP HEADER & METADATA BAR (Compact) */}
       <div className="ig-glass-card rounded-2xl p-2.5 sm:p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border border-white/10 shadow-sm shrink-0">
         <div className="flex items-center gap-2">
@@ -158,7 +158,7 @@ export const SportsTrackerView: React.FC<SportsTrackerViewProps> = ({
       </div>
 
       {/* 2. MAIN 6-WIDGET ZERO-SCROLL BENTO GRID */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 flex-1 min-h-0 overflow-hidden">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-[6px] flex-1 min-h-0 overflow-hidden">
         {/* WIDGET 1: Daily Steps Gauge & Quick Increment */}
         <div
           onClick={() => setActiveModal('steps-adjust')}

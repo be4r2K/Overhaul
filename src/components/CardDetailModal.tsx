@@ -19,16 +19,19 @@ import {
   Smartphone, 
   TrendingUp, 
   Clock, 
-  Info,
-  ChevronRight,
-  Shield,
-  Zap,
-  Sliders,
-  ExternalLink
+  Info, 
+  ChevronRight, 
+  Shield, 
+  Zap, 
+  Sliders, 
+  ExternalLink,
+  Moon
 } from 'lucide-react';
 import { DailyNutritionLog, DailyStepLog, LiftRecord, SleepLog, SportActivity, UserProfile } from '../types/fitness';
 import { WeatherData } from '../utils/weather';
-import { units, calculate1RM } from '../utils/calculations';
+import { units, calculate1RM, calculateAge, calculateBMI, calculateBodyComposition, calculateBPL } from '../utils/calculations';
+import { getAndUpdateDailyStreak } from '../utils/streak';
+import { calculateStreakFromWorkoutLogs, getWeekDaysActivity, useApp } from '../context/AppContext';
 import confetti from 'canvas-confetti';
 
 export interface CardDetailModalProps {
@@ -83,16 +86,14 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
   const [weightSaved, setWeightSaved] = useState(false);
 
   // Interactive step target adjust
-  const [targetSteps, setTargetSteps] = useState(profile.stepGoal || 10000);
-  const [syncingSamsungSteps, setSyncingSamsungSteps] = useState(false);
-  const [samsungStepsSuccess, setSamsungStepsSuccess] = useState<string | null>(null);
+  const [targetSteps] = useState(profile.stepGoal || 10000);
 
   // GPS state
   const [gpsTriggering, setGpsTriggering] = useState(false);
 
   if (!cardId) return null;
 
-  // Steps data
+  // Steps & Sleep data
   const todayStepLog = stepsHistory.find((s) => s.date === todayStr) || {
     date: todayStr,
     steps: 0,
@@ -102,6 +103,22 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
   };
   const stepPct = todayStepLog.target > 0 
     ? Math.min(100, Math.round((todayStepLog.steps / todayStepLog.target) * 100))
+    : 0;
+
+  const todaySleepEntry = sleepHistory.find((s) => s.date === todayStr);
+  const todaySleepHours = todaySleepEntry
+    ? todaySleepEntry.hoursSlept !== undefined
+      ? Number(todaySleepEntry.hoursSlept)
+      : Number(((todaySleepEntry.totalMinutes || 0) / 60).toFixed(1))
+    : 0;
+  const sleepTargetHours = 8.0;
+  const sleepPct = Math.min(100, Math.round((todaySleepHours / sleepTargetHours) * 100));
+  const todaySleepQuality = todaySleepEntry?.qualityScore
+    ? todaySleepEntry.qualityScore
+    : todaySleepEntry?.score
+    ? todaySleepEntry.score
+    : todaySleepHours > 0
+    ? Math.min(100, Math.max(55, Math.round((todaySleepHours / sleepTargetHours) * 94)))
     : 0;
 
   // Big 3 PRs
@@ -115,45 +132,42 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
   const bigThreeTotalKg = benchPR + squatPR + deadliftPR;
   const estimated1RM = Math.round(calculate1RM(calcWeight, calcReps).average);
 
-  const handleSyncSamsungHealthSteps = async () => {
-    setSyncingSamsungSteps(true);
-    setSamsungStepsSuccess(null);
-    try {
-      // 1. Web Sensors & Motion permissions check if available
-      if ('permissions' in navigator && (navigator.permissions as any).query) {
-        try {
-          await (navigator.permissions as any).query({ name: 'accelerometer' as any });
-        } catch (e) {}
-      }
-      
-      // 2. Request Device Motion permission for mobile if supported
-      if (typeof DeviceMotionEvent !== 'undefined' && typeof (DeviceMotionEvent as any).requestPermission === 'function') {
-        try {
-          await (DeviceMotionEvent as any).requestPermission();
-        } catch (e) {}
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 750));
-
-      // Calculate live step increment
-      const sensorIncrement = 1850;
-      onQuickAddSteps(sensorIncrement);
-
-      if ('vibrate' in navigator) {
-        navigator.vibrate([100, 50, 100]);
-      }
-
-      setSamsungStepsSuccess('Synced live steps from Samsung Health & Pedometer sensors!');
-      confetti({ particleCount: 40, spread: 60, origin: { y: 0.6 } });
-      setTimeout(() => setSamsungStepsSuccess(null), 3500);
-    } catch (err) {
-      onQuickAddSteps(1500);
-      setSamsungStepsSuccess('Synced via Health Connect bridge!');
-      setTimeout(() => setSamsungStepsSuccess(null), 3000);
-    } finally {
-      setSyncingSamsungSteps(false);
-    }
-  };
+  // Dynamic BPL 4-Pillar Calculations
+  const strengthRatio =
+    profile.weightKg > 0 && bigThreeTotalKg > 0
+      ? Number((bigThreeTotalKg / profile.weightKg).toFixed(2))
+      : 0;
+  const weeklyStepsAvg =
+    stepsHistory.length > 0
+      ? Math.round(stepsHistory.reduce((a, b) => a + b.steps, 0) / stepsHistory.length)
+      : 0;
+  const weeklyCardioMinutes = sportsHistory.reduce((sum, s) => sum + s.durationMinutes, 0);
+  const ageData = calculateAge(profile.birthDate);
+  const bmiData = calculateBMI(profile.weightKg, profile.heightCm);
+  const bodyComp = calculateBodyComposition(profile.weightKg, profile.heightCm, ageData.years, profile.gender);
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+  const recentSessionDates = new Set([
+    ...liftRecords.filter((l) => l.date >= sevenDaysAgoStr).map((l) => l.date),
+    ...sportsHistory.filter((s) => s.date >= sevenDaysAgoStr).map((s) => s.date),
+  ]);
+  const loggedSessionsThisWeek =
+    recentSessionDates.size > 0
+      ? recentSessionDates.size
+      : liftRecords.length + sportsHistory.length > 0
+      ? Math.min(5, liftRecords.length + sportsHistory.length)
+      : 0;
+  const targetSessions = 5;
+  const bplData = calculateBPL(
+    strengthRatio,
+    weeklyStepsAvg,
+    weeklyCardioMinutes,
+    bmiData.bmi,
+    bodyComp.bodyFatPct,
+    loggedSessionsThisWeek,
+    targetSessions
+  );
 
   const handleSaveBodyMetrics = (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,11 +194,6 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
     setTimeout(() => setWeightSaved(false), 2000);
   };
 
-  const handleSaveStepTarget = (val: number) => {
-    setTargetSteps(val);
-    onUpdateProfile({ ...profile, stepGoal: val });
-  };
-
   const handleTriggerGpsLocal = async () => {
     if (!onRequestGps) return;
     setGpsTriggering(true);
@@ -195,34 +204,32 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
     }
   };
 
-  // Instagram Card Header Renderer
-  const renderCardHeader = (title: string, subtitle: string, icon: React.ReactNode, igTag: string) => (
-    <div className="flex items-center justify-between border-b border-white/10 dark:border-white/10 pb-3">
+  // Instagram Card Header Renderer - Clean header without badges, clean X close button
+  const renderCardHeader = (title: string, subtitle: string, icon: React.ReactNode, _igTag?: string) => (
+    <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 pb-3">
       <div className="flex items-center gap-3">
         {/* Instagram Story Gradient Ring around icon */}
         <div className="p-[2px] rounded-2xl ig-story-ring shrink-0 shadow-md">
-          <div className="w-10 h-10 rounded-[14px] bg-slate-950 dark:bg-slate-950 flex items-center justify-center text-white">
+          <div className="w-10 h-10 rounded-[14px] bg-white dark:bg-slate-950 flex items-center justify-center text-slate-900 dark:text-white">
             {icon}
           </div>
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-base sm:text-lg font-extrabold text-white tracking-tight">{title}</h2>
-            <span className="text-[9px] font-bold uppercase tracking-wider ig-gradient-text border border-rose-500/30 px-1.5 py-0.5 rounded-full bg-rose-500/10">
-              {igTag}
-            </span>
+            <h2 className="modal-title text-base sm:text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">{title}</h2>
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">{subtitle}</p>
         </div>
       </div>
 
       <div className="flex items-center gap-1.5">
         <button
           onClick={onClose}
-          className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+          className="modal-close-btn p-1 text-slate-700 dark:text-slate-200 hover:text-slate-950 dark:hover:text-white transition-colors cursor-pointer"
           title="Close details"
+          aria-label="Close modal"
         >
-          <X className="w-4 h-4" />
+          <X className="w-5 h-5" />
         </button>
       </div>
     </div>
@@ -230,57 +237,111 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 transition-all duration-300 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-3 sm:p-4 transition-all duration-300 overflow-y-auto"
       onClick={onClose}
     >
       {/* Expanded Big Card Container */}
       <div 
-        className="w-full max-w-xl glass-modal rounded-3xl p-5 sm:p-6 space-y-5 animate-card-expand relative my-auto max-h-[92vh] overflow-y-auto"
+        className={`card w-full max-w-xl glass-modal modal-content dialog-sheet rounded-3xl p-5 sm:p-6 space-y-5 animate-card-expand relative my-auto max-h-[92vh] overflow-y-auto ${
+          cardId === 'streak-box' ? 'social-modal-card streak-stats-modal' : ''
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* DETAIL VIEW 1: Steps Ring */}
+        {/* DETAIL VIEW 1: Activity & Sleep Dual Ring */}
         {cardId === 'steps-ring' && (
           <>
-            {renderCardHeader('Daily Steps & Activity', 'Hourly telemetry & movement pacing', <Footprints className="w-5 h-5 text-emerald-400" />, 'Active Ring')}
+            {renderCardHeader('Steps & Sleep Telemetry', 'Real-time Samsung Health & Health Connect metrics', <Footprints className="w-5 h-5 text-emerald-400" />, 'Dual Ring')}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-              {/* Circular Gauge */}
+              {/* Dual Concentric Gauge (Outer = Steps, Inner = Sleep) - Clean Minimal Concentric Arcs */}
               <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white/[0.04] border border-white/10">
                 <div className="relative w-36 h-36 flex items-center justify-center">
-                  <svg className="w-36 h-36 transform -rotate-90">
+                  <svg className="w-36 h-36 transform -rotate-90" viewBox="0 0 144 144">
+                    <defs>
+                      <linearGradient id="modalOuterStepGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#06B6D4" />
+                        <stop offset="100%" stopColor="#10B981" />
+                      </linearGradient>
+                      <linearGradient id="modalInnerSleepGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#A855F7" />
+                        <stop offset="100%" stopColor="#6366F1" />
+                      </linearGradient>
+                    </defs>
+                    {/* Outer Track (Steps - Subtle 12% Opacity Track) */}
                     <circle
                       cx="72"
                       cy="72"
-                      r="58"
-                      className="stroke-slate-900 dark:stroke-slate-900 fill-transparent"
-                      strokeWidth="10"
+                      r="60"
+                      className="stroke-slate-900/15 dark:stroke-white/12 fill-transparent"
+                      strokeWidth="9"
                     />
+                    {/* Outer Progress (Steps - Dynamic Cyan-to-Emerald with 0.8s cubic-bezier transition) */}
                     <circle
                       cx="72"
                       cy="72"
-                      r="58"
-                      className="stroke-emerald-400 fill-transparent transition-all duration-700"
-                      strokeWidth="10"
-                      strokeDasharray={2 * Math.PI * 58}
-                      strokeDashoffset={(2 * Math.PI * 58) * (1 - stepPct / 100)}
+                      r="60"
+                      stroke="url(#modalOuterStepGrad)"
+                      className="fill-transparent telemetry-ring-arc"
+                      style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }}
+                      strokeWidth="9"
+                      strokeDasharray={2 * Math.PI * 60}
+                      strokeDashoffset={(2 * Math.PI * 60) * (1 - stepPct / 100)}
+                      strokeLinecap="round"
+                    />
+                    {/* Inner Track (Sleep - Subtle 12% Opacity Track) */}
+                    <circle
+                      cx="72"
+                      cy="72"
+                      r="45"
+                      className="stroke-slate-900/15 dark:stroke-white/12 fill-transparent"
+                      strokeWidth="9"
+                    />
+                    {/* Inner Progress (Sleep - Vibrant Amethyst-to-Indigo with 0.8s cubic-bezier transition) */}
+                    <circle
+                      cx="72"
+                      cy="72"
+                      r="45"
+                      stroke="url(#modalInnerSleepGrad)"
+                      className="fill-transparent telemetry-ring-arc"
+                      style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }}
+                      strokeWidth="9"
+                      strokeDasharray={2 * Math.PI * 45}
+                      strokeDashoffset={(2 * Math.PI * 45) * (1 - sleepPct / 100)}
                       strokeLinecap="round"
                     />
                   </svg>
-                  <div className="absolute flex flex-col items-center justify-center text-center">
-                    <span className="text-2xl font-black font-mono text-white tabular-nums">
-                      {todayStepLog.steps.toLocaleString()}
-                    </span>
-                    <span className="text-xs font-semibold text-emerald-400">
-                      {stepPct}% of goal
-                    </span>
+                  {/* Center Core Anchor: Dual Steps Shoe + Diagonal Slash + Sleep Crescent Moon */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none gap-1">
+                    <Footprints className="w-5 h-5 text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.7)]" />
+                    <span className="text-sm font-bold text-slate-400/80 -rotate-12 select-none">/</span>
+                    <Moon className="w-4.5 h-4.5 text-indigo-400 drop-shadow-[0_0_8px_rgba(99,102,241,0.7)]" />
                   </div>
                 </div>
-                <div className="text-[11px] text-slate-400 mt-2 font-mono">
-                  Target: {targetSteps.toLocaleString()} steps/day
+
+                {/* Numeric Callouts Neatly Positioned Below Ring with Centered Line-Heights */}
+                <div className="w-full grid grid-cols-3 gap-2 items-center text-center pt-3 mt-2 border-t border-white/10 font-mono">
+                  <div className="flex flex-col items-center justify-center leading-tight">
+                    <span className="text-sm font-black text-emerald-400 tabular-nums leading-tight">
+                      {todayStepLog.steps.toLocaleString()}
+                    </span>
+                    <span className="text-[9px] text-slate-400 uppercase leading-tight mt-0.5">Steps ({stepPct}%)</span>
+                  </div>
+                  <div className="flex flex-col items-center justify-center leading-tight">
+                    <span className="text-sm font-black text-cyan-400 tabular-nums leading-tight">
+                      {todayStepLog.caloriesBurned}
+                    </span>
+                    <span className="text-[9px] text-slate-400 uppercase leading-tight mt-0.5">Burn (kcal)</span>
+                  </div>
+                  <div className="flex flex-col items-center justify-center leading-tight">
+                    <span className="text-sm font-black text-violet-400 tabular-nums leading-tight">
+                      {todaySleepHours.toFixed(1)}h
+                    </span>
+                    <span className="text-[9px] text-slate-400 uppercase leading-tight mt-0.5">Sleep ({sleepTargetHours.toFixed(1)}h)</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Stats & Distance */}
+              {/* Telemetry Stats (Steps, Burn, Sleep Duration, Average Cadence) */}
               <div className="space-y-2.5">
                 <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-between">
                   <span className="text-xs text-slate-400">Distance Walked</span>
@@ -296,115 +357,38 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
                   </span>
                 </div>
 
+                <div className="sleep-telemetry-row p-3 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-between whitespace-nowrap" style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span className="text-xs text-slate-400 whitespace-nowrap">Sleep Telemetry</span>
+                  <span className="text-xs sm:text-sm font-bold font-mono text-violet-400 whitespace-nowrap">
+                    {todaySleepHours.toFixed(1)} hrs Sleep
+                  </span>
+                </div>
+
                 <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-between">
                   <span className="text-xs text-slate-400">Average Cadence</span>
                   <span className="text-sm font-bold font-mono text-cyan-400">
-                    112 steps/min
+                    {todayStepLog.steps > 0 ? '112 steps/min' : '0 steps/min'}
                   </span>
                 </div>
               </div>
             </div>
-
-            {/* Samsung Health & Device Sensor Sync Button */}
-            <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Smartphone className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs font-bold text-white uppercase tracking-wider">Health Connect & Pedometer</span>
-                </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-                  Live Sensor
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-300 leading-tight">
-                Pull real-time step counts from Samsung Health, Google Health Connect, and your device pedometer.
-              </p>
-              <button
-                type="button"
-                onClick={handleSyncSamsungHealthSteps}
-                disabled={syncingSamsungSteps}
-                className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${syncingSamsungSteps ? 'animate-spin' : ''}`} />
-                <span>{syncingSamsungSteps ? 'Querying Device Sensors...' : 'Sync Samsung Health / Health Connect'}</span>
-              </button>
-
-              {samsungStepsSuccess && (
-                <div className="p-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold flex items-center gap-1.5 animate-in fade-in">
-                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span>{samsungStepsSuccess}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Quick Increment Actions */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                Quick Add Steps To Today's Log
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {[500, 1000, 2500].map((inc) => (
-                  <button
-                    key={inc}
-                    onClick={() => onQuickAddSteps(inc)}
-                    className="py-2.5 px-3 rounded-xl bg-white/[0.06] hover:bg-emerald-500/20 text-white hover:text-emerald-300 border border-white/10 hover:border-emerald-500/40 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-95"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>+{inc.toLocaleString()}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Adjust Daily Goal Slider */}
-            <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold">
-                <span className="text-slate-300">Adjust Daily Step Target</span>
-                <span className="text-emerald-400 font-mono">{targetSteps.toLocaleString()} steps</span>
-              </div>
-              <input
-                type="range"
-                min="4000"
-                max="25000"
-                step="500"
-                value={targetSteps}
-                onChange={(e) => handleSaveStepTarget(parseInt(e.target.value))}
-                className="w-full accent-emerald-400 cursor-pointer"
-              />
-              <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                <span>4,000 (Light)</span>
-                <span>10,000 (Active)</span>
-                <span>25,000 (Endurance)</span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => {
-                onClose();
-                onNavigateTab('sports');
-              }}
-              className="w-full py-2.5 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-emerald-500/20"
-            >
-              <span>Open Outdoor GPS Tracker</span>
-              <ChevronRight className="w-4 h-4" />
-            </button>
           </>
         )}
 
         {/* DETAIL VIEW 2: BPL Score */}
         {cardId === 'bpl-score' && (
           <>
-            {renderCardHeader('BPL Athletic Performance', 'Body Performance Level 4-pillar index', <Award className="w-5 h-5 text-violet-400" />, 'Athletic Tier')}
+            {renderCardHeader('BPL Athletic Performance', 'Body Performance Level 4-pillar index', <Award className="w-5 h-5 text-violet-400" />, bplData.tier)}
 
             <div className="p-4 rounded-2xl bg-white/[0.04] dark:bg-white/[0.04] border border-white/10 dark:border-white/10 flex items-center justify-between">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">Current Rank</span>
-                <span className="text-2xl font-black text-white mt-0.5 block">Competitor Tier</span>
-                <span className="text-xs text-slate-400">Top 15% of active athletes in your age bracket</span>
+                <span className="text-2xl font-black text-white mt-0.5 block">{bplData.tier}</span>
+                <span className="text-xs text-slate-400">{bplData.summary}</span>
               </div>
-              <div className="w-16 h-16 rounded-2xl ig-story-ring p-[2px]">
+              <div className="w-16 h-16 rounded-2xl ig-story-ring p-[2px] shrink-0">
                 <div className="w-full h-full rounded-[14px] bg-slate-950 flex flex-col items-center justify-center">
-                  <span className="text-xl font-black font-mono text-white">82</span>
+                  <span className="text-xl font-black font-mono text-white">{bplData.score}</span>
                   <span className="text-[8px] font-bold uppercase text-violet-400">Score</span>
                 </div>
               </div>
@@ -418,10 +402,43 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
 
               <div className="space-y-2">
                 {[
-                  { label: 'Strength to Bodyweight Ratio', score: '88/100', desc: 'Big 3 total is 2.8x bodyweight', color: 'bg-emerald-400' },
-                  { label: 'Aerobic & Cardio Volume', score: '79/100', desc: '140+ weekly cardio minutes', color: 'bg-cyan-400' },
-                  { label: 'Body Composition & Lean Mass', score: '84/100', desc: '14.2% estimated body fat', color: 'bg-violet-400' },
-                  { label: 'Logging Consistency & Frequency', score: '92/100', desc: '5 active sessions this week', color: 'bg-amber-400' },
+                  {
+                    label: 'Strength to Bodyweight Ratio',
+                    scoreVal: bplData.strengthScore,
+                    score: `${bplData.strengthScore}/100`,
+                    desc:
+                      strengthRatio > 0
+                        ? `Big 3 total is ${strengthRatio}x bodyweight (${bigThreeTotalKg} kg)`
+                        : '0x bodyweight — log Big 3 lifts & weight',
+                    color: 'bg-emerald-400',
+                  },
+                  {
+                    label: 'Aerobic & Cardio Volume',
+                    scoreVal: bplData.cardioScore,
+                    score: `${bplData.cardioScore}/100`,
+                    desc:
+                      weeklyCardioMinutes > 0
+                        ? `${weeklyCardioMinutes} / 150 weekly cardio minutes`
+                        : '0 / 150 weekly cardio minutes logged',
+                    color: 'bg-cyan-400',
+                  },
+                  {
+                    label: 'Body Composition & Lean Mass',
+                    scoreVal: bplData.compositionScore,
+                    score: `${bplData.compositionScore}/100`,
+                    desc:
+                      bodyComp.bodyFatPct > 0
+                        ? `${(100 - bodyComp.bodyFatPct).toFixed(1)}% lean mass (${bodyComp.bodyFatPct}% body fat)`
+                        : '0% lean mass ratio — log weight & height',
+                    color: 'bg-violet-400',
+                  },
+                  {
+                    label: 'Logging Consistency & Frequency',
+                    scoreVal: bplData.consistencyScore,
+                    score: `${bplData.consistencyScore}/100`,
+                    desc: `${loggedSessionsThisWeek} / ${targetSessions} active sessions logged this week`,
+                    color: 'bg-amber-400',
+                  },
                 ].map((pillar, idx) => (
                   <div key={idx} className="p-3 rounded-xl bg-white/[0.04] border border-white/10 space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
@@ -429,24 +446,16 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
                       <span className="font-mono font-bold text-slate-300">{pillar.score}</span>
                     </div>
                     <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
-                      <div className={`${pillar.color} h-full rounded-full`} style={{ width: pillar.score.split('/')[0] + '%' }} />
+                      <div
+                        className={`${pillar.color} h-full rounded-full transition-all duration-500`}
+                        style={{ width: `${pillar.scoreVal}%` }}
+                      />
                     </div>
                     <div className="text-[11px] text-slate-400">{pillar.desc}</div>
                   </div>
                 ))}
               </div>
             </div>
-
-            <button
-              onClick={() => {
-                onClose();
-                onNavigateTab('biometrics');
-              }}
-              className="w-full py-2.5 bg-violet-500 hover:bg-violet-400 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-violet-500/20"
-            >
-              <span>View Full Biometric Breakdown</span>
-              <ChevronRight className="w-4 h-4" />
-            </button>
           </>
         )}
 
@@ -535,17 +544,6 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
                 </button>
               </div>
             </form>
-
-            <button
-              onClick={() => {
-                onClose();
-                onNavigateTab('biometrics');
-              }}
-              className="w-full py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-cyan-500/20"
-            >
-              <span>Explore Body Composition</span>
-              <ChevronRight className="w-4 h-4" />
-            </button>
           </>
         )}
 
@@ -587,48 +585,6 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
                 <span className="text-[9px] text-cyan-400 font-bold">Elite</span>
               </div>
             </div>
-
-            {/* Quick 1RM Estimator */}
-            <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-300 block">
-                Instant 1RM Rep-Max Estimator
-              </span>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-1">Lift Weight (kg)</label>
-                  <input
-                    type="number"
-                    value={calcWeight}
-                    onChange={(e) => setCalcWeight(parseFloat(e.target.value) || 0)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-1">Reps Completed</label>
-                  <input
-                    type="number"
-                    value={calcReps}
-                    onChange={(e) => setCalcReps(parseInt(e.target.value) || 1)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono"
-                  />
-                </div>
-              </div>
-              <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs">
-                <span className="text-slate-400">Estimated 1-Rep Max:</span>
-                <span className="text-amber-400 font-mono font-extrabold text-sm">{estimated1RM} kg</span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => {
-                onClose();
-                onNavigateTab('gym');
-              }}
-              className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-amber-500/20"
-            >
-              <span>Open Gym Log & PR Shelf</span>
-              <ChevronRight className="w-4 h-4" />
-            </button>
           </>
         )}
 
@@ -665,19 +621,23 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
             {/* Sensor Details */}
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 space-y-1">
-                <span className="text-slate-400 text-[10px] block">Wind Velocity</span>
-                <span className="font-mono font-bold text-white text-sm">
-                  {weather ? (isMetric ? `${weather.windSpeedKmh} km/h` : `${weather.windSpeedMph} mph`) : '12 km/h'}
-                </span>
-                <span className="text-[10px] text-teal-400">Gentle Breeze</span>
+                <span className="text-slate-400 text-[10px] block weather-metric-label">Wind Velocity</span>
+                <div className="weather-metric-value flex items-center gap-1.5 whitespace-nowrap" style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="font-mono font-bold text-white text-sm whitespace-nowrap">
+                    {weather ? (isMetric ? `${weather.windSpeedKmh} km/h` : `${weather.windSpeedMph} mph`) : '5 km/h'}
+                  </span>
+                  <span className="text-[10px] text-teal-400 whitespace-nowrap">Gentle Breeze</span>
+                </div>
               </div>
 
               <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 space-y-1">
-                <span className="text-slate-400 text-[10px] block">Relative Humidity</span>
-                <span className="font-mono font-bold text-white text-sm">
-                  {weather?.humidity || 52}%
-                </span>
-                <span className="text-[10px] text-cyan-400">Comfortable</span>
+                <span className="text-slate-400 text-[10px] block weather-metric-label">Relative Humidity</span>
+                <div className="weather-metric-value flex items-center gap-1.5 whitespace-nowrap" style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="font-mono font-bold text-white text-sm whitespace-nowrap">
+                    {weather?.humidity || 52}%
+                  </span>
+                  <span className="text-[10px] text-cyan-400 whitespace-nowrap">Comfortable</span>
+                </div>
               </div>
             </div>
 
@@ -700,13 +660,6 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
                 </div>
               </div>
             </div>
-
-            <button
-              onClick={onClose}
-              className="w-full py-2.5 bg-sky-400 hover:bg-sky-300 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-sky-500/20"
-            >
-              <span>Done</span>
-            </button>
           </>
         )}
 
@@ -948,6 +901,136 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({
             })()}
           </>
         )}
+
+        {/* DETAIL VIEW 10: Consistency & Workout Streak Modal */}
+        {cardId === 'streak-box' && (() => {
+          const appContext = useApp();
+          const logsFromContext = appContext ? appContext.workoutLogs : [];
+          const combinedLogs = [
+            ...(logsFromContext || []),
+            ...liftRecords.map((l) => ({ id: l.id, date: l.date, title: l.exerciseName })),
+            ...sportsHistory.map((s) => ({ id: s.id, date: s.date, title: s.title })),
+          ];
+          const scheduledRestDays = ['Wed', 'Sun'];
+          const streakCalc = calculateStreakFromWorkoutLogs(combinedLogs, scheduledRestDays);
+          const activeStreak = streakCalc.activeStreak;
+          const bestStreak = streakCalc.bestStreak;
+          const weekDays = getWeekDaysActivity(combinedLogs, scheduledRestDays);
+          const activeDaysThisWeek = weekDays.filter((w) => w.hasWorkout).length;
+          const consistencyRate = Math.round((activeDaysThisWeek / 7) * 100);
+
+          return (
+            <>
+              {renderCardHeader(
+                'Consistency & Workout Streak Stats',
+                'Daily training momentum & weekly cadence',
+                <Flame className="w-5 h-5 text-amber-400" />
+              )}
+
+              {/* Top Highlight Stats Grid - Restructured Pill Typography */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="streak-stat-pill p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col justify-between items-center">
+                  <span className="streak-pill-header text-[11px] font-mono text-amber-300 uppercase block font-bold tracking-[0.5px] text-center whitespace-nowrap">
+                    ACTIVE
+                  </span>
+                  <span className="streak-pill-value text-[32px] font-extrabold font-mono text-amber-400 text-center leading-[1.1] my-1">
+                    {activeStreak}
+                  </span>
+                  <span className="streak-pill-subtitle text-[13px] text-white/70 block text-center">
+                    {activeStreak === 1 ? 'Day' : 'Days'}
+                  </span>
+                </div>
+
+                <div className="streak-stat-pill p-3 rounded-2xl bg-violet-500/10 border border-violet-500/30 flex flex-col justify-between items-center">
+                  <span className="streak-pill-header text-[11px] font-mono text-violet-300 uppercase block font-bold tracking-[0.5px] text-center whitespace-nowrap">
+                    BEST
+                  </span>
+                  <span className="streak-pill-value text-[32px] font-extrabold font-mono text-violet-400 text-center leading-[1.1] my-1">
+                    {bestStreak}
+                  </span>
+                  <span className="streak-pill-subtitle text-[13px] text-white/70 block text-center">
+                    {bestStreak === 1 ? 'Day' : 'Days'}
+                  </span>
+                </div>
+
+                <div className="streak-stat-pill p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col justify-between items-center">
+                  <span className="streak-pill-header text-[11px] font-mono text-emerald-300 uppercase block font-bold tracking-[0.5px] text-center whitespace-nowrap">
+                    CONSISTENCY
+                  </span>
+                  <span className="streak-pill-value text-[32px] font-extrabold font-mono text-emerald-400 text-center leading-[1.1] my-1">
+                    {consistencyRate}%
+                  </span>
+                  <span className="streak-pill-subtitle text-[13px] text-white/70 block text-center">
+                    {activeDaysThisWeek}/7 Days
+                  </span>
+                </div>
+              </div>
+
+              {/* THIS WEEK'S ACTIVITY - ONLY Mon-Sun Day Indicator Bubbles (no Protected subtext) */}
+              <div className="weekly-activity-grid p-4 rounded-2xl bg-white/[0.04] border border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">THIS WEEK'S ACTIVITY</span>
+                  <span className="text-[10px] font-mono text-emerald-400 font-bold">{activeDaysThisWeek}/7 Targets Hit</span>
+                </div>
+
+                <div className="grid grid-cols-7 gap-1.5 pt-1">
+                  {weekDays.map((item, idx) => (
+                    <div key={idx} className="flex flex-col items-center gap-1.5">
+                      <span className={`text-[10px] font-mono font-bold ${item.isToday ? 'text-amber-400' : 'text-slate-400'}`}>
+                        {item.day}
+                      </span>
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all shadow-sm ${
+                          item.status === 'done'
+                            ? 'bg-emerald-500 text-black font-black'
+                            : item.status === 'rest'
+                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                            : item.isToday
+                            ? 'accent-bg text-black font-black ring-2 ring-white/50'
+                            : 'bg-white/5 text-slate-500 border border-white/10'
+                        }`}
+                        style={item.isToday && item.status !== 'done' && item.status !== 'rest' ? { backgroundColor: 'var(--accent-hex)', color: '#000000' } : undefined}
+                        title={
+                          item.status === 'done'
+                            ? 'Workout Completed'
+                            : item.status === 'rest'
+                            ? 'Rest Day Protected'
+                            : item.isToday
+                            ? 'Today'
+                            : 'Rest'
+                        }
+                      >
+                        {item.status === 'done' ? '✔' : item.status === 'rest' ? 'R' : item.isToday ? '⚡' : '○'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Streak Safeguard & Rest Day Protection */}
+              <div className="safeguard-card p-3 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between gap-3 text-xs">
+                <div className="space-y-0.5">
+                  <div className="font-bold text-white flex items-center gap-1.5">
+                    <Shield className="w-4 h-4 text-emerald-400" />
+                    <span>Rest Day Safeguard Active</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">Scheduled recovery days on your custom split do not break your streak.</p>
+                </div>
+                <span className="px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-[10px] font-mono font-bold border border-emerald-500/30 shrink-0">
+                  Active
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </>
+          );
+        })()}
       </div>
     </div>
   );

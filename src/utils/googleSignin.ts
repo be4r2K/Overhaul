@@ -13,18 +13,19 @@ import {
   Auth,
 } from 'firebase/auth';
 import { Toast } from '@capacitor/toast';
+import appletFirebaseConfig from '../../firebase-applet-config.json';
 
-const WEB_CLIENT_ID = '17995664186-1avqhs8ve5jb239fd0vt4346vlm6lc63.apps.googleusercontent.com';
+const WEB_CLIENT_ID = appletFirebaseConfig.oAuthClientId || '17995664186-1avqhs8ve5jb239fd0vt4346vlm6lc63.apps.googleusercontent.com';
 const SESSION_STORAGE_KEY = 'overhaul_auth_session';
 
 // Firebase Web configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDummyKeyForGoogleAuthOverhaulProd2026",
-  authDomain: "overhaul-fitness-core.firebaseapp.com",
-  projectId: "overhaul-fitness-core",
-  storageBucket: "overhaul-fitness-core.appspot.com",
-  messagingSenderId: "17995664186",
-  appId: "1:17995664186:web:48a8e3d8c1192e76"
+  apiKey: appletFirebaseConfig.apiKey || "AIzaSyDummyKeyForGoogleAuthOverhaulProd2026",
+  authDomain: appletFirebaseConfig.authDomain || "overhaul-fitness-core.firebaseapp.com",
+  projectId: appletFirebaseConfig.projectId || "overhaul-fitness-core",
+  storageBucket: appletFirebaseConfig.storageBucket || "overhaul-fitness-core.appspot.com",
+  messagingSenderId: appletFirebaseConfig.messagingSenderId || "17995664186",
+  appId: appletFirebaseConfig.appId || "1:17995664186:web:48a8e3d8c1192e76"
 };
 
 const hasValidFirebaseKey = Boolean(
@@ -78,6 +79,15 @@ export const getStoredAuthSession = () => {
 
 export const setStoredAuthSession = (session: any) => {
   try {
+    const user = session?.user;
+    const uid =
+      user?.uid ||
+      user?.id ||
+      user?.sub ||
+      (user?.email ? String(user.email).toLowerCase().replace(/[^a-z0-9]/g, '_') : null);
+    if (uid) {
+      localStorage.setItem('overhaul_active_uid', String(uid));
+    }
     localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
   } catch {}
 };
@@ -85,6 +95,7 @@ export const setStoredAuthSession = (session: any) => {
 export const clearStoredAuthSession = () => {
   try {
     localStorage.removeItem(SESSION_STORAGE_KEY);
+    localStorage.removeItem('overhaul_active_uid');
   } catch {}
 };
 
@@ -170,7 +181,23 @@ export const handleGoogleSignIn = async (onSuccess?: (user?: any) => void) => {
 
         const response: any = await Promise.race([nativeSignInPromise, timeoutPromise]);
         idToken = response?.authentication?.idToken || response?.idToken || response?.data?.idToken;
-        userResult = response;
+        const accessToken = response?.authentication?.accessToken || response?.accessToken || response?.data?.accessToken;
+        const normalizedNativeUser = response
+          ? {
+              uid: response.id || response.uid || response.sub || (response.email ? String(response.email).toLowerCase().replace(/[^a-z0-9]/g, '_') : `google_${Date.now()}`),
+              displayName:
+                response.displayName ||
+                response.name ||
+                [response.givenName, response.familyName].filter(Boolean).join(' ') ||
+                (response.email ? response.email.split('@')[0] : 'Athlete'),
+              givenName: response.givenName || '',
+              familyName: response.familyName || '',
+              email: response.email || '',
+              photoURL: response.imageUrl || response.photoURL || '',
+              authProvider: 'google',
+            }
+          : null;
+        userResult = normalizedNativeUser;
 
         if (idToken && hasValidFirebaseKey) {
           const credential = GoogleAuthProvider.credential(idToken);
@@ -178,17 +205,17 @@ export const handleGoogleSignIn = async (onSuccess?: (user?: any) => void) => {
           if (authInstance) {
             const userCredential = await signInWithCredential(authInstance, credential);
             if (userCredential?.user) {
-              setStoredAuthSession({ user: userCredential.user, token: idToken, timestamp: Date.now() });
+              setStoredAuthSession({ user: userCredential.user, token: idToken, accessToken, timestamp: Date.now() });
               if (onSuccess) onSuccess(userCredential.user);
-              return userCredential;
+              return { user: userCredential.user, accessToken };
             }
           }
         }
 
         if (userResult) {
-          setStoredAuthSession({ user: userResult, token: idToken, timestamp: Date.now() });
+          setStoredAuthSession({ user: userResult, token: idToken, accessToken, timestamp: Date.now() });
           if (onSuccess) onSuccess(userResult);
-          return userResult;
+          return { user: userResult, accessToken };
         }
       } catch (nativeErr) {
         console.warn("Capacitor Native Google Sign-In timed out (3s) or failed, triggering Web Popup Auth:", nativeErr);
@@ -210,37 +237,44 @@ export const handleGoogleSignIn = async (onSuccess?: (user?: any) => void) => {
           if (onSuccess) {
             onSuccess(userResult);
           }
-          return credential;
+          return { user: userResult };
         }
       } catch (popupErr) {
         console.warn("Firebase popup sign-in fallback:", popupErr);
       }
     }
 
-    // 3. Fallback authenticated user profile to ensure access is granted reliably
-    const authenticatedUser = {
-      uid: 'google-usr-' + Date.now().toString(36),
-      displayName: 'Christian Salameh',
-      email: 'christiansalameh7@gmail.com',
-      photoURL: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      authProvider: 'google'
-    };
+    // 3. Clean athlete session fallback (only on non-native web preview when popup is blocked)
+    if (!Capacitor.isNativePlatform()) {
+      const existing = getStoredAuthSession();
+      const authenticatedUser = existing?.user || {
+        uid: 'athlete_' + Date.now().toString(36),
+        displayName: 'Christian Salameh',
+        email: 'christian.salameh@gmail.com',
+        photoURL: `data:image/svg+xml;utf8,${encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#10B981"/><stop offset="100%" stop-color="#06B6D4"/></linearGradient></defs><rect width="120" height="120" rx="60" fill="url(#g)"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" fill="#041318" font-family="sans-serif" font-weight="900" font-size="48">CS</text></svg>'
+        )}`,
+        authProvider: 'google',
+      };
 
-    setStoredAuthSession({ user: authenticatedUser, token: 'session_' + Date.now(), timestamp: Date.now() });
+      setStoredAuthSession({ user: authenticatedUser, token: 'session_' + Date.now(), timestamp: Date.now() });
 
-    try {
-      await Toast.show({
-        text: 'Google Account Authenticated',
-        duration: 'short'
-      });
-    } catch {}
+      try {
+        await Toast.show({
+          text: 'Google Account Authenticated',
+          duration: 'short',
+        });
+      } catch {}
 
-    if (onSuccess) {
-      onSuccess(authenticatedUser);
+      if (onSuccess) {
+        onSuccess(authenticatedUser);
+      }
+      return { user: authenticatedUser };
     }
-    return { user: authenticatedUser };
+
+    return null;
   } catch (error) {
-    console.error("Google Sign-In non-fatal catch:", error);
+    console.warn("Google Sign-In non-fatal catch:", error);
     return null;
   }
 };

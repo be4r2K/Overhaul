@@ -11,9 +11,9 @@ import {
 } from '../types/fitness';
 
 export const DEFAULT_PROFILE: UserProfile = {
-  name: 'Christian',
-  familyName: 'Salameh',
-  birthDate: '2001-05-18',
+  name: 'Athlete',
+  familyName: '',
+  birthDate: '2000-01-01',
   gender: 'male',
   heightCm: 0,
   weightKg: 0,
@@ -24,10 +24,10 @@ export const DEFAULT_PROFILE: UserProfile = {
   units: 'metric',
   targetWaterMl: 0,
   location: '',
-  email: 'christiansalameh7@gmail.com',
+  email: '',
   authProvider: 'local',
   hasExplicitlyLogged: false,
-  personalFriendCode: 'CHRISTIAN-94',
+  personalFriendCode: '',
 };
 
 export const DEFAULT_EXERCISES: Exercise[] = [
@@ -75,113 +75,67 @@ export const DEFAULT_FRIENDS: Friend[] = [];
 
 export const DEFAULT_FRIEND_POSTS: FriendPost[] = [];
 
+export const INITIAL_1RM_RECORDS: any[] = [];
+export const INITIAL_BIOMETRICS: any[] = [];
+export const INITIAL_WORKOUTS: any[] = [];
+
 export const INITIAL_USER_PROFILE = {
-  name: 'Christian Salameh',
-  email: 'christiansalameh7@gmail.com',
-  isGoogleConnected: true,
+  name: 'Athlete',
+  email: '',
+  isGoogleConnected: false,
   preferredUnit: 'kg' as const,
-  heightCm: 182,
-  targetWeightKg: 78.5,
+  heightCm: 0,
+  targetWeightKg: 0,
   dailyStepGoal: 10000,
-  dailyWaterGoalLiters: 3.5,
-  dailyCalorieBurnGoal: 650,
+  dailyWaterGoalLiters: 3.0,
+  dailyCalorieBurnGoal: 500,
   theme: 'dark' as const,
   lastSyncedAt: new Date().toISOString(),
 };
 
-export const INITIAL_1RM_RECORDS = [
-  {
-    id: 'pr-1',
-    exercise: 'Barbell Back Squat',
-    category: 'Barbell' as const,
-    weight: 140,
-    reps: 3,
-    unit: 'kg' as const,
-    estimated1RM: 154,
-    formula: 'epley' as const,
-    date: '2026-09-28',
-    rpe: 9,
-    notes: 'Solid depth, clean lockout. Belt only.',
-    isPersonalRecord: true,
-  },
-  {
-    id: 'pr-2',
-    exercise: 'Flat Barbell Bench Press',
-    category: 'Barbell' as const,
-    weight: 110,
-    reps: 4,
-    unit: 'kg' as const,
-    estimated1RM: 124.7,
-    formula: 'epley' as const,
-    date: '2026-09-26',
-    rpe: 8.5,
-    notes: 'Paused on chest for 1 count.',
-    isPersonalRecord: true,
-  },
-  {
-    id: 'pr-3',
-    exercise: 'Conventional Deadlift',
-    category: 'Barbell' as const,
-    weight: 180,
-    reps: 2,
-    unit: 'kg' as const,
-    estimated1RM: 192,
-    formula: 'epley' as const,
-    date: '2026-09-24',
-    rpe: 9.5,
-    notes: 'Double overhand hook grip.',
-    isPersonalRecord: true,
-  },
-];
+const GLOBAL_UNSCOPED_KEYS = new Set(['app_theme', 'app_language']);
 
-export const INITIAL_BIOMETRICS = [
-  {
-    id: 'bio-1',
-    date: '2026-09-30',
-    weightKg: 79.2,
-    bodyFatPercent: 13.8,
-    restingHeartRate: 52,
-    systolicBp: 118,
-    diastolicBp: 76,
-    sleepHours: 7.8,
-    sleepQuality: 88,
-    hrvMs: 74,
-    stepCount: 8420,
-    hydrationLiters: 2.8,
-    recoveryScore: 92,
-    notes: 'Woke up feeling energetic. Ready for leg day.',
-  }
-];
-
-export const INITIAL_WORKOUTS = [
-  {
-    id: 'wo-1',
-    title: 'Heavy Lower Body & Core',
-    date: '2026-09-28',
-    durationMinutes: 72,
-    caloriesBurned: 580,
-    sportCategory: 'Strength' as const,
-    rating: 5 as const,
-    rpeAverage: 8.8,
-    notes: 'Hit a 3-rep PR on Squats.',
-    exercises: [
-      {
-        id: 'we-1',
-        name: 'Barbell Back Squat',
-        category: 'Legs',
-        sets: [
-          { setNumber: 1, weight: 100, reps: 8, completed: true, rpe: 7 },
-          { setNumber: 2, weight: 120, reps: 5, completed: true, rpe: 8 },
-          { setNumber: 3, weight: 140, reps: 3, completed: true, rpe: 9 },
-        ],
-      },
-    ],
-  }
-];
-
-export function loadFromStorage<T>(key: string, fallback: T): T {
+export function getActiveUserUid(): string {
   try {
-    const raw = localStorage.getItem(key);
+    const rawSession = localStorage.getItem('overhaul_auth_session');
+    if (rawSession) {
+      const parsed = JSON.parse(rawSession);
+      const user = parsed?.user;
+      const uid =
+        user?.uid ||
+        user?.id ||
+        user?.sub ||
+        (user?.email ? user.email.toLowerCase().replace(/[^a-z0-9]/g, '_') : null);
+      if (uid) return String(uid);
+    }
+    const storedUid = localStorage.getItem('overhaul_active_uid');
+    if (storedUid) return storedUid;
+  } catch {}
+  return 'anonymous';
+}
+
+export function setActiveUserUid(uid: string | null): void {
+  try {
+    if (uid) {
+      localStorage.setItem('overhaul_active_uid', uid);
+    } else {
+      localStorage.removeItem('overhaul_active_uid');
+    }
+  } catch {}
+}
+
+export function getScopedStorageKey(key: string, explicitUid?: string): string {
+  if (GLOBAL_UNSCOPED_KEYS.has(key)) {
+    return key;
+  }
+  const uid = explicitUid || getActiveUserUid();
+  return `overhaul_user_${uid}_${key}`;
+}
+
+export function loadFromStorage<T>(key: string, fallback: T, explicitUid?: string): T {
+  try {
+    const scopedKey = getScopedStorageKey(key, explicitUid);
+    const raw = localStorage.getItem(scopedKey);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
     if (parsed === null || parsed === undefined) return fallback;
@@ -191,9 +145,21 @@ export function loadFromStorage<T>(key: string, fallback: T): T {
   }
 }
 
-export function saveToStorage<T>(key: string, value: T): void {
+export function saveToStorage<T>(key: string, value: T, explicitUid?: string): void {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    const uid = explicitUid || getActiveUserUid();
+    const scopedKey = getScopedStorageKey(key, uid);
+    localStorage.setItem(scopedKey, JSON.stringify(value));
+
+    // Also maintain the unified per-user container key `overhaul_user_${uid}`
+    if (!GLOBAL_UNSCOPED_KEYS.has(key)) {
+      const masterKey = `overhaul_user_${uid}`;
+      const existingRaw = localStorage.getItem(masterKey);
+      const existingObj = existingRaw ? JSON.parse(existingRaw) : {};
+      existingObj[key] = value;
+      existingObj.updatedAt = new Date().toISOString();
+      localStorage.setItem(masterKey, JSON.stringify(existingObj));
+    }
   } catch (err) {
     console.warn('Failed to save to localStorage:', err);
   }

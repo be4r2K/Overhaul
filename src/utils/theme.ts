@@ -8,7 +8,21 @@ export const DEFAULT_THEME: AppThemeSettings = {
   liquidGlass: true,
 };
 
+const THEME_MIGRATION_KEY = 'overhaul_theme_migrated_v5';
+
 export function getStoredTheme(): AppThemeSettings {
+  if (typeof window !== 'undefined') {
+    try {
+      if (!window.localStorage.getItem(THEME_MIGRATION_KEY)) {
+        window.localStorage.setItem(THEME_MIGRATION_KEY, 'true');
+        saveToStorage('app_theme', DEFAULT_THEME);
+        applyThemeToDOM(DEFAULT_THEME);
+        return { ...DEFAULT_THEME };
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }
   const theme = loadFromStorage('app_theme', DEFAULT_THEME);
   if (theme.liquidGlass === undefined) {
     theme.liquidGlass = true;
@@ -94,6 +108,7 @@ export function applyThemeToDOM(theme?: AppThemeSettings) {
   try {
     const root = document.documentElement;
     const body = document.body;
+    const appRoot = document.getElementById('root');
     const isLiquidGlass = theme.liquidGlass !== false;
     const isLightMode = theme.mode === 'light';
 
@@ -109,6 +124,16 @@ export function applyThemeToDOM(theme?: AppThemeSettings) {
       body.setAttribute('data-glass', isLiquidGlass ? 'true' : 'false');
       body.setAttribute('data-accent', theme.accent);
       body.setAttribute('data-font', theme.font);
+    }
+
+    if (appRoot) {
+      appRoot.setAttribute('data-theme', isLightMode ? 'light' : 'dark');
+      appRoot.setAttribute('data-glass', isLiquidGlass ? 'true' : 'false');
+      appRoot.classList.remove('dark', 'light', 'dark-mode', 'light-mode');
+      appRoot.classList.add(isLightMode ? 'light' : 'dark', isLightMode ? 'light-mode' : 'dark-mode');
+      appRoot.classList.toggle('liquid-glass-enabled', isLiquidGlass);
+      appRoot.classList.toggle('liquid-glass-active', isLiquidGlass);
+      appRoot.classList.toggle('solid-flat', !isLiquidGlass);
     }
 
     let hex = '#10B981';
@@ -131,6 +156,14 @@ export function applyThemeToDOM(theme?: AppThemeSettings) {
     const specularHex = `rgba(${rgb}, 0.25)`;
 
     const cssVars = {
+      '--bg-primary': isLightMode ? '#f8fafc' : '#08080C',
+      '--bg-app-base': isLightMode ? '#f8fafc' : '#08080C',
+      '--glass-card-bg': isLightMode ? 'rgba(255, 255, 255, 0.72)' : 'rgba(22, 18, 36, 0.65)',
+      '--glass-border': isLightMode ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.12)',
+      '--glass-card-border': isLightMode ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.12)',
+      '--glass-text-primary': isLightMode ? '#0f172a' : '#ffffff',
+      '--glass-text-secondary': isLightMode ? 'rgba(15, 23, 42, 0.65)' : 'rgba(255, 255, 255, 0.65)',
+      '--accent-primary': hex,
       '--accent-hex': hex,
       '--accent-rgb': rgb,
       '--accent-color': hex,
@@ -146,6 +179,9 @@ export function applyThemeToDOM(theme?: AppThemeSettings) {
     }
     if (body) {
       Object.entries(cssVars).forEach(([k, v]) => body.style.setProperty(k, v));
+    }
+    if (appRoot) {
+      Object.entries(cssVars).forEach(([k, v]) => appRoot.style.setProperty(k, v));
     }
 
     // Sync classList (including .liquid-glass-enabled and .light-mode / .dark-mode on html and body)

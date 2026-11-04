@@ -117,6 +117,7 @@ export interface DailyNutritionLog {
 }
 
 export interface SleepLog {
+  id?: string;
   date: string;
   totalMinutes: number; // e.g. 450 = 7h 30m
   score: number; // 0 to 100
@@ -124,6 +125,10 @@ export interface SleepLog {
   remMinutes: number;
   lightMinutes: number;
   awakeMinutes: number;
+  hoursSlept?: number;
+  qualityScore?: number;
+  deepSleepHours?: number;
+  remSleepHours?: number;
   source: 'samsung_health' | 'google_fit' | 'apple_health' | 'manual';
   syncedAt?: string;
 }
@@ -163,6 +168,33 @@ export interface Friend {
   favoriteLift?: string;
 }
 
+export interface FriendComment {
+  id: string;
+  fromName: string;
+  fromAvatar?: string;
+  message: string;
+  timestamp: string;
+  userId?: string;
+}
+
+export type PostReactionKey = 'fire' | 'trophy' | 'muscle' | 'heart' | 'bolt';
+
+export interface PostPollOption {
+  id: string;
+  text: string;
+  votes: number;
+  voterNames?: string[];
+}
+
+export interface PostPoll {
+  id: string;
+  question: string;
+  options: PostPollOption[];
+  totalVotes: number;
+  userVotedOptionId?: string;
+  category?: 'workout_type' | 'achievement' | 'split' | 'custom';
+}
+
 export interface FriendPost {
   id: string;
   friendId: string;
@@ -175,4 +207,10 @@ export interface FriendPost {
   likes: number;
   userLiked?: boolean;
   congrats: CongratsMessage[];
+  comments?: FriendComment[];
+  templateLifts?: LiftRecord[];
+  reactions?: Record<string, number>;
+  userReactions?: string[];
+  poll?: PostPoll;
 }
+

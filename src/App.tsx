@@ -30,12 +30,21 @@ import {
   DEFAULT_FRIENDS,
   DEFAULT_FRIEND_POSTS,
   loadFromStorage, 
-  saveToStorage 
+  saveToStorage,
+  setActiveUserUid,
+  getActiveUserUid
 } from './utils/storage';
 import { calculate1RM, calculateSportCalories } from './utils/calculations';
 import { fetchWeatherForLocation, WeatherData, getAccurateDeviceGPS } from './utils/weather';
 import { GoogleSignin, statusCodes, getAutoWebClientId, getActiveWebClientId, initGoogleAuth, useAuthObserver, getStoredAuthSession } from './utils/googleSignin';
 import firebaseConfig from '../firebase-applet-config.json';
+import { 
+  syncRoutinesToCloud, 
+  syncLogsToCloud, 
+  syncWorkoutLogsToCloud,
+  syncBiometricsToCloud, 
+  pullLatestDataFromCloud 
+} from './utils/cloudSyncService';
 import { fetchGooglePeopleProfile } from './utils/googlePeople';
 import { applyThemeToDOM, getStoredTheme, setStoredTheme } from './utils/theme';
 import { isHealthConnectAvailable, requestHealthConnectPermissions, queryHealthConnectData } from './utils/healthConnect';
@@ -63,6 +72,12 @@ import { Geolocation } from '@capacitor/geolocation';
 import { Toast } from '@capacitor/toast';
 
 export default function App() {
+  const [activeUserUid, setActiveUserUidState] = useState<string>(() => getActiveUserUid());
+  const updateActiveUserUid = (uid: string | null) => {
+    setActiveUserUid(uid);
+    setActiveUserUidState(uid || 'anonymous');
+  };
+
   // Application State backed by localStorage
   const [profile, setProfile] = useState<UserProfile>(() => {
     const p = loadFromStorage('profile', DEFAULT_PROFILE);
@@ -136,12 +151,15 @@ export default function App() {
     return cleanList;
   });
   const [friendPosts, setFriendPosts] = useState<FriendPost[]>(() => {
-    const stored = loadFromStorage<FriendPost[]>('friend_posts', DEFAULT_FRIEND_POSTS);
-    const MOCK_NAMES = ['Alex Rivera', 'Liam Carter', 'Sophia Martinez', 'Sarah Jenkins', 'Coach Marcus', 'David Goggins', 'John Doe', 'Jane Miller'];
+    const stored = loadFromStorage<FriendPost[]>('friend_posts', []);
+    const FAKE_POST_IDS = ['post-community-poll-1', 'post-1', 'post-2', 'post-3'];
+    const MOCK_NAMES = ['Alex Rivera', 'Liam Carter', 'Sophia Martinez', 'Sarah Jenkins', 'Coach Marcus', 'David Goggins', 'John Doe', 'Jane Miller', 'Overhaul Squad'];
     const cleanPosts = stored.filter(
       (p) =>
         p &&
-        !['post-1', 'post-2', 'post-3'].includes(p.id) &&
+        !FAKE_POST_IDS.includes(p.id) &&
+        !p.id.startsWith('auto-lift-') &&
+        !p.id.startsWith('auto-sport-') &&
         !MOCK_NAMES.some((m) => (p.friendName || '').toLowerCase().includes(m.toLowerCase()))
     );
     if (cleanPosts.length !== stored.length) {
@@ -158,12 +176,23 @@ export default function App() {
 
   // Tab & Modal State - Default is 'dashboard' (Overhaul Main page in the center)
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
+  const [settingsNavVisible, setSettingsNavVisible] = useState<boolean>(true);
+
+  const handleSelectTab = useCallback((tab: string) => {
+    setSettingsNavVisible(true);
+    if (tab === 'social') {
+      setCurrentTab('friends');
+    } else {
+      setCurrentTab(tab);
+    }
+  }, []);
   const { showTopBar, showBottomBar } = useScrollDirection(currentTab);
   const [isRestTimerOpen, setIsRestTimerOpen] = useState<boolean>(false);
   const [isQuickLogOpen, setIsQuickLogOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isAiCoachOpen, setIsAiCoachOpen] = useState<boolean>(false);
   const [isPhysiqueScannerOpen, setIsPhysiqueScannerOpen] = useState<boolean>(false);
+  const [isInnerModalOpen, setIsInnerModalOpen] = useState<boolean>(false);
 
   // Weather state
   const [weather, setWeather] = useState<WeatherData | null>(null);
@@ -183,27 +212,129 @@ export default function App() {
     return !isDone;
   });
 
+  const isAnyModalActive = Boolean(
+    isAiCoachOpen ||
+    isQuickLogOpen ||
+    isSettingsOpen ||
+    isRestTimerOpen ||
+    isPhysiqueScannerOpen ||
+    isTourOpen ||
+    isInnerModalOpen
+  );
+  const showTopBarEffective = true;
+  const showBottomBarEffective = !isAnyModalActive;
+
+  // Hard viewport scroll lock on Dashboard, Tracker, Biometrics, and Social tabs (allow scrolling ONLY in Settings or inside open modals)
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+
+    if (currentTab === 'settings' || currentTab === 'friends') return;
+
+    const preventNonModalScroll = (e: TouchEvent | WheelEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        target.closest(
+          '.glass-modal, .modal-content, .dialog-sheet, .settings-page, [role="dialog"], [role="region"], .community-feed-container, .community-feed-scroll, .social-feed-scroll, [data-scrollable="true"], .feed-scroll-container, .overflow-y-auto, .overflow-y-scroll'
+        )
+      ) {
+        return;
+      }
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('touchmove', preventNonModalScroll, { passive: false });
+    window.addEventListener('wheel', preventNonModalScroll, { passive: false });
+    return () => {
+      window.removeEventListener('touchmove', preventNonModalScroll);
+      window.removeEventListener('wheel', preventNonModalScroll);
+    };
+  }, [currentTab]);
+
   // Track daily login streak on app mount
   useEffect(() => {
     getAndUpdateDailyStreak();
   }, []);
 
-  // 1. Navigation on Success: Transition to app dashboard and sync user profile
+  // 1. Navigation on Success: Transition to app dashboard and sync user profile (scoped by uid)
   const navigateToHome = useCallback((firebaseUser?: any) => {
     setIsAuthenticated(true);
     setCurrentTab('dashboard');
     if (firebaseUser) {
+      const uid =
+        firebaseUser.uid ||
+        firebaseUser.id ||
+        firebaseUser.sub ||
+        (firebaseUser.email ? firebaseUser.email.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'anonymous');
+      updateActiveUserUid(uid);
+
       const displayName = firebaseUser.displayName || '';
       const names = displayName ? displayName.split(' ') : [];
-      setProfile((prev) => ({
-        ...prev,
-        name: names[0] || prev.name || 'Athlete',
-        familyName: names.slice(1).join(' ') || prev.familyName || '',
-        email: firebaseUser.email || prev.email,
-        photoUrl: firebaseUser.photoURL || prev.photoUrl,
-        authProvider: 'google',
-        personalFriendCode: generateUserPasscode(names[0] || prev.name, names.slice(1).join(' ') || prev.familyName, prev.personalFriendCode),
-      }));
+      const storedProfile = loadFromStorage('profile', DEFAULT_PROFILE, uid);
+      const effectiveFirstName =
+        storedProfile.hasExplicitlyLogged && storedProfile.name
+          ? storedProfile.name
+          : names[0] || storedProfile.name || 'Athlete';
+      const effectiveFamilyName =
+        storedProfile.hasExplicitlyLogged && storedProfile.familyName !== undefined
+          ? storedProfile.familyName
+          : names.slice(1).join(' ') || storedProfile.familyName || '';
+      const localProfile: UserProfile = {
+        ...storedProfile,
+        name: effectiveFirstName,
+        familyName: effectiveFamilyName,
+        email: firebaseUser.email || storedProfile.email || 'christian.salameh@gmail.com',
+        photoUrl: storedProfile.photoUrl || firebaseUser.photoURL || '',
+        authProvider: (storedProfile.authProvider || 'google') as 'google' | 'apple' | 'local',
+        personalFriendCode: generateUserPasscode(
+          effectiveFirstName,
+          effectiveFamilyName,
+          storedProfile.personalFriendCode
+        ),
+      };
+      setProfile(localProfile);
+      setLiftRecords(loadFromStorage('lifts', DEFAULT_LIFTS, uid));
+      setSportsHistory(loadFromStorage('sports', DEFAULT_SPORTS, uid));
+      setStepsHistory(loadFromStorage('steps', DEFAULT_STEPS, uid));
+      setNutritionLog(loadFromStorage('nutrition', DEFAULT_NUTRITION, uid));
+      setSleepHistory(loadFromStorage('sleep', DEFAULT_SLEEP, uid));
+      setFriends(loadFromStorage('friends', DEFAULT_FRIENDS, uid));
+      setFriendPosts(loadFromStorage('friend_posts', DEFAULT_FRIEND_POSTS, uid));
+      setAiWorkoutAnalysis(loadFromStorage('ai_workout_analysis', null, uid));
+
+      // Asynchronously pull latest from Google Cloud for this logged-in user
+      (async () => {
+        try {
+          const cloudData = await pullLatestDataFromCloud(uid);
+          if (cloudData) {
+            if (cloudData.logs && Array.isArray(cloudData.logs.liftRecords)) {
+              setLiftRecords(cloudData.logs.liftRecords);
+              saveToStorage('lifts', cloudData.logs.liftRecords, uid);
+            }
+            if (cloudData.workoutHistory && Array.isArray(cloudData.workoutHistory.workoutLogs)) {
+              saveToStorage('workout_history_list', cloudData.workoutHistory.workoutLogs, uid);
+              getAndUpdateDailyStreak();
+            }
+            if (cloudData.routines) {
+              if (cloudData.routines.activeRoutine) {
+                setAiWorkoutAnalysis(cloudData.routines.activeRoutine);
+                saveToStorage('ai_workout_analysis', cloudData.routines.activeRoutine, uid);
+              }
+            }
+            if (cloudData.biometrics) {
+              const mergedProfile = { ...localProfile, ...cloudData.biometrics };
+              setProfile(mergedProfile);
+              saveToStorage('profile', mergedProfile, uid);
+            }
+          }
+        } catch (err) {
+          console.warn("Google Cloud pull on auth state change failed:", err);
+        }
+      })();
     }
   }, []);
 
@@ -215,13 +346,23 @@ export default function App() {
     applyThemeToDOM(theme);
     const isGlassOn = theme.liquidGlass !== false;
     if (typeof document !== 'undefined') {
+      const rootEl = document.getElementById('root');
       if (document.documentElement) {
         document.documentElement.classList.toggle('liquid-glass-enabled', isGlassOn);
         document.documentElement.classList.toggle('liquid-glass-active', isGlassOn);
+        document.documentElement.classList.toggle('solid-flat', !isGlassOn);
       }
       if (document.body) {
         document.body.classList.toggle('liquid-glass-enabled', isGlassOn);
         document.body.classList.toggle('liquid-glass-active', isGlassOn);
+        document.body.classList.toggle('solid-flat', !isGlassOn);
+      }
+              if (rootEl) {
+        rootEl.classList.remove('dark', 'light', 'dark-mode', 'light-mode');
+        rootEl.classList.add(theme.mode === 'light' ? 'light' : 'dark', theme.mode === 'light' ? 'light-mode' : 'dark-mode');
+        rootEl.classList.toggle('liquid-glass-enabled', isGlassOn);
+        rootEl.classList.toggle('liquid-glass-active', isGlassOn);
+        rootEl.classList.toggle('solid-flat', !isGlassOn);
       }
     }
   }, [theme]);
@@ -327,7 +468,7 @@ export default function App() {
       });
       console.log('[Root Lifecycle] GoogleSignin configured with active Web Client ID:', activeId);
     } catch (e) {
-      console.error('[Root Lifecycle] Failed to configure GoogleSignin:', e);
+      console.warn('[Root Lifecycle] Failed to configure GoogleSignin:', e);
     }
   }, []);
 
@@ -344,10 +485,13 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Sync state changes to localStorage
+  // Sync state changes to localStorage and Google Cloud
   useEffect(() => {
     saveToStorage('profile', profile);
-  }, [profile]);
+    if (activeUserUid && activeUserUid !== 'anonymous') {
+      syncBiometricsToCloud(activeUserUid, profile).catch(() => {});
+    }
+  }, [profile, activeUserUid]);
 
   useEffect(() => {
     saveToStorage('exercises', exercises);
@@ -355,11 +499,25 @@ export default function App() {
 
   useEffect(() => {
     saveToStorage('lifts', liftRecords);
-  }, [liftRecords]);
+    if (activeUserUid && activeUserUid !== 'anonymous') {
+      syncLogsToCloud(activeUserUid, liftRecords).catch(() => {});
+    }
+  }, [liftRecords, activeUserUid]);
 
   useEffect(() => {
     saveToStorage('sports', sportsHistory);
-  }, [sportsHistory]);
+    if (activeUserUid && activeUserUid !== 'anonymous') {
+      const derivedSportsWorkouts = sportsHistory.map((s) => ({
+        id: s.id,
+        title: s.title || 'Cardio Session',
+        date: s.date,
+        durationMinutes: s.durationMinutes,
+        sportCategory: 'Sports',
+        caloriesBurned: s.caloriesBurned,
+      }));
+      syncWorkoutLogsToCloud(activeUserUid, derivedSportsWorkouts).catch(() => {});
+    }
+  }, [sportsHistory, activeUserUid]);
 
   useEffect(() => {
     saveToStorage('steps', stepsHistory);
@@ -372,8 +530,11 @@ export default function App() {
   useEffect(() => {
     if (aiWorkoutAnalysis) {
       saveToStorage('ai_workout_analysis', aiWorkoutAnalysis);
+      if (activeUserUid && activeUserUid !== 'anonymous') {
+        syncRoutinesToCloud(activeUserUid, [], aiWorkoutAnalysis).catch(() => {});
+      }
     }
-  }, [aiWorkoutAnalysis]);
+  }, [aiWorkoutAnalysis, activeUserUid]);
 
   useEffect(() => {
     saveToStorage('sleep', sleepHistory);
@@ -393,7 +554,70 @@ export default function App() {
 
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // Handle Google Sign In & Dynamic Zero-State Initializations
+  // Real-Time Samsung Health / Health Connect Telemetry Sync
+  const syncHealthConnectTelemetry = useCallback(async () => {
+    try {
+      const data = await queryHealthConnectData();
+      if (data && data.source === 'health_connect') {
+        if (data.steps > 0 || data.activeCalories > 0) {
+          setStepsHistory((prev) => {
+            const existingIndex = prev.findIndex((s) => s.date === todayStr);
+            const target = profile.stepGoal || 10000;
+            const entry = {
+              date: todayStr,
+              steps: data.steps,
+              target,
+              distanceKm: data.distanceKm,
+              caloriesBurned: data.activeCalories,
+            };
+            if (existingIndex >= 0) {
+              const copy = [...prev];
+              copy[existingIndex] = entry;
+              return copy;
+            }
+            return [entry, ...prev];
+          });
+        }
+        if (data.sleepHours > 0) {
+          setSleepHistory((prev) => {
+            const totalMin = Math.round(data.sleepHours * 60);
+            const sleepEntry: SleepLog = {
+              id: `sleep-hc-${todayStr}`,
+              date: todayStr,
+              totalMinutes: totalMin,
+              score: data.sleepQuality || 94,
+              deepMinutes: Math.round(totalMin * 0.25),
+              remMinutes: Math.round(totalMin * 0.22),
+              lightMinutes: Math.round(totalMin * 0.48),
+              awakeMinutes: Math.round(totalMin * 0.05),
+              hoursSlept: data.sleepHours,
+              qualityScore: data.sleepQuality || 94,
+              deepSleepHours: Number((data.sleepHours * 0.25).toFixed(1)),
+              remSleepHours: Number((data.sleepHours * 0.22).toFixed(1)),
+              source: 'samsung_health',
+              syncedAt: new Date().toISOString(),
+            };
+            return [sleepEntry, ...prev.filter((s) => s.date !== todayStr)];
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Health Connect telemetry sync non-fatal:', e);
+    }
+  }, [todayStr, profile.stepGoal]);
+
+  useEffect(() => {
+    syncHealthConnectTelemetry();
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        syncHealthConnectTelemetry();
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [syncHealthConnectTelemetry]);
+
+  // Handle Google Sign In & Dynamic User-Scoped Session Isolation
   const handleGoogleSignIn = async () => {
     setAuthLoading(true);
     const activeClientId = getActiveWebClientId();
@@ -414,41 +638,101 @@ export default function App() {
       // 3. Initiate native Google Sign In with Web Client ID
       const result = await GoogleSignin.signIn();
       if (!result || !result.user) {
-        console.error("Google Sign-In returned no user (handled silently).");
+        console.warn("Google Sign-In returned no user (handled silently).");
         return;
       }
       const { user, accessToken } = result;
+      const uid =
+        user.uid ||
+        user.id ||
+        (user.email ? user.email.toLowerCase().replace(/[^a-z0-9]/g, '_') : `user_${Date.now()}`);
+      updateActiveUserUid(uid);
       setIsAuthenticated(true);
       if (!localStorage.getItem('hasCompletedTour')) {
         setIsTourOpen(true);
       }
 
-      // Generate strictly unique permanent passcode for new user
-      const athleteCode = generateUserPasscode(user.displayName ? user.displayName.split(' ')[0] : 'Christian', user.displayName ? user.displayName.split(' ').slice(1).join(' ') : 'Salameh');
+      const firstName = user.displayName ? user.displayName.split(' ')[0] : 'Athlete';
+      const lastName = user.displayName ? user.displayName.split(' ').slice(1).join(' ') : '';
+      const athleteCode = generateUserPasscode(firstName, lastName);
 
-      // STRICT ZERO-STATE INITIALIZATION FOR THE NEWLY SIGNED IN ACCOUNT
-      setLiftRecords([]);
-      setSportsHistory([]);
-      setStepsHistory([{
-        date: todayStr,
-        steps: 0,
-        target: 10000,
-        distanceKm: 0,
-        caloriesBurned: 0,
-      }]);
-      setNutritionLog({
-        date: todayStr,
-        waterConsumedMl: 0,
-        meals: [],
-      });
-      setSleepHistory([]);
-      setFriends([]);
-      setFriendPosts([]);
-      
-      // Clear physique visual scanner results to reset assessments
+      const localProfile: UserProfile = {
+        ...DEFAULT_PROFILE,
+        name: firstName,
+        familyName: lastName,
+        email: user.email || '',
+        photoUrl: user.photoURL || '',
+        authProvider: 'google' as 'google' | 'apple' | 'local',
+        personalFriendCode: athleteCode,
+      };
+
+      // Check if this specific user UID already has isolated data in storage
+      const existingMasterRaw = localStorage.getItem(`overhaul_user_${uid}`);
+      if (existingMasterRaw) {
+        setProfile(loadFromStorage('profile', DEFAULT_PROFILE, uid));
+        setLiftRecords(loadFromStorage('lifts', DEFAULT_LIFTS, uid));
+        setSportsHistory(loadFromStorage('sports', DEFAULT_SPORTS, uid));
+        setStepsHistory(loadFromStorage('steps', DEFAULT_STEPS, uid));
+        setNutritionLog(loadFromStorage('nutrition', DEFAULT_NUTRITION, uid));
+        setSleepHistory(loadFromStorage('sleep', DEFAULT_SLEEP, uid));
+        setFriends(loadFromStorage('friends', DEFAULT_FRIENDS, uid));
+        setFriendPosts(loadFromStorage('friend_posts', DEFAULT_FRIEND_POSTS, uid));
+        setAiWorkoutAnalysis(loadFromStorage('ai_workout_analysis', null, uid));
+      } else {
+        // STRICT ZERO-STATE INITIALIZATION FOR A BRAND NEW ACCOUNT UID
+        setProfile(localProfile);
+        setLiftRecords([]);
+        setSportsHistory([]);
+        setStepsHistory([{
+          date: todayStr,
+          steps: 0,
+          target: 10000,
+          distanceKm: 0,
+          caloriesBurned: 0,
+        }]);
+        setNutritionLog({
+          date: todayStr,
+          waterConsumedMl: 0,
+          meals: [],
+        });
+        setSleepHistory([]);
+        setFriends([]);
+        setFriendPosts([]);
+        setAiWorkoutAnalysis(null);
+      }
+
+      // Asynchronously pull latest from Google Cloud for this logged-in user
+      (async () => {
+        try {
+          const cloudData = await pullLatestDataFromCloud(uid);
+          if (cloudData) {
+            if (cloudData.logs && Array.isArray(cloudData.logs.liftRecords)) {
+              setLiftRecords(cloudData.logs.liftRecords);
+              saveToStorage('lifts', cloudData.logs.liftRecords, uid);
+            }
+            if (cloudData.workoutHistory && Array.isArray(cloudData.workoutHistory.workoutLogs)) {
+              saveToStorage('workout_history_list', cloudData.workoutHistory.workoutLogs, uid);
+              getAndUpdateDailyStreak();
+            }
+            if (cloudData.routines) {
+              if (cloudData.routines.activeRoutine) {
+                setAiWorkoutAnalysis(cloudData.routines.activeRoutine);
+                saveToStorage('ai_workout_analysis', cloudData.routines.activeRoutine, uid);
+              }
+            }
+            if (cloudData.biometrics) {
+              const currentProfile = existingMasterRaw ? loadFromStorage('profile', DEFAULT_PROFILE, uid) : localProfile;
+              const mergedProfile = { ...currentProfile, ...cloudData.biometrics };
+              setProfile(mergedProfile);
+              saveToStorage('profile', mergedProfile, uid);
+            }
+          }
+        } catch (err) {
+          console.warn("Google Cloud pull on google sign in failed:", err);
+        }
+      })();
       localStorage.removeItem('ai_body_vision_result');
       localStorage.removeItem('ai_body_vision_history');
-      setAiWorkoutAnalysis(null);
 
       // Request All Required Native Permissions on Sign-In with robust try-catch
       try {
@@ -534,7 +818,7 @@ export default function App() {
       }
     } catch (error: any) {
       // Log silently for debugging; do NOT trigger popups, alerts, or UI banners
-      console.error("Google Sign-In Error (Handled Silently):", error);
+      console.warn("Google Sign-In Error (Handled Silently):", error);
     } finally {
       setAuthLoading(false);
     }
@@ -551,9 +835,19 @@ export default function App() {
 
   const handleLogout = async () => {
     await GoogleSignin.signOut();
+    localStorage.removeItem('overhaul_auth_session');
+    updateActiveUserUid(null);
     setIsAuthenticated(false);
-    // Profile reset
+    // Reset active in-memory state so previous account data never leaks
     setProfile(DEFAULT_PROFILE);
+    setLiftRecords([]);
+    setSportsHistory([]);
+    setStepsHistory(DEFAULT_STEPS);
+    setNutritionLog(DEFAULT_NUTRITION);
+    setSleepHistory([]);
+    setFriends([]);
+    setFriendPosts([]);
+    setAiWorkoutAnalysis(null);
   };
 
   // Reset to sample default data
@@ -675,7 +969,7 @@ export default function App() {
 
   const handleQuickAddSteps = (increment: number) => {
     const todayLog = stepsHistory.find((s) => s.date === todayStr);
-    const current = todayLog ? todayLog.steps : 8420;
+    const current = todayLog ? todayLog.steps : 0;
     handleUpdateTodaySteps(current + increment);
   };
 
@@ -770,7 +1064,42 @@ export default function App() {
               <Sparkles className="w-8 h-8 text-cyan-400" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-widest text-white">OVERHAUL</h1>
+              <h1
+                className="overhaul-logo-wordmark uppercase inline-block align-baseline"
+                style={{
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontSize: '19px',
+                  letterSpacing: '3.5px',
+                  fontWeight: 900,
+                  lineHeight: 1,
+                  textTransform: 'uppercase',
+                  transform: 'none',
+                  width: 'auto',
+                  color: '#ffffff',
+                  textShadow: 'none',
+                  filter: 'none',
+                }}
+              >
+                <span 
+                  className="brand-accent" 
+                  style={{ 
+                    color: 'var(--accent-hex, var(--accent-color, #10b981))',
+                    display: 'inline-block',
+                    verticalAlign: 'baseline',
+                    fontFamily: 'inherit',
+                    fontSize: 'inherit',
+                    fontWeight: 'inherit',
+                    lineHeight: 'inherit',
+                    letterSpacing: 'inherit',
+                    transform: 'none',
+                    margin: 0,
+                    padding: 0,
+                  }}
+                >
+                  O
+                </span>
+                VERHAUL
+              </h1>
               <p className="text-[10px] text-slate-400 mt-1 uppercase font-mono tracking-wider">Health, Gym & Biometric Intelligence</p>
             </div>
           </div>
@@ -820,49 +1149,48 @@ export default function App() {
       data-active-tab={currentTab}
       data-theme={theme.mode === 'light' ? 'light' : 'dark'}
       data-glass={theme.liquidGlass !== false ? 'true' : 'false'}
+      data-modal-open={isAnyModalActive ? 'true' : 'false'}
       className={`min-h-screen h-screen max-h-screen flex flex-col justify-between app-root-container ${
-        theme.mode === 'light' ? 'text-slate-900' : 'text-slate-100'
+        theme.mode === 'light' ? 'light light-mode text-slate-900' : 'dark dark-mode text-slate-100'
       } ${theme.liquidGlass !== false ? 'liquid-glass-enabled liquid-glass-active liquid-glass glass-theme' : 'solid-flat'} font-sans selection:bg-emerald-500/20 selection:text-emerald-300 relative`}
       style={{
         minHeight: '100vh',
         paddingBottom: 0,
-        paddingTop: currentTab === 'dashboard' ? 0 : 'env(safe-area-inset-top, 0px)',
+        paddingTop: 0,
       }}
     >
-      {/* Top Bar with Overhaul cursive wordmark: rendered EXCLUSIVELY on Dashboard */}
-      {currentTab === 'dashboard' && (
-        <TopBar
-          currentTab={currentTab}
-          onSelectTab={setCurrentTab}
-          units={profile.units}
-          onToggleUnits={handleToggleUnits}
-          onResetData={handleResetData}
-          onGoogleSignIn={handleGoogleSignIn}
-          onLogout={handleLogout}
-          isAuthenticated={isAuthenticated}
-          authLoading={authLoading}
-          profile={profile}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-          theme={theme}
-          language={language}
-          isVisible={showTopBar}
-        />
-      )}
+      {/* Top Bar with Overhaul Orbitron neon wordmark: permanently pinned across all tabs */}
+      <TopBar
+        currentTab={currentTab}
+        onSelectTab={setCurrentTab}
+        units={profile.units}
+        onToggleUnits={handleToggleUnits}
+        onResetData={handleResetData}
+        onGoogleSignIn={handleGoogleSignIn}
+        onLogout={handleLogout}
+        isAuthenticated={isAuthenticated}
+        authLoading={authLoading}
+        profile={profile}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        theme={theme}
+        language={language}
+        isVisible={showTopBarEffective}
+      />
 
-      {/* Main Content Area expanding to 100% viewport height when bars hide */}
+      {/* Main Content Area fitting strictly between TopBar and BottomNav */}
       <main
-        className="relative z-10 flex-1 min-h-0 overflow-x-hidden max-w-7xl w-full mx-auto px-2 sm:px-4 py-1 flex flex-col justify-between transition-[padding-bottom] duration-200"
+        className="relative z-10 flex-1 min-h-0 max-w-7xl w-full mx-auto px-2 sm:px-4 py-0.5 flex flex-col justify-between overflow-hidden"
         style={{
-          paddingBottom: showBottomBar ? 'calc(4.5rem + env(safe-area-inset-bottom, 0px))' : 0,
-          paddingTop: currentTab === 'dashboard' ? undefined : 'max(0.25rem, env(safe-area-inset-top, 0px))',
+          paddingBottom: currentTab === 'settings' ? 0 : 'calc(4.35rem + env(safe-area-inset-bottom, 0px))',
+          paddingTop: 0,
         }}
       >
         <ErrorBoundary>
           <div
             key={currentTab.startsWith('ai-coach') || currentTab === 'ai-workouts' ? 'ai-coach' : currentTab}
-            className="h-full w-full flex flex-col flex-1 min-h-0 overflow-x-hidden"
+            className="h-full w-full flex flex-col flex-1 min-h-0 overflow-hidden"
           >
-              {/* Center / Front Page: Overhaul Main Hub with Hello Christian, Weather, Highlights, Progress, Weight & Goals */}
+            {/* Center / Front Page: Overhaul Main Hub with Hello Christian, Weather, Highlights, Progress, Weight & Goals */}
               {currentTab === 'dashboard' && (
             <HomeMainView
               profile={profile}
@@ -880,7 +1208,7 @@ export default function App() {
               friendPosts={friendPosts}
               onUpdateFriendPosts={setFriendPosts}
               nutritionLog={nutritionLog}
-              onNavigateTab={setCurrentTab}
+              onNavigateTab={handleSelectTab}
               onQuickAddSteps={handleQuickAddSteps}
               onOpenTimer={() => setIsRestTimerOpen(true)}
               onOpenQuickLog={() => setIsQuickLogOpen(true)}
@@ -889,6 +1217,7 @@ export default function App() {
               isAuthenticated={isAuthenticated}
               onOpenSettings={() => setIsSettingsOpen(true)}
               onOpenPhysiqueScanner={() => setIsPhysiqueScannerOpen(true)}
+              onModalStateChange={setIsInnerModalOpen}
               theme={theme}
               language={language}
             />
@@ -906,6 +1235,8 @@ export default function App() {
               sportsHistory={sportsHistory}
               stepsHistory={stepsHistory}
               aiWorkoutAnalysis={aiWorkoutAnalysis}
+              onModalStateChange={setIsInnerModalOpen}
+              onNavigateTab={handleSelectTab}
               language={language}
             />
           )}
@@ -920,7 +1251,10 @@ export default function App() {
               deadliftPR1RM={deadliftPR1RM}
               weeklyStepsAvg={weeklyStepsAvg}
               weeklyCardioMinutes={weeklyCardioMinutes}
+              sleepHistory={sleepHistory}
               nutritionLog={nutritionLog}
+              liftRecords={liftRecords}
+              sportsHistory={sportsHistory}
               language={language}
               onOpenPhysiqueScanner={() => setIsPhysiqueScannerOpen(true)}
             />
@@ -950,6 +1284,10 @@ export default function App() {
               onAddCustomExercise={handleAddCustomExercise}
               onOpenTimer={() => setIsRestTimerOpen(true)}
               aiWorkoutAnalysis={aiWorkoutAnalysis}
+              onUpdateRoutine={(updated) => {
+                setAiWorkoutAnalysis(updated);
+                saveToStorage('ai_workout_analysis', updated);
+              }}
               stepsHistory={stepsHistory}
               sleepHistory={sleepHistory}
               sportsHistory={sportsHistory}
@@ -982,7 +1320,11 @@ export default function App() {
               profile={profile}
               onUpdateProfile={setProfile}
               onGpsUpdated={handleGpsUpdated}
+              onGoogleSignIn={handleGoogleSignIn}
+              isAuthenticated={isAuthenticated}
+              authLoading={authLoading}
               language={language}
+              onScrollNavVisibilityChange={setSettingsNavVisible}
             />
           )}
           </div>
@@ -1010,36 +1352,41 @@ export default function App() {
       {/* Mobile Bottom Navigation Bar with Main in the center */}
       <BottomNav
         currentTab={currentTab}
-        onSelectTab={setCurrentTab}
+        onSelectTab={handleSelectTab}
         language={language}
-        isVisible={showBottomBar && !isAiCoachOpen}
+        isVisible={showBottomBarEffective && (currentTab !== 'settings' || settingsNavVisible)}
+        theme={theme}
       />
 
-      {/* Floating AI Coach Button (FAB) - Dynamic Liquid Glass & elevated bottom offset (96px) */}
-      {!isAiCoachOpen && !isQuickLogOpen && !isSettingsOpen && !isRestTimerOpen && !isPhysiqueScannerOpen && !isTourOpen && (
-        <div className="floating-ai-fab keyboard-auto-hide fixed bottom-[96px] right-[20px] z-40 pointer-events-auto transition-all duration-200">
+      {/* Floating AI Coach Button (FAB) - Fixed positioning bottom 84px, right 16px, z-index 120 */}
+      {!isAnyModalActive && showBottomBarEffective && (
+        <div 
+          className="floating-ai-fab ai-coach-fab keyboard-auto-hide fixed bottom-[84px] right-[16px] z-[120] pointer-events-auto transition-all duration-200"
+          style={{ position: 'fixed', bottom: '84px', right: '16px', zIndex: 120 }}
+        >
           <button
             onClick={() => setIsAiCoachOpen(true)}
-            className="ai-fab pill w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer active:scale-95 hover:scale-105"
+            className="ai-fab pill w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer active:scale-95 hover:scale-105 shadow-lg"
             title="Open AI Coach & Real-Time Split Adaptor"
             aria-label="Open AI Coach"
           >
             <Sparkles
               className="w-4 h-4 stroke-[2.5]"
               style={{
-                color: theme.mode === 'light' ? '#0F172A' : 'var(--accent-hex, #10b981)',
+                color: 'var(--accent-hex, #10b981)',
               }}
             />
           </button>
         </div>
       )}
 
-      {/* Slide-Up AI Coach Chat Modal */}
+      {/* Slide-Up AI Coach Chat Modal (Ultra-Translucent Acrylic so background is visible) */}
       <AnimatePresence>
         {isAiCoachOpen && (
           <div
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-2 sm:px-4 pt-4 pointer-events-auto"
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/10 px-2 sm:px-4 pt-4 pointer-events-auto"
             style={{ paddingBottom: '24px' }}
+            onClick={() => setIsAiCoachOpen(false)}
           >
             {/* Modal Container */}
             <motion.div
@@ -1047,24 +1394,26 @@ export default function App() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className="card w-full max-w-lg h-[82vh] flex flex-col liquid-glass rounded-3xl border border-white/20 shadow-2xl overflow-hidden relative"
+              onClick={(e) => e.stopPropagation()}
+              className="card glass-modal modal-content dialog-sheet ai-coach-acrylic-sheet w-full max-w-lg h-[82vh] flex flex-col rounded-3xl border border-white/10 shadow-2xl overflow-hidden relative"
             >
               {/* Header */}
-              <div className="p-3 sm:p-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-slate-950/40">
+              <div className="p-3 sm:p-4 border-b border-slate-200 dark:border-white/20 flex items-center justify-between shrink-0 bg-slate-50/80 dark:bg-white/[0.03]">
                 <div className="flex items-center gap-2">
-                  <div className="p-1 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
-                    <Sparkles className="w-4 h-4 text-cyan-400" />
+                  <div className="pill p-1.5 rounded-xl bg-cyan-500/15 border border-cyan-400/35">
+                    <Sparkles className="w-4 h-4 accent-text" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-black text-white">AI Coach & Split Adaptor</h2>
-                    <p className="text-[10px] text-slate-400">Real-Time Routine Synchronization Active</p>
+                    <h2 className="text-sm font-black text-slate-900 dark:text-white">AI Coach & Split Adaptor</h2>
+                    <p className="text-[10px] text-slate-600 dark:text-slate-200">Real-Time Routine Synchronization Active</p>
                   </div>
                 </div>
                 {/* Close Button */}
                 <button
                   onClick={() => setIsAiCoachOpen(false)}
-                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  className="modal-close-btn p-1 text-slate-700 dark:text-slate-200 hover:text-slate-950 dark:hover:text-white transition-colors cursor-pointer"
                   title="Close AI Coach"
+                  aria-label="Close modal"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1073,7 +1422,7 @@ export default function App() {
               </div>
 
               {/* Chat View content */}
-              <div className="flex-1 min-h-0 p-2 overflow-y-auto">
+              <div className="flex-1 min-h-0 overflow-hidden bg-transparent">
                 <AICoachChatSection
                   profile={profile}
                   currentRoutine={aiWorkoutAnalysis}

@@ -36,13 +36,40 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
             </div>
           </div>
           <span 
-            className="text-xl sm:text-2xl font-black tracking-widest uppercase inline-block text-white"
+            className="overhaul-logo-wordmark inline-block uppercase align-baseline"
             style={{
-              textShadow: '0 1px 0 #bbb, 0 2px 0 #aaa, 0 3px 0 #999, 0 4px 1px rgba(0,0,0,.15), 0 0 12px var(--accent-hex)',
-              WebkitTextStroke: '0.4px rgba(255,255,255,0.15)'
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontSize: '19px',
+              letterSpacing: '3.5px',
+              fontWeight: 900,
+              lineHeight: 1,
+              textTransform: 'uppercase',
+              transform: 'none',
+              width: 'auto',
+              color: '#ffffff',
+              textShadow: 'none',
+              filter: 'none',
             }}
           >
-            Overhaul
+            <span 
+              className="brand-accent" 
+              style={{ 
+                color: 'var(--accent-hex, var(--accent-color, #10b981))',
+                display: 'inline-block',
+                verticalAlign: 'baseline',
+                fontFamily: 'inherit',
+                fontSize: 'inherit',
+                fontWeight: 'inherit',
+                lineHeight: 'inherit',
+                letterSpacing: 'inherit',
+                transform: 'none',
+                margin: 0,
+                padding: 0,
+              }}
+            >
+              O
+            </span>
+            VERHAUL
           </span>
         </div>
       </div>

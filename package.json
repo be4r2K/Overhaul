@@ -17,6 +17,7 @@
     "@capacitor/cli": "^6.0.0",
     "@capacitor/core": "^6.0.0",
     "@capacitor/geolocation": "^6.0.0",
+    "@capacitor/haptics": "^8.0.2",
     "@capacitor/keyboard": "^6.0.0",
     "@capacitor/toast": "^6.0.0",
     "@codetrix-studio/capacitor-google-auth": "^3.4.0-rc.4",
@@ -28,9 +29,11 @@
     "date-fns": "^4.1.0",
     "firebase": "^12.19.0",
     "framer-motion": "^14.0.0",
+    "html-to-image": "^1.11.13",
     "lucide-react": "^1.16.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "recharts": "^3.10.1",
     "tailwind-merge": "^3.0.2"
   },
   "devDependencies": {

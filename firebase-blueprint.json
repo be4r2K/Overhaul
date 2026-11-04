@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "BiometricsProfile": {
+      "title": "BiometricsProfile",
+      "description": "User fitness biometrics and profile information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "familyName": { "type": "string" },
+        "email": { "type": "string" },
+        "birthDate": { "type": "string" },
+        "gender": { "type": "string" },
+        "heightCm": { "type": "number" },
+        "weightKg": { "type": "number" },
+        "activityLevel": { "type": "string" },
+        "goal": { "type": "string" },
+        "macroSplit": { "type": "string" },
+        "stepGoal": { "type": "number" },
+        "units": { "type": "string" },
+        "targetWaterMl": { "type": "number" },
+        "location": { "type": "string" },
+        "personalFriendCode": { "type": "string" },
+        "hasExplicitlyLogged": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "RoutinesState": {
+      "title": "RoutinesState",
+      "description": "Active AI workout split and custom routines",
+      "type": "object",
+      "properties": {
+        "routines": { "type": "array" },
+        "activeRoutine": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "LogsState": {
+      "title": "LogsState",
+      "description": "Workout logs, exercises performance, PRs, and history",
+      "type": "object",
+      "properties": {
+        "liftRecords": { "type": "array" },
+        "workoutHistory": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}/biometrics/profile": {
+      "schema": { "$ref": "#/entities/BiometricsProfile" },
+      "description": "User profile biometrics synced to Google Account"
+    },
+    "/users/{userId}/routines/active": {
+      "schema": { "$ref": "#/entities/RoutinesState" },
+      "description": "User workout routines and active AI splits"
+    },
+    "/users/{userId}/logs/history": {
+      "schema": { "$ref": "#/entities/LogsState" },
+      "description": "User workout history logs and PRs"
+    }
+  }
+}

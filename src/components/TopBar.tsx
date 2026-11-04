@@ -20,48 +20,69 @@ interface TopBarProps {
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
-  currentTab,
   onSelectTab,
   theme,
-  isVisible = true,
 }) => {
   const isLight = theme?.mode === 'light';
-  const isDashboard = currentTab === 'dashboard';
-
-  if (!isDashboard) {
-    return null;
-  }
 
   return (
     <header
-      className={`top-overhaul-header sticky top-0 z-40 w-full bg-transparent select-none transition-all duration-300 ease-out overflow-hidden shrink-0 ${
-        isVisible ? 'h-14' : 'h-0 pointer-events-none'
-      }`}
+      className="top-overhaul-header sticky top-0 z-50 w-full bg-transparent select-none overflow-visible shrink-0 h-9 opacity-100"
       style={{
-        transform: isVisible ? 'translateY(0)' : 'translateY(-100%)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
+        flexShrink: 0,
         paddingTop: 'env(safe-area-inset-top, 0px)',
+        height: '36px',
+        minHeight: '36px',
       }}
     >
-      {/* Ultra-minimal Instagram-Style Header: ONLY the centered cursive wordmark on Dashboard */}
-      <div className="w-full px-4 h-14 flex items-center justify-center relative max-w-7xl mx-auto">
+      {/* Permanently pinned Top Header with Clean Plus Jakarta Sans Logo */}
+      <div className="w-full px-3 h-9 flex items-center justify-center relative max-w-md mx-auto">
         <button
           onClick={() => onSelectTab('dashboard')}
-          className="group cursor-pointer focus:outline-none transition-transform active:scale-95 flex items-center justify-center py-1"
+          className="group cursor-pointer focus:outline-none transition-transform active:scale-95 flex items-center justify-center"
           aria-label="Overhaul Home"
         >
           <span
-            className={`brand-wordmark-enter text-[29px] sm:text-[32px] leading-none font-normal tracking-wide text-center antialiased select-none ${
-              isLight ? 'text-[#0F172A]' : 'text-white'
-            }`}
+            className="overhaul-logo-wordmark brand-wordmark-enter text-center antialiased select-none uppercase inline-block align-baseline"
             style={{
-              fontFamily: "'Grand Hotel', 'Billabong', 'Satisfy', 'Playfair Display', cursive, sans-serif",
-              letterSpacing: '0.02em',
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontSize: '19px',
+              letterSpacing: '3.5px',
+              fontWeight: 900,
+              lineHeight: 1,
+              textTransform: 'uppercase',
+              transform: 'none',
+              width: 'auto',
+              color: isLight ? '#0f172a' : '#ffffff',
+              textShadow: 'none',
+              filter: 'none',
               textRendering: 'optimizeLegibility',
               WebkitFontSmoothing: 'antialiased',
               MozOsxFontSmoothing: 'grayscale',
             }}
           >
-            Overhaul
+            <span 
+              className="brand-accent" 
+              style={{ 
+                color: 'var(--accent-hex, var(--accent-color, #10b981))',
+                display: 'inline-block',
+                verticalAlign: 'baseline',
+                fontFamily: 'inherit',
+                fontSize: 'inherit',
+                fontWeight: 'inherit',
+                lineHeight: 'inherit',
+                letterSpacing: 'inherit',
+                transform: 'none',
+                margin: 0,
+                padding: 0,
+              }}
+            >
+              O
+            </span>
+            VERHAUL
           </span>
         </button>
       </div>

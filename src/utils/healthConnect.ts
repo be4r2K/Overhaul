@@ -165,11 +165,14 @@ export async function requestHealthConnectPermissions(): Promise<boolean> {
 }
 
 /**
- * Queries Health Connect for today's aggregated Steps and last night's Sleep duration.
+ * Queries Health Connect for today's aggregated Steps, Active Calories Burned, and last night's Sleep duration.
  */
 export async function queryHealthConnectData(): Promise<{
   steps: number;
+  activeCalories: number;
+  distanceKm: number;
   sleepHours: number;
+  sleepQuality: number;
   source: 'health_connect' | 'hardware' | 'web_simulated';
 } | null> {
   try {
@@ -178,6 +181,7 @@ export async function queryHealthConnectData(): Promise<{
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
       let stepsSum = 0;
+      let activeCaloriesSum = 0;
       let sleepSumHours = 0;
 
       // 1. Read Steps
@@ -201,7 +205,27 @@ export async function queryHealthConnectData(): Promise<{
         console.warn('Failed to query steps records:', stepsErr);
       }
 
-      // 2. Read SleepSession
+      // 2. Read ActiveCaloriesBurned (if permission granted / supported)
+      try {
+        const calRes = await withTimeout(
+          HealthConnect.readRecords({
+            type: 'ActiveCaloriesBurned' as any,
+            timeRangeFilter: {
+              operator: 'after',
+              startTime: startOfDay,
+            } as any,
+          }),
+          3000
+        );
+        if (calRes && calRes.records) {
+          calRes.records.forEach((rec: any) => {
+            const kcal = rec.energy?.inKilocalories || rec.energy?.kilocalories || rec.calories || rec.kcal || 0;
+            activeCaloriesSum += Number(kcal) || 0;
+          });
+        }
+      } catch {}
+
+      // 3. Read SleepSession
       try {
         const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         const sleepRes = await withTimeout(
@@ -231,9 +255,17 @@ export async function queryHealthConnectData(): Promise<{
         console.warn('Failed to query sleep session records:', sleepErr);
       }
 
+      const computedCalories = activeCaloriesSum > 0 ? Math.round(activeCaloriesSum) : Math.round(stepsSum * 0.045);
+      const computedDistanceKm = Number((stepsSum * 0.00076).toFixed(2));
+      const computedSleepQuality =
+        sleepSumHours > 0 ? Math.min(100, Math.max(55, Math.round((sleepSumHours / 8.0) * 94))) : 0;
+
       return {
         steps: stepsSum,
+        activeCalories: computedCalories,
+        distanceKm: computedDistanceKm,
         sleepHours: sleepSumHours,
+        sleepQuality: computedSleepQuality,
         source: 'health_connect',
       };
     }
@@ -243,7 +275,10 @@ export async function queryHealthConnectData(): Promise<{
 
   return {
     steps: 0,
+    activeCalories: 0,
+    distanceKm: 0,
     sleepHours: 0,
+    sleepQuality: 0,
     source: 'web_simulated',
   };
 }

@@ -143,63 +143,8 @@ export const AIBodyVisionSection: React.FC<AIBodyVisionSectionProps> = ({
     setAnalyzingPhoto(true);
 
     try {
-      const res = await fetch('/api/ai/body-vision', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          currentImageBase64: currentImage,
-          previousImageBase64: previousImage || null,
-          userGoal: profile?.goal || 'Athletic Hypertrophy',
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error('Physique analysis engine error.');
-      }
-
-      const data = await res.json();
-      const resultObj: AIBodyVisionData = {
-        id: 'scan-' + Date.now(),
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        photoUrl: activeScanPhoto || '',
-        overallRating: data.overallRating || 8.4,
-        bodyFatEstimate: data.bodyFatEstimate || '13-15%',
-        postureAssessment: data.postureAssessment || 'Slight anterior pelvic tilt; clavicle symmetry is high.',
-        physiquePotential: data.physiquePotential || {
-          geneticScore: 9.1,
-          potentialCeiling: 'High V-Taper Frame Potential. Wide clavicle base allows significant upper back expansion.',
-          projectedGainsKg: '+3.5kg to +5.0kg lean muscle tissue',
-          topGeneticAdvantages: ['Broad Clavicle Width', 'High Neuromuscular Response', 'Deep Abdominal Symmetry'],
-          laggingPotentialUnlocks: ['Posterior chain volume via RDLs', 'Standing & seated calf overload'],
-          progressForecast: 'High responsiveness expected with 10-12 weekly sets per muscle group.'
-        },
-        muscleRatings: data.muscleRatings || [
-          { muscle: 'Chest (Upper & Mid)', rating: 8.5, status: 'peak', notes: 'Defined clavicular head and sternal density.' },
-          { muscle: 'Lats & Upper Back', rating: 8.8, status: 'peak', notes: 'Broad V-taper taper down to waist.' },
-          { muscle: 'Delts (Shoulders)', rating: 8.2, status: 'balanced', notes: 'Lateral head well-capped; rear delts need volume.' },
-          { muscle: 'Biceps & Triceps', rating: 8.0, status: 'balanced', notes: 'Good tricep lateral sweep; prominent peak.' },
-          { muscle: 'Abs & Core', rating: 7.9, status: 'balanced', notes: 'Visible rectus abdominis; tight obliques.' },
-          { muscle: 'Quads & Hamstrings', rating: 7.4, status: 'needs_improvement', notes: 'Teardrop developing; prioritize hamstrings.' },
-          { muscle: 'Calves', rating: 6.8, status: 'lagging', notes: 'High tendon insertion; add seated and standing raises.' },
-        ],
-        keyImprovements: data.keyImprovements || [
-          'Prioritize rear delt flyes and face pulls to balance shoulder caps.',
-          'Add Romanian Deadlifts (RDL) 3x8 for posterior chain and hamstring thickness.',
-        ],
-        weeklyProgression: data.weeklyProgression || {
-          hasPreviousComparison: Boolean(previousImage),
-          improved: ['Upper chest fullness (+0.3)', 'Waist taper definition'],
-          stagnant: ['Bicep peak peak'],
-          backwards: [],
-          summary: 'Visible positive hypertrophy trend over the past week! Core definition is sharper.',
-        },
-      };
-
-      setVisionResult(resultObj);
-      setHistoryLogs((prev) => [resultObj, ...(Array.isArray(prev) ? prev : [])]);
-      confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-      playPRFanfare();
-      setActiveModal('ratings-detail');
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      throw new Error('Use local physique analysis');
     } catch (err: any) {
       // Brutally honest fallback result
       const fallbackResult: AIBodyVisionData = {

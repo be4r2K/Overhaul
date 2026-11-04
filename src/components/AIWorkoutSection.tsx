@@ -122,32 +122,7 @@ export const AIWorkoutSection: React.FC<AIWorkoutSectionProps> = ({
     } catch (e) {
       console.warn('Failed to load historical workout logs:', e);
     }
-    return [
-      {
-        id: 'log-seed-1',
-        exerciseName: 'Incline Barbell Press',
-        dayTitle: 'Day 1: Heavy Pressing & Pulling Strength',
-        sets: 3,
-        reps: 6,
-        weight: 60,
-        weightUnit: 'kg',
-        calculated1RM: 72,
-        timestamp: 'Sep 28, 2026 10:15 AM',
-        notes: 'Stop 1 rep before failure',
-      },
-      {
-        id: 'log-seed-2',
-        exerciseName: 'Weighted Dips',
-        dayTitle: 'Day 2: Calisthenics Skills, Arms & Shoulders',
-        sets: 3,
-        reps: 8,
-        weight: 20,
-        weightUnit: 'kg',
-        calculated1RM: 25,
-        timestamp: 'Sep 27, 2026 05:30 PM',
-        notes: '20kg plate on belt',
-      },
-    ];
+    return [];
   });
 
   const [toastNotification, setToastNotification] = useState<string | null>(null);
@@ -490,38 +465,8 @@ export const AIWorkoutSection: React.FC<AIWorkoutSectionProps> = ({
     const clientParsedDays = parseRawNotesToSplit(rawNotes);
 
     try {
-      const response = await fetch('/api/ai/analyze-workout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rawNotes,
-          userWeightKg: profile?.weightKg,
-          userGoal: profile?.goal,
-          experienceLevel: profile?.activityLevel,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to analyze workout notes.');
-      }
-
-      const data: AIWorkoutAnalysisResult = await response.json();
-      data.rawNotesSnippet = rawNotes;
-      data.analyzedAt = 'Just now';
-      if (clientParsedDays.length > 0) {
-        data.parsedDays = clientParsedDays;
-      }
-
-      setAnalysis(data);
-      onSaveAnalysis(data);
-
-      confetti({
-        particleCount: 65,
-        spread: 60,
-        origin: { y: 0.6 },
-      });
-      playPRFanfare();
-      setActiveModal('routine-detail');
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      throw new Error('Use local workout analysis');
     } catch (err: any) {
       // Safe brutal fallback analysis with locally parsed notes
       const fallbackData: AIWorkoutAnalysisResult = {

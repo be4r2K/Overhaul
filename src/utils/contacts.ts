@@ -142,19 +142,25 @@ export async function requestContactsPermissions(): Promise<boolean> {
 export interface CompactContact {
   name: string;
   phone: string;
+  friendCode?: string;
   isRegisteredUser?: boolean;
 }
 
 /**
  * Reads real device contacts ONLY when native OS permission is granted.
+ * Does NOT mark raw phonebook entries as registered Overhaul app accounts unless a verified mutual passcode match exists.
  */
-export async function fetchDeviceContacts(): Promise<CompactContact[]> {
+export async function fetchDeviceContacts(verifiedMutualPasscodes: string[] = []): Promise<CompactContact[]> {
   try {
     const hasPerms = await checkContactsPermissionsGranted();
     if (!hasPerms) {
       const requested = await requestContactsPermissions();
       if (!requested) return [];
     }
+
+    const normalizedMutualSet = new Set(
+      verifiedMutualPasscodes.map((code) => code.trim().toUpperCase()).filter(Boolean)
+    );
 
     if (Contacts && typeof Contacts.getContacts === 'function') {
       const { contacts } = await withTimeout(
@@ -185,10 +191,13 @@ export async function fetchDeviceContacts(): Promise<CompactContact[]> {
             '';
 
           if (display && display !== 'Unknown') {
+            const candidateCode = (c.note || '').toUpperCase().trim();
+            const isVerifiedMatch = Boolean(candidateCode && normalizedMutualSet.has(candidateCode));
             mapped.push({
               name: display,
               phone: phoneOrEmail,
-              isRegisteredUser: true,
+              friendCode: isVerifiedMatch ? candidateCode : undefined,
+              isRegisteredUser: isVerifiedMatch,
             });
           }
         });
