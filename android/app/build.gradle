@@ -40,10 +40,7 @@ android {
 
     buildTypes {
         debug {
-            // Default to Android standard debug signing unless custom release keystore is fully defined
-            if (signingConfigs.release.storeFile != null && signingConfigs.release.storePassword != null) {
-                signingConfig signingConfigs.release
-            }
+            signingConfig signingConfigs.debug
         }
         release {
             if (signingConfigs.release.storeFile != null && signingConfigs.release.storePassword != null) {
