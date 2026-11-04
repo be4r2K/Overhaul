@@ -45,40 +45,11 @@ jobs:
       - name: Sync Capacitor Android
         run: npx cap sync android
 
-      - name: Print & Verify Environment Variables
-        run: |
-          echo "============================================================"
-          echo "=== 1. FULL RUNNER ENVIRONMENT VARIABLES (printenv) ==="
-          printenv
-          echo "============================================================"
-          echo "=== 2. SEARCHING FOR SIGNING VARIABLES ==="
-          printenv | grep -E '^(KEYSTORE_FILE|KEYSTORE_PASSWORD|KEY_ALIAS|KEY_PASSWORD)=' || echo "No matching signing variables found in printenv"
-          echo "============================================================"
-          echo "=== 3. VERIFYING EXPOSURE FOR BUILD ANDROID DEBUG APK ==="
-          for var in KEYSTORE_FILE KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
-            if [ -n "$(printenv "$var")" ]; then
-              echo "✓ $var is correctly exposed to environment"
-            else
-              echo "ℹ $var is not set in secrets/environment"
-            fi
-          done
-          echo "============================================================"
-
       - name: Build Android Debug APK
         run: |
-          echo "============================================================"
-          echo "=== SIGNING ENVIRONMENT VARIABLES (printenv | grep KEY) ==="
-          echo "============================================================"
-          printenv | grep KEY || echo "No variables matching 'KEY' found in environment"
-          echo "============================================================"
-
           cd android
           chmod +x gradlew
-
-          echo "============================================================"
-          echo "=== RUNNING GRADLE ASSEMBLEDEBUG WITH DIAGNOSTIC PROPERTIES ==="
-          echo "============================================================"
-          ./gradlew assembleDebug -Poverhaul.debug.signing.env=true --no-daemon --stacktrace --full-stacktrace --info --warning-mode=none -x test -x lint
+          ./gradlew assembleDebug --no-daemon --stacktrace --warning-mode=none -x test -x lint
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
