@@ -5,6 +5,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Web-cyan.svg)](https://capacitorjs.com)
 
+> **Build Status**: The badge above indicates the live status of the **Build Android APK** workflow. It automatically updates on every push to the `main` branch via GitHub Actions.
+
 **Overhaul** is an elite athletic conditioning, biomechanics analysis, and physique transformation application powered by Google Gemini AI and built with Capacitor, React, TypeScript, Tailwind CSS, and Android native toolchains.
 
 ---
@@ -50,16 +52,20 @@ The `.github/workflows/android-build.yml` workflow compiles, packages, and signs
 
 ### Build Status Badge Syntax & Automatic Updates
 
-The status badge at the top of this repository follows the official GitHub Actions SVG badge specification:
-
+#### Option A: Native GitHub Actions Badge (Recommended)
 ```markdown
 [![Build Android APK](https://github.com/christiansalameh7/overhaul-health-sports/actions/workflows/android-build.yml/badge.svg?branch=main)](https://github.com/christiansalameh7/overhaul-health-sports/actions/workflows/android-build.yml)
 ```
 
-**How Automatic Updates Work**:
-- **Branch Pinning (`?branch=main`)**: Appending `?branch=main` instructs GitHub to exclusively reflect the latest build result on your primary `main` branch, preventing ephemeral feature branches or pull requests from altering your badge status.
-- **Continuous CDN Invalidation**: GitHub serves badges via its internal proxy CDN (`camo.githubusercontent.com`) with a `Cache-Control: max-age=300` header (5-minute TTL). Once a new commit finishes executing on GitHub Actions, the badge automatically updates without any manual file edits or cache purging required.
-- **Signing Environment Verification**: In `android/gradle.properties`, `overhaul.debug.signing.env=true` enables real-time diagnostic prints during Gradle configuration to audit keystore paths and environment secrets.
+#### Option B: Shields.io Badge
+```markdown
+[![Build Android APK](https://img.shields.io/github/actions/workflow/status/christiansalameh7/overhaul-health-sports/android-build.yml?branch=main&label=Build%20Android%20APK&logo=github)](https://github.com/christiansalameh7/overhaul-health-sports/actions/workflows/android-build.yml)
+```
+
+**How It Automatically Updates on Every Push to `main`**:
+- **Automatic Event Triggering**: The `.github/workflows/android-build.yml` workflow is configured with `on: push: branches: [ main ]`. Every git push or merged pull request to the `main` branch immediately spawns a new workflow run.
+- **Dynamic Branch Pinning (`?branch=main`)**: Appending `?branch=main` instructs GitHub to exclusively evaluate the latest workflow conclusion for `main`, preventing experimental PRs or broken feature branches from turning your badge red.
+- **Automatic SVG Re-rendering**: When the GitHub Actions run completes (status changes from `in-progress` to `success` or `failure`), the badge endpoint automatically serves the updated status SVG. GitHub's proxy CDN (`camo.githubusercontent.com`) maintains a short 5-minute TTL (`max-age=300`), refreshing automatically without any manual intervention.
 
 ---
 
