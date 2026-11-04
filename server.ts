@@ -62,7 +62,7 @@ Task (Output strictly in English):
 5. Immediate actionable fixes and drop-in exercise substitutions for lagging lifts or joint-unfriendly movements.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -326,7 +326,7 @@ Coaching Persona Directives:
 5. All text in "${language}".`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -474,7 +474,7 @@ Evaluate:
     parts.push({ text: promptText });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3.8-flash',
       contents: { parts },
       config: {
         responseMimeType: 'application/json',
@@ -623,7 +623,7 @@ Instructions:
    - Provide direct, no-BS, evidence-based coaching in the reply.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -673,6 +673,139 @@ Instructions:
     return res.status(200).json({
       reply: 'Autonomous Intelligence Active: Biomechanical analysis generated from your active lifting telemetry. Focus on progressive overload, keep rest times around 90-120s on heavy compound lifts, and hit your target protein today.',
       didModifyRoutine: false
+    });
+  }
+});
+
+// Dedicated Multi-turn Gemini AI Coach Chatbot Endpoint
+app.post('/api/ai/coach-chat', async (req: Request, res: Response) => {
+  try {
+    const {
+      messages,
+      modelChoice = 'gemini-3.8-flash',
+      currentRoutine,
+      userProfile = {},
+    } = req.body;
+
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: 'Messages array is required.' });
+    }
+
+    const allowedModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-4-argon'];
+    const selectedModel = allowedModels.includes(modelChoice) ? modelChoice : 'gemini-3.8-flash';
+
+    if (!apiKey) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+    }
+
+    // Format conversation history for Gemini multi-turn format
+    const formattedContents = messages
+      .filter((m: any) => m && m.content && typeof m.content === 'string')
+      .map((m: any) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      }));
+
+    if (formattedContents.length === 0) {
+      return res.status(400).json({ error: 'No valid message content provided.' });
+    }
+
+    const systemInstruction = `You are Overhaul AI Coach — a brutally honest, no-nonsense, world-class sports scientist, biomechanist, and elite strength & conditioning coach.
+You NEVER sugarcoat feedback. You demand accountability and deliver direct, unfiltered, scientifically backed answers in plain English.
+You analyze fatigue, volume landmarks (MEV, MAV, MRV), biomechanical resistance curves, exercise substitutions, nutrition macros, and progressive overload.
+
+Current Athlete Profile:
+- Name: ${userProfile.name || 'Athlete'}
+- Weight: ${userProfile.weightKg ? `${userProfile.weightKg} kg` : 'Not set'}
+- Height: ${userProfile.heightCm ? `${userProfile.heightCm} cm` : 'Not set'}
+- Goal: ${userProfile.goal || 'Strength & Hypertrophy'}
+- Level: ${userProfile.experienceLevel || 'Intermediate'}
+
+Active Routine Context:
+${currentRoutine ? JSON.stringify(currentRoutine.parsedDays || currentRoutine, null, 2) : 'No saved routine loaded yet.'}
+
+Instructions:
+1. Provide a direct, authoritative, and scientifically grounded response in plain text.
+2. If the user asks to modify, condense, skip, or redesign their routine (e.g. "change to 2 days", "skip leg day due to soccer", "remove bench press because shoulder hurts", "add arm focus day"):
+   - Set "hasProposal" to true.
+   - Build a concrete "proposal" object with:
+     * title: punchy action title (e.g., "Adapted 2-Day High-Stimulus Split")
+     * summary: concise explanation of why this adaptation fits their constraint
+     * changes: list of 2-5 specific modifications made
+     * updatedParsedDays: the full updated array of workout days (dayTitle, focus, exercises [{ name, setsReps, targetMuscle, rating, substitution }])
+3. If the user is asking questions, advice, technique tips, or nutrition analysis without changing the program:
+   - Set "hasProposal" to false.`;
+
+    const response = await ai.models.generateContent({
+      model: selectedModel,
+      contents: formattedContents,
+      config: {
+        systemInstruction,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            reply: { type: Type.STRING, description: 'Direct, honest coach response in English' },
+            hasProposal: { type: Type.BOOLEAN, description: 'Whether a routine modification proposal is included' },
+            proposal: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                summary: { type: Type.STRING },
+                changes: { type: Type.ARRAY, items: { type: Type.STRING } },
+                updatedParsedDays: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      dayTitle: { type: Type.STRING },
+                      focus: { type: Type.STRING },
+                      exercises: {
+                        type: Type.ARRAY,
+                        items: {
+                          type: Type.OBJECT,
+                          properties: {
+                            name: { type: Type.STRING },
+                            setsReps: { type: Type.STRING },
+                            targetMuscle: { type: Type.STRING },
+                            rating: { type: Type.INTEGER },
+                            substitution: { type: Type.STRING },
+                          },
+                          required: ['name', 'targetMuscle', 'substitution'],
+                        },
+                      },
+                    },
+                    required: ['dayTitle', 'focus', 'exercises'],
+                  },
+                },
+              },
+              required: ['title', 'summary', 'changes', 'updatedParsedDays'],
+            },
+          },
+          required: ['reply', 'hasProposal'],
+        },
+      },
+    });
+
+    const text = response.text;
+    if (!text) {
+      throw new Error('Empty AI response.');
+    }
+    const data = JSON.parse(text);
+    return res.json({
+      reply: data.reply,
+      hasProposal: !!data.hasProposal,
+      proposal: data.proposal || null,
+      modelUsed: selectedModel,
+    });
+  } catch (error: any) {
+    console.warn('AI Coach Chat error / fallback:', error?.message);
+    return res.status(200).json({
+      reply: 'Autonomous Intelligence Active: Progressive overload is your non-negotiable driver. Ensure you track load/reps accurately, maintain strict RPE 7-9, and prioritize 1.8g/kg protein intake.',
+      hasProposal: false,
+      proposal: null,
+      modelUsed: 'offline-fallback',
+      fallback: true,
     });
   }
 });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Flame, Sparkles, LogIn, ShieldCheck, Heart, Users } from 'lucide-react';
+import { Sparkles, LogIn, ShieldCheck, Heart, Users } from 'lucide-react';
 
 interface AuthGatewayProps {
   onSignIn: () => void;
@@ -30,9 +30,13 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
       {/* 1. TOP DOCK: LOGO BRANDING */}
       <div className="flex justify-center select-none pt-4 shrink-0 z-10">
         <div className="flex items-center gap-3">
-          <div className="p-[2.5px] rounded-2xl ig-story-ring shrink-0 shadow-lg">
-            <div className="w-10 h-10 rounded-[14px] bg-slate-950 flex items-center justify-center text-white">
-              <Flame className="w-5 h-5 accent-text stroke-[2.5]" />
+          <div className="p-[2px] rounded-2xl ig-story-ring shrink-0 shadow-lg">
+            <div className="w-10 h-10 rounded-[14px] bg-slate-950 flex items-center justify-center overflow-hidden">
+              <img
+                src="/icon.png"
+                alt="Overhaul Icon"
+                className="w-full h-full rounded-[12px] object-cover select-none pointer-events-none"
+              />
             </div>
           </div>
           <span 

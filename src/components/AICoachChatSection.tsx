@@ -406,6 +406,7 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
 
   const [inputMsg, setInputMsg] = useState<string>('');
   const [chatLoading, setChatLoading] = useState<boolean>(false);
+  const [selectedModel, setSelectedModel] = useState<'gemini-3.8-flash' | 'gemini-3.1-flash-lite' | 'gemini-4-argon'>('gemini-3.8-flash');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const showToast = (msg: string) => {
@@ -492,36 +493,121 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
 
     const nextMessages = [...(Array.isArray(chatMessages) ? chatMessages : []), newMsg];
     setChatMessages(nextMessages);
-
-    // First, check local intent parser for instant zero-latency routine modification & exact required messages
-    const modResult = processCoachRoutineModification(userText, currentRoutine || null, userName);
-    if (modResult) {
-      const proposal: AIWorkoutProposal = {
-        id: 'prop-' + Date.now(),
-        title: modResult.proposalTitle,
-        summary: modResult.proposalSummary,
-        changes: modResult.changes,
-        updatedRoutine: modResult.updatedRoutine,
-        status: 'pending',
-      };
-
-      const assistantMsg: AIChatMessage = {
-        id: 'msg-' + (Date.now() + 1),
-        role: 'assistant',
-        content: modResult.reply,
-        timestamp: 'Just now',
-        proposal,
-      };
-      setChatMessages((prev) => [...(Array.isArray(prev) ? prev : []), assistantMsg]);
-      return;
-    }
-
     setChatLoading(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 350));
-      const { reply } = generateBrutalCoachReply(userText, userName, profile);
+      // 1. Invoke Server-Side Gemini Coach Chatbot API
+      const res = await fetch('/api/ai/coach-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: nextMessages.map((m) => ({ role: m.role, content: m.content })),
+          modelChoice: selectedModel,
+          currentRoutine,
+          userProfile: profile,
+        }),
+      });
 
+      if (res.ok) {
+        const data = await res.json();
+
+        // If server indicated an offline fallback and user triggered a routine change pattern, check local mod parser
+        if (data.fallback) {
+          const modResult = processCoachRoutineModification(userText, currentRoutine || null, userName);
+          if (modResult) {
+            const proposal: AIWorkoutProposal = {
+              id: 'prop-' + Date.now(),
+              title: modResult.proposalTitle,
+              summary: modResult.proposalSummary,
+              changes: modResult.changes,
+              updatedRoutine: modResult.updatedRoutine,
+              status: 'pending',
+            };
+
+            const assistantMsg: AIChatMessage = {
+              id: 'msg-' + (Date.now() + 1),
+              role: 'assistant',
+              content: modResult.reply,
+              timestamp: 'Just now',
+              proposal,
+            };
+            setChatMessages((prev) => [...(Array.isArray(prev) ? prev : []), assistantMsg]);
+            return;
+          }
+        }
+
+        let proposal: AIWorkoutProposal | undefined = undefined;
+        if (data.hasProposal && data.proposal && Array.isArray(data.proposal.updatedParsedDays)) {
+          const updatedRoutine: AIWorkoutAnalysisResult = {
+            ...(currentRoutine || {
+              overallScore: 90,
+              balanceRating: 9.0,
+              volumeRating: 8.8,
+              exerciseSelectionRating: 9.2,
+              summaryTitle: data.proposal.title || 'Customized Routine',
+              honestOpinion: data.reply,
+              superStrongAreas: ['Customized Load & Recovery Split'],
+              neglectedOrNeedsWork: [],
+              improvements: data.proposal.changes || [],
+              muscleGroupCoverage: [],
+              substitutions: [],
+              analyzedAt: 'Just now',
+            }),
+            parsedDays: data.proposal.updatedParsedDays,
+            analyzedAt: 'Just now',
+          };
+
+          proposal = {
+            id: 'prop-' + Date.now(),
+            title: data.proposal.title || 'Adapted Workout Split',
+            summary: data.proposal.summary || 'Biomechanical split adjustment based on your request.',
+            changes: data.proposal.changes || ['Adjusted split frequency and exercise order.'],
+            updatedRoutine,
+            status: 'pending',
+          };
+        }
+
+        const assistantMsg: AIChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          role: 'assistant',
+          content: data.reply || 'Understood. Focus on progressive overload and recover properly.',
+          timestamp: 'Just now',
+          proposal,
+          didModifyRoutine: !!data.hasProposal,
+        };
+
+        setChatMessages((prev) => [...(Array.isArray(prev) ? prev : []), assistantMsg]);
+        return;
+      }
+
+      throw new Error(`Server returned HTTP ${res.status}`);
+    } catch (err) {
+      console.warn('Falling back to local coach engine:', err);
+
+      // 2. Intelligent local fallback if server/network is unreachable
+      const modResult = processCoachRoutineModification(userText, currentRoutine || null, userName);
+      if (modResult) {
+        const proposal: AIWorkoutProposal = {
+          id: 'prop-' + Date.now(),
+          title: modResult.proposalTitle,
+          summary: modResult.proposalSummary,
+          changes: modResult.changes,
+          updatedRoutine: modResult.updatedRoutine,
+          status: 'pending',
+        };
+
+        const assistantMsg: AIChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          role: 'assistant',
+          content: modResult.reply,
+          timestamp: 'Just now',
+          proposal,
+        };
+        setChatMessages((prev) => [...(Array.isArray(prev) ? prev : []), assistantMsg]);
+        return;
+      }
+
+      const { reply } = generateBrutalCoachReply(userText, userName, profile);
       const assistantMsg: AIChatMessage = {
         id: 'msg-' + (Date.now() + 1),
         role: 'assistant',
@@ -529,7 +615,6 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
         timestamp: 'Just now',
         didModifyRoutine: false,
       };
-
       setChatMessages((prev) => [...(Array.isArray(prev) ? prev : []), assistantMsg]);
     } finally {
       setChatLoading(false);
@@ -579,6 +664,63 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
           <span>{toastMessage}</span>
         </div>
       )}
+
+      {/* Gemini Chatbot Model & Session Toolbar */}
+      <div className="px-3 py-1.5 border-b border-white/10 flex items-center justify-between gap-2 shrink-0 bg-white/[0.03]">
+        <div className="flex items-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5 accent-text shrink-0" />
+          <span className="text-[11px] font-bold text-white tracking-wide">Gemini Coach</span>
+          <span className="text-[9px] font-mono uppercase px-1.5 py-0.2 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-400/25">
+            Active
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setSelectedModel('gemini-3.8-flash')}
+            title="Gemini 3.8 Flash: High-performance balanced sports science reasoning"
+            className={`px-2 py-0.5 rounded-lg text-[10px] font-medium transition-all ${
+              selectedModel === 'gemini-3.8-flash'
+                ? 'bg-cyan-500 text-black font-black shadow-sm'
+                : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            3.8 Flash
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedModel('gemini-3.1-flash-lite')}
+            title="Gemini 3.1 Flash-Lite: Low latency, rapid responses"
+            className={`px-2 py-0.5 rounded-lg text-[10px] font-medium transition-all ${
+              selectedModel === 'gemini-3.1-flash-lite'
+                ? 'bg-cyan-500 text-black font-black shadow-sm'
+                : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            3.1 Lite
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedModel('gemini-4-argon')}
+            title="Gemini 4 Argon: Deep biomechanics & complex split reasoning"
+            className={`px-2 py-0.5 rounded-lg text-[10px] font-medium transition-all ${
+              selectedModel === 'gemini-4-argon'
+                ? 'bg-cyan-500 text-black font-black shadow-sm'
+                : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            4 Argon
+          </button>
+          <button
+            type="button"
+            onClick={handleClearChat}
+            title="Clear Chat Session"
+            className="p-1 rounded-lg bg-white/5 hover:bg-white/15 text-slate-400 hover:text-white transition-colors ml-1"
+          >
+            <RotateCcw className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
 
       {/* 1. SCROLLABLE MESSAGES CONTAINER */}
       <div className="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-3 scrollbar-none bg-transparent">

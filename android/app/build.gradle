@@ -1,5 +1,32 @@
 apply plugin: 'com.android.application'
 
+// Dynamic build incrementing: auto-increments with GITHUB_RUN_NUMBER so older installed apps recognize new APKs as seamless updates
+def runNumber = System.getenv("GITHUB_RUN_NUMBER") ?: System.getenv("BUILD_NUMBER")
+def computedVersionCode = runNumber ? (100 + Integer.parseInt(runNumber)) : 1
+def computedVersionName = runNumber ? "1.0.${runNumber}" : "1.0.0"
+
+// Environment variable and signing diagnostics requested via overhaul.debug.signing.env
+if (project.findProperty('overhaul.debug.signing.env') == 'true' || System.getenv("CI") == "true") {
+    def keystoreFileEnv = System.getenv("KEYSTORE_FILE") ?: System.getenv("KEYSTORE_PATH")
+    def storePassEnv = System.getenv("KEYSTORE_PASSWORD")
+    def keyAliasEnv = System.getenv("KEY_ALIAS")
+    def keyPassEnv = System.getenv("KEY_PASSWORD")
+    
+    println "============================================================"
+    println "[GRADLE DIAGNOSTIC] BUILD & SIGNING ENVIRONMENT VERIFICATION"
+    println "  - CI Runner: ${System.getenv('CI') ?: 'false'}"
+    println "  - GITHUB_RUN_NUMBER: ${runNumber ?: 'None (Local Build)'}"
+    println "  - Computed versionCode: ${computedVersionCode}"
+    println "  - Computed versionName: ${computedVersionName}"
+    println "  - debug.keystore in app/: ${file('debug.keystore').exists()}"
+    println "  - release.keystore in app/: ${file('release.keystore').exists()}"
+    println "  - KEYSTORE_FILE / KEYSTORE_PATH: ${keystoreFileEnv ? 'Set (' + keystoreFileEnv + ')' : 'Not Set'}"
+    println "  - KEYSTORE_PASSWORD: ${storePassEnv ? 'Set (Length: ' + storePassEnv.length() + ')' : 'Not Set'}"
+    println "  - KEY_ALIAS: ${keyAliasEnv ? 'Set (' + keyAliasEnv + ')' : 'Not Set'}"
+    println "  - KEY_PASSWORD: ${keyPassEnv ? 'Set (Length: ' + keyPassEnv.length() + ')' : 'Not Set'}"
+    println "============================================================"
+}
+
 android {
     namespace = "com.overhaul.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +34,8 @@ android {
         applicationId "com.overhaul.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode computedVersionCode
+        versionName computedVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -17,6 +44,15 @@ android {
         }
     }
     signingConfigs {
+        debug {
+            def debugKeystore = file('debug.keystore')
+            if (debugKeystore.exists()) {
+                storeFile debugKeystore
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
         release {
             def keystorePath = System.getenv("KEYSTORE_FILE") ?: System.getenv("KEYSTORE_PATH")
             def storePass = System.getenv("KEYSTORE_PASSWORD")
@@ -40,11 +76,15 @@ android {
 
     buildTypes {
         debug {
+            // Strictly uses debug signing configuration - never forces release signature
             signingConfig signingConfigs.debug
         }
         release {
+            // Safe fallback to debug signing if release credentials are absent to prevent build failures
             if (signingConfigs.release.storeFile != null && signingConfigs.release.storePassword != null) {
                 signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
             }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

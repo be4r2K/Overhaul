@@ -1060,8 +1060,12 @@ export default function App() {
 
         <div className="w-full max-w-md p-6 sm:p-8 rounded-3xl bg-slate-900/60 border border-white/10 backdrop-blur-2xl shadow-2xl text-center space-y-6 animate-card-expand">
           <div className="flex flex-col items-center gap-3">
-            <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 shrink-0 shadow-lg animate-pulse">
-              <Sparkles className="w-8 h-8 text-cyan-400" />
+            <div className="w-16 h-16 rounded-2xl bg-slate-950/90 border border-emerald-500/30 p-1.5 shadow-xl shadow-emerald-500/20 shrink-0 flex items-center justify-center overflow-hidden">
+              <img
+                src="/icon.png"
+                alt="Overhaul Logo"
+                className="w-full h-full rounded-xl object-cover select-none pointer-events-none"
+              />
             </div>
             <div>
               <h1
@@ -1404,8 +1408,8 @@ export default function App() {
                     <Sparkles className="w-4 h-4 accent-text" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-black text-slate-900 dark:text-white">AI Coach & Split Adaptor</h2>
-                    <p className="text-[10px] text-slate-600 dark:text-slate-200">Real-Time Routine Synchronization Active</p>
+                    <h2 className="text-sm font-black text-slate-900 dark:text-white">Gemini AI Coach & Split Adaptor</h2>
+                    <p className="text-[10px] text-slate-600 dark:text-slate-200">Autonomous Intelligence & Biomechanical Split Optimization</p>
                   </div>
                 </div>
                 {/* Close Button */}

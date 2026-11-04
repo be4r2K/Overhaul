@@ -11,6 +11,7 @@ import {
   Activity,
   Heart,
   Settings,
+  RefreshCw,
 } from 'lucide-react';
 import { UserProfile, OneRepMaxRecord, BiometricLog, WorkoutLog } from '../types';
 import {
@@ -19,6 +20,7 @@ import {
   INITIAL_WORKOUTS,
   INITIAL_USER_PROFILE,
 } from '../utils/storage';
+import { checkForAppUpdates, CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER, AppVersionInfo } from '../utils/versionCheck';
 
 interface AccountSettingsModalProps {
   profile: UserProfile;
@@ -50,10 +52,23 @@ export const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<UserProfile>({ ...INITIAL_USER_PROFILE, ...profile });
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<AppVersionInfo | null>(null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
+
+  const handleCheckUpdate = async () => {
+    setIsCheckingUpdate(true);
+    try {
+      const info = await checkForAppUpdates();
+      setUpdateInfo(info);
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
 
   React.useEffect(() => {
     if (isOpen) {
       setFormData({ ...INITIAL_USER_PROFILE, ...profile });
+      handleCheckUpdate();
     }
   }, [profile, isOpen]);
 
@@ -293,6 +308,63 @@ export const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Reset Data</span>
             </button>
+          </div>
+        </div>
+
+        {/* App Version & Seamless Over-The-Air Update Recognition */}
+        <div className="pt-4 border-t border-zinc-800 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">App Updates & Version</h4>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">
+              v{CURRENT_APP_VERSION} (Build {CURRENT_BUILD_NUMBER})
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2.5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <img
+                  src="/icon.png"
+                  alt="Overhaul Icon"
+                  className="w-9 h-9 rounded-xl border border-emerald-500/30 object-cover shrink-0 shadow-md"
+                />
+                <div>
+                  <p className="text-xs font-semibold text-zinc-200">
+                    {updateInfo?.updateAvailable ? 'New Update Available!' : 'App is Up to Date'}
+                  </p>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    {updateInfo?.updateAvailable
+                      ? `Version ${updateInfo.latestVersion} is ready. Updates install directly over your current app without data loss or reinstallation.`
+                      : 'Deterministic signature verified. Continuous CI/CD updates install seamlessly without deleting the app.'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCheckUpdate}
+                disabled={isCheckingUpdate}
+                className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 hover:border-zinc-600 text-zinc-300 text-xs font-semibold flex items-center gap-1.5 transition shrink-0 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3 h-3 text-cyan-400 ${isCheckingUpdate ? 'animate-spin' : ''}`} />
+                <span>{isCheckingUpdate ? 'Checking...' : 'Check'}</span>
+              </button>
+            </div>
+
+            {updateInfo?.updateAvailable && (
+              <div className="pt-2 border-t border-zinc-800 flex items-center justify-between gap-2">
+                <span className="text-[10px] text-emerald-400 font-medium">✓ Ready for direct APK update</span>
+                <a
+                  href={updateInfo.downloadUrl || 'https://github.com/christiansalameh7/overhaul-health-sports/actions'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-bold transition flex items-center gap-1"
+                >
+                  <Download className="w-3 h-3 text-black" />
+                  <span>Download APK</span>
+                </a>
+              </div>
+            )}
           </div>
         </div>
       </div>

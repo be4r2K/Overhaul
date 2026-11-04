@@ -42,9 +42,15 @@ export const TopBar: React.FC<TopBarProps> = ({
       <div className="w-full px-3 h-9 flex items-center justify-center relative max-w-md mx-auto">
         <button
           onClick={() => onSelectTab('dashboard')}
-          className="group cursor-pointer focus:outline-none transition-transform active:scale-95 flex items-center justify-center"
+          className="group cursor-pointer focus:outline-none transition-transform active:scale-95 flex items-center justify-center gap-2"
           aria-label="Overhaul Home"
         >
+          <img
+            src="/icon.png"
+            alt="Overhaul Icon"
+            className="w-5 h-5 rounded-md shadow-sm border border-emerald-500/30 object-cover shrink-0 select-none pointer-events-none"
+            loading="eager"
+          />
           <span
             className="overhaul-logo-wordmark brand-wordmark-enter text-center antialiased select-none uppercase inline-block align-baseline"
             style={{

@@ -7,6 +7,10 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+env:
+  JAVA_HOME: ${{ steps.setup-java.outputs.path }}
+  GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx3072m -XX:MaxMetaspaceSize=512m' -Dorg.gradle.daemon=false"
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,6 +34,7 @@ jobs:
         run: bunx @capacitor/cli sync android || (bunx @capacitor/cli add android && bunx @capacitor/cli copy android)
 
       - name: Set up JDK 17
+        id: setup-java
         uses: actions/setup-java@v5
         with:
           java-version: '17'
@@ -53,7 +58,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace --warning-mode=none -x lint -x test
+          ./gradlew assembleDebug --no-daemon --stacktrace --info --warning-mode=none -x test -x lint
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
