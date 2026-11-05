@@ -17,6 +17,7 @@ jobs:
       KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 || secrets.KEYSTORE_BASE64 }}
       CI: "true"
+      GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx3072m -XX:MaxMetaspaceSize=512m' -Dorg.gradle.daemon=false"
 
     steps:
       - name: Checkout Repository

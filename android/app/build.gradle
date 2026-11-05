@@ -2,7 +2,14 @@ apply plugin: 'com.android.application'
 
 // Dynamic build incrementing: auto-increments with GITHUB_RUN_NUMBER so older installed apps recognize new APKs as seamless updates
 def runNumber = System.getenv("GITHUB_RUN_NUMBER") ?: System.getenv("BUILD_NUMBER")
-def computedVersionCode = runNumber ? (100 + Integer.parseInt(runNumber)) : 1
+def computedVersionCode = 1
+try {
+    if (runNumber) {
+        computedVersionCode = 100 + Integer.parseInt(runNumber.toString().trim())
+    }
+} catch (Exception e) {
+    computedVersionCode = 1
+}
 def computedVersionName = runNumber ? "1.0.${runNumber}" : "1.0.0"
 
 // Environment variable and signing diagnostics requested via overhaul.debug.signing.env
