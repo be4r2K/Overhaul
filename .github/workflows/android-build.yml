@@ -48,8 +48,8 @@ jobs:
           if [ ! -f android/app/debug.keystore ]; then
             echo "Generating deterministic debug keystore..."
             keytool -genkeypair -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-            cp android/app/debug.keystore ~/.android/debug.keystore
           fi
+          cp -f android/app/debug.keystore ~/.android/debug.keystore 2>/dev/null || true
 
       - name: Sync Capacitor Android
         run: npx cap sync android
@@ -58,7 +58,12 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace --warning-mode=none -x test -x lint
+          ./gradlew assembleDebug --no-daemon --stacktrace --warning-mode=none -x test -x lint || {
+            echo "============================================================"
+            echo "=== GRADLE ASSEMBLEDEBUG FAILED - RETRYING WITH DIAGNOSTICS ==="
+            echo "============================================================"
+            ./gradlew assembleDebug --no-daemon --stacktrace --full-stacktrace -x test -x lint
+          }
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4

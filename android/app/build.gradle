@@ -52,20 +52,12 @@ android {
     }
     signingConfigs {
         debug {
-            def keystoreFile = file('debug.keystore')
-            if (!keystoreFile.exists()) {
-                keystoreFile = rootProject.file('app/debug.keystore')
+            def debugFile = file('debug.keystore')
+            if (!debugFile.exists()) {
+                debugFile = rootProject.file('app/debug.keystore')
             }
-            if (!keystoreFile.exists()) {
-                keystoreFile = rootProject.file('debug.keystore')
-            }
-            if (keystoreFile.exists()) {
-                storeFile keystoreFile
-                storePassword 'android'
-                keyAlias 'androiddebugkey'
-                keyPassword 'android'
-            } else {
-                storeFile file("${System.getProperty('user.home')}/.android/debug.keystore")
+            if (debugFile.exists()) {
+                storeFile debugFile
                 storePassword 'android'
                 keyAlias 'androiddebugkey'
                 keyPassword 'android'
