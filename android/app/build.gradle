@@ -53,6 +53,9 @@ android {
     signingConfigs {
         debug {
             def debugKeystore = file('debug.keystore')
+            if (!debugKeystore.exists()) {
+                debugKeystore = file('app/debug.keystore')
+            }
             if (debugKeystore.exists()) {
                 storeFile debugKeystore
                 storePassword 'android'
