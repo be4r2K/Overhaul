@@ -1,5 +1,9 @@
 apply plugin: 'com.android.application'
 
+if (file('google-services.json').exists() || rootProject.file('app/google-services.json').exists()) {
+    apply plugin: 'com.google.gms.google-services'
+}
+
 // Dynamic build incrementing: auto-increments with GITHUB_RUN_NUMBER so older installed apps recognize new APKs as seamless updates
 def runNumber = System.getenv("GITHUB_RUN_NUMBER") ?: System.getenv("BUILD_NUMBER")
 def computedVersionCode = 1
@@ -137,12 +141,3 @@ dependencies {
 }
 
 apply from: 'capacitor.build.gradle'
-
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
-    }
-} catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
-}
