@@ -1,9 +1,5 @@
 apply plugin: 'com.android.application'
 
-if (file('google-services.json').exists() || rootProject.file('app/google-services.json').exists()) {
-    apply plugin: 'com.google.gms.google-services'
-}
-
 // Dynamic build incrementing: auto-increments with GITHUB_RUN_NUMBER so older installed apps recognize new APKs as seamless updates
 def runNumber = System.getenv("GITHUB_RUN_NUMBER") ?: System.getenv("BUILD_NUMBER")
 def computedVersionCode = 1
@@ -120,6 +116,10 @@ android {
         checkReleaseBuilds false
         abortOnError false
     }
+}
+
+if (file('google-services.json').exists() || rootProject.file('app/google-services.json').exists()) {
+    apply plugin: 'com.google.gms.google-services'
 }
 
 repositories {
