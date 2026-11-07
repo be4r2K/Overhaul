@@ -19,7 +19,7 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install Dependencies
+      - name: Install Node Dependencies
         run: bun install
 
       - name: Set up JDK 17
@@ -27,16 +27,19 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'
 
-      - name: Build Web Production Bundle
+      - name: Build Web Bundle
         env:
           VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: bun run build
 
-      - name: Sync Capacitor Android
-        run: npx cap sync android
+      - name: Sync Capacitor Android Native Assets
+        run: |
+          npx cap copy android
+          npx cap sync android
 
-      - name: Configure Android SDK Location
+      - name: Configure Android SDK Path
         run: |
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
