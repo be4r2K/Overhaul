@@ -3,13 +3,17 @@ import { Sparkles, LogIn, ShieldCheck, Heart, Users } from 'lucide-react';
 
 interface AuthGatewayProps {
   onSignIn: () => void;
+  onGuestSignIn?: () => void;
   isLoading: boolean;
+  authError?: string | null;
   theme: any;
 }
 
 export const AuthGateway: React.FC<AuthGatewayProps> = ({
   onSignIn,
+  onGuestSignIn,
   isLoading,
+  authError,
   theme,
 }) => {
   return (
@@ -109,7 +113,13 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
         </div>
 
         {/* GOOGLE SIGN IN ACTION CTA */}
-        <div className="w-full pt-4 max-w-sm">
+        <div className="w-full pt-4 max-w-sm space-y-3">
+          {authError && (
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold text-center animate-pulse">
+              {authError}
+            </div>
+          )}
+
           <button
             onClick={onSignIn}
             disabled={isLoading}
@@ -129,6 +139,15 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
               </>
             )}
           </button>
+
+          {onGuestSignIn && (
+            <button
+              className="dev-bypass-btn w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-slate-300 hover:text-emerald-400 bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer"
+              onClick={onGuestSignIn}
+            >
+              Continue as Guest / Local Account
+            </button>
+          )}
         </div>
       </div>
 

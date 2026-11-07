@@ -205,6 +205,7 @@ export default function App() {
     return Boolean(session && (session.user || session.token) || profile.authProvider === 'google');
   });
   const [authLoading, setAuthLoading] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Interactive Onboarding Tour state: stored in localStorage ('hasCompletedTour')
   const [isTourOpen, setIsTourOpen] = useState<boolean>(() => {
@@ -817,11 +818,46 @@ export default function App() {
         }
       }
     } catch (error: any) {
-      // Log silently for debugging; do NOT trigger popups, alerts, or UI banners
-      console.warn("Google Sign-In Error (Handled Silently):", error);
+      console.warn("Google Sign-In Error:", error);
+      const errMsg = error?.message || error?.toString() || 'Google Authentication Failed';
+      setAuthError(`Google Auth Error: ${errMsg}`);
+      try {
+        Toast.show({ text: `Google Auth Error: ${errMsg}`, duration: 'long' });
+      } catch (e) {}
     } finally {
       setAuthLoading(false);
     }
+  };
+
+  // Direct Guest / Local Account Login Fallback
+  const handleGuestSignIn = () => {
+    setAuthLoading(false);
+    setAuthError(null);
+    const uid = 'christian_salameh_guest';
+    updateActiveUserUid(uid);
+    setIsAuthenticated(true);
+    setCurrentTab('dashboard');
+
+    const guestProfile: UserProfile = {
+      ...DEFAULT_PROFILE,
+      name: "Christian",
+      familyName: "Salameh",
+      email: "christiansalameh7@gmail.com",
+      authProvider: "local",
+      personalFriendCode: generateUserPasscode("Christian", "Salameh"),
+    };
+
+    const existingMasterRaw = localStorage.getItem(`overhaul_user_${uid}`);
+    if (existingMasterRaw) {
+      setProfile(loadFromStorage('profile', guestProfile, uid));
+    } else {
+      setProfile(guestProfile);
+      saveToStorage('profile', guestProfile, uid);
+    }
+
+    try {
+      Toast.show({ text: "Logged in as Christian Salameh (Guest / Local Account)" });
+    } catch (e) {}
   };
 
 
@@ -1108,6 +1144,12 @@ export default function App() {
             </div>
           </div>
 
+          {authError && (
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold text-center">
+              {authError}
+            </div>
+          )}
+
           <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2 text-slate-300 text-xs text-left leading-normal font-medium font-sans">
             <p className="font-bold text-white mb-1">Welcome! Sign in with your Google Account to unlock:</p>
             <ul className="list-disc pl-5 space-y-1 text-slate-400">
@@ -1140,6 +1182,13 @@ export default function App() {
                 <span>CONTINUE WITH GOOGLE SIGN-IN</span>
               </>
             )}
+          </button>
+
+          <button
+            className="dev-bypass-btn w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-slate-300 hover:text-emerald-400 bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer"
+            onClick={handleGuestSignIn}
+          >
+            Continue as Guest / Local Account
           </button>
 
           <p className="text-[9px] text-slate-500 font-mono">Secured by Google OAuth and Firebase encryption.</p>
