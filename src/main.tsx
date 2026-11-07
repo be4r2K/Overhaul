@@ -5,6 +5,9 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { RoutineProvider } from './context/RoutineContext';
 import { AppProvider } from './context/AppContext';
 import './index.css';
+import { checkAndRegisterAppUpdate } from './utils/appUpdater';
+
+checkAndRegisterAppUpdate();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

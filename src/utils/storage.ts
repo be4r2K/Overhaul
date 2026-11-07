@@ -141,6 +141,10 @@ export function loadFromStorage<T>(key: string, fallback: T, explicitUid?: strin
     if (parsed === null || parsed === undefined) return fallback;
     return parsed as T;
   } catch {
+    try {
+      const scopedKey = getScopedStorageKey(key, explicitUid);
+      localStorage.removeItem(scopedKey);
+    } catch {}
     return fallback;
   }
 }
