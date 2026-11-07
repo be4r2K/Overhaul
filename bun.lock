@@ -10,11 +10,12 @@
         "@capacitor/cli": "^6.0.0",
         "@capacitor/core": "^6.0.0",
         "@capacitor/geolocation": "^6.0.0",
-        "@capacitor/haptics": "^8.0.2",
+        "@capacitor/haptics": "^6.0.0",
         "@capacitor/keyboard": "^6.0.0",
         "@capacitor/toast": "^6.0.0",
         "@codetrix-studio/capacitor-google-auth": "^3.4.0-rc.4",
         "@google/genai": "^2.27.0",
+        "@google/generative-ai": "^0.24.1",
         "canvas-confetti": "^1.9.4",
         "capacitor-health-connect": "^0.7.0",
         "capacitor-native-settings": "^6.0.0",
@@ -92,7 +93,7 @@
 
     "@capacitor/geolocation": ["@capacitor/geolocation@6.1.1", "", { "peerDependencies": { "@capacitor/core": "^6.0.0" } }, "sha512-zR24reZqkb9farg+qVqR0+DdDYs05SqkiqxCENoPofk/QWD6AobcHKDZutwifqO66jK2rM0ECo8MvbQv4MUTyA=="],
 
-    "@capacitor/haptics": ["@capacitor/haptics@8.0.2", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-c2hZzRR5Fk1tbTvhG1jhh2XBAf3EhnIerMIb2sl7Mt41Gxx1fhBJFDa0/BI1IbY4loVepyyuqNC9820/GZuoWQ=="],
+    "@capacitor/haptics": ["@capacitor/haptics@6.0.3", "", { "peerDependencies": { "@capacitor/core": "^6.0.0" } }, "sha512-6yKF0+lRUZEEx1GDFWgnKHia974np7o1OgmRl/btL9cSMZh0TSDZTyDMH/qcy4AM39CfuIeLs4N4h5lwixXLuQ=="],
 
     "@capacitor/keyboard": ["@capacitor/keyboard@6.0.4", "", { "peerDependencies": { "@capacitor/core": "^6.0.0" } }, "sha512-tNeyQGxIOTiSv3g+dTxJ/plVpGMnB4daJuCHz1E2Kelo+jOx+FKlyFY9L1Ow144SCzuXK48NXr8WoxXfXgQEKA=="],
 
@@ -191,6 +192,8 @@
     "@firebase/webchannel-wrapper": ["@firebase/webchannel-wrapper@1.0.7", "", {}, ""],
 
     "@google/genai": ["@google/genai@2.27.0", "", { "dependencies": { "google-auth-library": "^10.3.0", "p-retry": "^4.6.2", "protobufjs": "^7.5.4", "ws": "^8.18.0" }, "peerDependencies": { "@modelcontextprotocol/sdk": "^1.25.2" }, "optionalPeers": ["@modelcontextprotocol/sdk"] }, "sha512-W6F9Y9d4h7cVQNa85IPCOVVP9PiUzve/ZQPBvQnBmnBJcLvxstEw+R2X/RyCH0SOe0HVDQzeKDpDUf6ZRtbmdQ=="],
+
+    "@google/generative-ai": ["@google/generative-ai@0.24.1", "", {}, "sha512-MqO+MLfM6kjxcKoy0p1wRzG3b4ZZXtPI+z2IE26UogS2Cm/XHO+7gGRBh6gcJsOiIVoH93UwKvW4HdgiOZCy9Q=="],
 
     "@grpc/grpc-js": ["@grpc/grpc-js@1.9.16", "", { "dependencies": { "@grpc/proto-loader": "^0.7.8", "@types/node": ">=12.12.47" } }, ""],
 

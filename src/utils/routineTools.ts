@@ -144,14 +144,17 @@ export function executeToolCalls(
 
       case 'delete_exercise': {
         const { day, exercise } = args || {};
-        const dayIdx = findDayIndex(days, day);
+        let dayIdx = findDayIndex(days, day);
+        if (dayIdx === -1 && exercise) {
+          dayIdx = days.findIndex((d) => findExerciseIndex(d.exercises, exercise) !== -1);
+        }
         if (dayIdx !== -1) {
           const targetDayObj = days[dayIdx];
           const exIdx = findExerciseIndex(targetDayObj.exercises, exercise);
           if (exIdx !== -1) {
             const removedName = targetDayObj.exercises[exIdx].name;
             targetDayObj.exercises.splice(exIdx, 1);
-            summarySentences.push(`Removed ${removedName} from ${targetDayObj.dayTitle}. ${targetDayObj.dayTitle} now has ${targetDayObj.exercises.length} exercises.`);
+            summarySentences.push(`Removed ${removedName} from ${targetDayObj.dayTitle} (${targetDayObj.exercises.length} exercises left).`);
           }
         }
         break;

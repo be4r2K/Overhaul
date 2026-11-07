@@ -22,6 +22,7 @@
     "@capacitor/toast": "^6.0.0",
     "@codetrix-studio/capacitor-google-auth": "^3.4.0-rc.4",
     "@google/genai": "^2.27.0",
+    "@google/generative-ai": "^0.24.1",
     "canvas-confetti": "^1.9.4",
     "capacitor-health-connect": "^0.7.0",
     "capacitor-native-settings": "^6.0.0",

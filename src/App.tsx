@@ -1435,6 +1435,7 @@ export default function App() {
                     setIsAiCoachOpen(false);
                     setCurrentTab('gym');
                   }}
+                  liftRecords={liftRecords}
                 />
               </div>
             </motion.div>

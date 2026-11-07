@@ -60,13 +60,22 @@ import {
   Droplet,
   ChevronDown,
   ChevronUp,
-  Sparkles
+  Sparkles,
+  MoreHorizontal,
+  MoreVertical,
+  ArrowUp,
+  ArrowDown,
+  Edit2,
+  Clock
 } from 'lucide-react';
 import { Exercise, ExerciseCategory, LiftRecord, UserProfile, DailyStepLog, SleepLog, DailyNutritionLog, SportActivity } from '../types/fitness';
 import { AIWorkoutAnalysisResult, AIBodyVisionData } from '../types/aiWorkout';
 import { calculate1RM, units } from '../utils/calculations';
 import { playPRFanfare } from '../utils/audio';
 import { AIRoutineBuilderModal } from './AIRoutineBuilderModal';
+import { formatExerciseRow } from '../utils/workoutParser';
+import { getActiveUserUid, saveToStorage } from '../utils/storage';
+import { syncRoutinesToCloud } from '../utils/cloudSyncService';
 
 interface GymProgressViewProps {
   profile: UserProfile;
@@ -137,13 +146,69 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
   // Collapsible day accordion states: strictly collapsed by default ({ day1: false, day2: false })
   const [expandedDays, setExpandedDays] = useState<{ day1: boolean; day2: boolean }>({ day1: false, day2: false });
 
-  // Inline exercise log state: tracks which exercise is currently expanded for inline logging
+  // Inline exercise log state
   const [inlineLoggingExercise, setInlineLoggingExercise] = useState<string | null>(null);
   const [inlineWeight, setInlineWeight] = useState<number>(100);
   const [inlineReps, setInlineReps] = useState<number>(5);
+  const [inlineDuration, setInlineDuration] = useState<number>(30);
+  const [inlineBodyweightAdded, setInlineBodyweightAdded] = useState<number>(0);
 
-  // Active modal drawer state matching Tracker cards 1-to-1:
-  // 'live-execution' | 'muscle-ratings' | 'daily-highlights' | 'history' | null
+  // Manual Done Map state
+  const [markedDoneMap, setMarkedDoneMap] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('overhaul_marked_done');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleMarkDone = (exName: string) => {
+    setMarkedDoneMap((prev) => {
+      const next = { ...prev, [exName]: !prev[exName] };
+      try {
+        localStorage.setItem('overhaul_marked_done', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  // Exercise ⋯ Action Menu State
+  const [openExerciseMenu, setOpenExerciseMenu] = useState<{ dayIdx: number; exIdx: number } | null>(null);
+
+  // Edit Exercise Modal State
+  const [editingExercise, setEditingExercise] = useState<{
+    dayIdx: number;
+    exIdx: number;
+    name: string;
+    sets: string;
+    reps: string;
+    weight: string;
+    notes: string;
+  } | null>(null);
+
+  // Add Exercise to Day Modal State
+  const [addingExerciseDayIdx, setAddingExerciseDayIdx] = useState<number | null>(null);
+  const [addExName, setAddExName] = useState<string>('');
+  const [addExSets, setAddExSets] = useState<string>('3');
+  const [addExReps, setAddExReps] = useState<string>('8');
+  const [addExWeight, setAddExWeight] = useState<string>('');
+  const [addExNotes, setAddExNotes] = useState<string>('');
+
+  // Rename Day State
+  const [renamingDayIdx, setRenamingDayIdx] = useState<number | null>(null);
+  const [renamingDayTitle, setRenamingDayTitle] = useState<string>('');
+
+  // Move Exercise to Day Modal State
+  const [moveExerciseState, setMoveExerciseState] = useState<{ dayIdx: number; exIdx: number } | null>(null);
+
+  // Delete Split Confirmation Modal State
+  const [showDeleteSplitModal, setShowDeleteSplitModal] = useState<boolean>(false);
+
+  // Edit Logged Record inline
+  const [editingLoggedRecord, setEditingLoggedRecord] = useState<{ id: string; weight: number; reps: number } | null>(null);
+
+  // Active modal drawer state matching Tracker cards 1-to-1
   const [activeModal, setActiveModal] = useState<'live-execution' | 'muscle-ratings' | 'daily-highlights' | 'history' | 'ai-routine-builder' | null>(null);
 
   // Enforce default collapsed state on tab switch / mount
@@ -293,8 +358,18 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
 
   const weekCycleLabel = `${currentWeekMonday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${currentWeekSunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 
-  const isMovementDoneThisWeek = (exerciseName: string) => {
-    return liftRecords.some((r) => {
+  const isTimedExercise = (ex: any) => {
+    const text = `${ex.name || ''} ${ex.reps_or_duration || ''} ${ex.notes || ''}`.toLowerCase();
+    return text.includes('sec') || text.includes('hold') || text.includes('plank') || text.includes('duration');
+  };
+
+  const isBodyweightExercise = (ex: any) => {
+    const text = `${ex.name || ''} ${ex.weight || ''}`.toLowerCase();
+    return text.includes('bodyweight') || text.includes('bw') || text.includes('calisthenic') || ex.weight === '0' || ex.weight === 0 || !ex.weight || ex.weight === '-';
+  };
+
+  const getExerciseLogsThisWeek = (exerciseName: string) => {
+    return liftRecords.filter((r) => {
       const match = r.exerciseName.toLowerCase().trim() === exerciseName.toLowerCase().trim() ||
         r.exerciseName.toLowerCase().includes(exerciseName.toLowerCase()) ||
         exerciseName.toLowerCase().includes(r.exerciseName.toLowerCase());
@@ -302,6 +377,20 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
       const recordTime = new Date(r.date + 'T00:00:00').getTime();
       return recordTime >= currentWeekMondayTime && recordTime <= currentWeekSundayTime;
     });
+  };
+
+  const isExerciseDoneThisWeek = (ex: any) => {
+    if (markedDoneMap[ex.name]) return true;
+    const logs = getExerciseLogsThisWeek(ex.name);
+    const plannedSets = typeof ex.sets === 'number' ? ex.sets : parseInt(ex.sets, 10) || 0;
+    const threshold = plannedSets > 0 ? plannedSets : 1;
+    return logs.length >= threshold;
+  };
+
+  const isMovementDoneThisWeek = (exerciseName: string) => {
+    if (markedDoneMap[exerciseName]) return true;
+    const logs = getExerciseLogsThisWeek(exerciseName);
+    return logs.length >= 1;
   };
 
   const routinesList = aiWorkoutAnalysis?.parsedDays || [];
@@ -312,8 +401,161 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
     : (DEFAULT_DAY1_EXERCISES.length + DEFAULT_DAY2_EXERCISES.length);
 
   const completedCycleExercisesCount = aiWorkoutAnalysis
-    ? routineExercises.filter((ex: any) => isMovementDoneThisWeek(ex.name)).length
+    ? routineExercises.filter((ex: any) => isExerciseDoneThisWeek(ex)).length
     : [...DEFAULT_DAY1_EXERCISES, ...DEFAULT_DAY2_EXERCISES].filter((ex: any) => isMovementDoneThisWeek(ex.name)).length;
+
+  const persistUpdatedRoutine = (updated: any) => {
+    if (onUpdateRoutine) {
+      onUpdateRoutine(updated);
+    }
+    saveToStorage('ai_workout_analysis', updated);
+    try {
+      if (updated) {
+        localStorage.setItem('active_ai_routine', JSON.stringify(updated));
+      } else {
+        localStorage.removeItem('active_ai_routine');
+      }
+    } catch {}
+    const uid = getActiveUserUid();
+    if (uid && updated) {
+      syncRoutinesToCloud(uid, updated.parsedDays || [], updated).catch(() => {});
+    }
+  };
+
+  const handleDeleteSplit = () => {
+    triggerMediumHaptic();
+    persistUpdatedRoutine(null);
+    setShowDeleteSplitModal(false);
+    setActiveModal(null);
+  };
+
+  const handleSaveEditedExercise = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingExercise || !aiWorkoutAnalysis || !aiWorkoutAnalysis.parsedDays) return;
+    triggerLightHaptic();
+    const updatedDays = [...(aiWorkoutAnalysis.parsedDays || [])];
+    const day = { ...updatedDays[editingExercise.dayIdx] };
+    const exercisesList = [...(day.exercises || [])];
+    const parsedSets = parseInt(editingExercise.sets, 10);
+    exercisesList[editingExercise.exIdx] = {
+      ...exercisesList[editingExercise.exIdx],
+      name: editingExercise.name.trim(),
+      sets: isNaN(parsedSets) ? 0 : parsedSets,
+      reps_or_duration: editingExercise.reps.trim(),
+      weight: editingExercise.weight.trim(),
+      notes: editingExercise.notes.trim(),
+    };
+    day.exercises = exercisesList;
+    updatedDays[editingExercise.dayIdx] = day;
+    const updatedAnalysis = { ...aiWorkoutAnalysis, parsedDays: updatedDays };
+    persistUpdatedRoutine(updatedAnalysis);
+    setEditingExercise(null);
+  };
+
+  const handleAddExerciseSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (addingExerciseDayIdx === null || !addExName.trim() || !aiWorkoutAnalysis || !aiWorkoutAnalysis.parsedDays) return;
+    triggerLightHaptic();
+    const updatedDays = [...(aiWorkoutAnalysis.parsedDays || [])];
+    const day = { ...updatedDays[addingExerciseDayIdx] };
+    const exercisesList = [...(day.exercises || [])];
+    const parsedSets = parseInt(addExSets, 10);
+    exercisesList.push({
+      name: addExName.trim(),
+      sets: isNaN(parsedSets) ? 3 : parsedSets,
+      reps_or_duration: addExReps.trim() || '8',
+      weight: addExWeight.trim() || '',
+      notes: addExNotes.trim(),
+      muscles: [],
+    });
+    day.exercises = exercisesList;
+    updatedDays[addingExerciseDayIdx] = day;
+    const updatedAnalysis = { ...aiWorkoutAnalysis, parsedDays: updatedDays };
+    persistUpdatedRoutine(updatedAnalysis);
+    setAddingExerciseDayIdx(null);
+    setAddExName('');
+    setAddExSets('3');
+    setAddExReps('8');
+    setAddExWeight('');
+    setAddExNotes('');
+  };
+
+  const handleRenameDaySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (renamingDayIdx === null || !renamingDayTitle.trim() || !aiWorkoutAnalysis || !aiWorkoutAnalysis.parsedDays) return;
+    triggerLightHaptic();
+    const updatedDays = [...(aiWorkoutAnalysis.parsedDays || [])];
+    updatedDays[renamingDayIdx] = {
+      ...updatedDays[renamingDayIdx],
+      dayTitle: renamingDayTitle.trim(),
+    };
+    const updatedAnalysis = { ...aiWorkoutAnalysis, parsedDays: updatedDays };
+    persistUpdatedRoutine(updatedAnalysis);
+    setRenamingDayIdx(null);
+    setRenamingDayTitle('');
+  };
+
+  const handleDeleteDay = (dayIdx: number) => {
+    if (!aiWorkoutAnalysis || !aiWorkoutAnalysis.parsedDays) return;
+    triggerMediumHaptic();
+    const updatedDays = aiWorkoutAnalysis.parsedDays.filter((_: any, idx: number) => idx !== dayIdx);
+    const updatedAnalysis = { ...aiWorkoutAnalysis, parsedDays: updatedDays };
+    persistUpdatedRoutine(updatedAnalysis);
+  };
+
+  const handleDeleteExercise = (dayIdx: number, exIdx: number) => {
+    if (!aiWorkoutAnalysis || !aiWorkoutAnalysis.parsedDays) return;
+    triggerMediumHaptic();
+    const updatedDays = [...(aiWorkoutAnalysis.parsedDays || [])];
+    const day = { ...updatedDays[dayIdx] };
+    day.exercises = (day.exercises || []).filter((_: any, idx: number) => idx !== exIdx);
+    updatedDays[dayIdx] = day;
+    const updatedAnalysis = { ...aiWorkoutAnalysis, parsedDays: updatedDays };
+    persistUpdatedRoutine(updatedAnalysis);
+    setOpenExerciseMenu(null);
+  };
+
+  const handleMoveExerciseUpDown = (dayIdx: number, exIdx: number, direction: 'up' | 'down') => {
+    if (!aiWorkoutAnalysis || !aiWorkoutAnalysis.parsedDays) return;
+    triggerLightHaptic();
+    const updatedDays = [...(aiWorkoutAnalysis.parsedDays || [])];
+    const day = { ...updatedDays[dayIdx] };
+    const list = [...(day.exercises || [])];
+    const targetIdx = direction === 'up' ? exIdx - 1 : exIdx + 1;
+    if (targetIdx < 0 || targetIdx >= list.length) return;
+    const temp = list[exIdx];
+    list[exIdx] = list[targetIdx];
+    list[targetIdx] = temp;
+    day.exercises = list;
+    updatedDays[dayIdx] = day;
+    const updatedAnalysis = { ...aiWorkoutAnalysis, parsedDays: updatedDays };
+    persistUpdatedRoutine(updatedAnalysis);
+    setOpenExerciseMenu(null);
+  };
+
+  const handleMoveExerciseToDay = (targetDayIdx: number) => {
+    if (!moveExerciseState || !aiWorkoutAnalysis || !aiWorkoutAnalysis.parsedDays) return;
+    triggerLightHaptic();
+    const { dayIdx, exIdx } = moveExerciseState;
+    if (dayIdx === targetDayIdx) {
+      setMoveExerciseState(null);
+      return;
+    }
+    const updatedDays = [...(aiWorkoutAnalysis.parsedDays || [])];
+    const sourceDay = { ...updatedDays[dayIdx] };
+    const targetDay = { ...updatedDays[targetDayIdx] };
+    const sourceExercises = sourceDay.exercises || [];
+    const exerciseToMove = sourceExercises[exIdx];
+    if (!exerciseToMove) return;
+    sourceDay.exercises = sourceExercises.filter((_: any, i: number) => i !== exIdx);
+    targetDay.exercises = [...(targetDay.exercises || []), exerciseToMove];
+    updatedDays[dayIdx] = sourceDay;
+    updatedDays[targetDayIdx] = targetDay;
+    const updatedAnalysis = { ...aiWorkoutAnalysis, parsedDays: updatedDays };
+    persistUpdatedRoutine(updatedAnalysis);
+    setMoveExerciseState(null);
+    setOpenExerciseMenu(null);
+  };
 
   // Telemetry computations for Daily Highlights Modal
   const todayStepLog = stepsHistory.find((s) => s.date === todayStr) || {
@@ -396,34 +638,55 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
     }
   };
 
-  // Toggle inline logging form directly beneath a specific exercise
-  const handleToggleInlineLog = (exName: string, defaultW: number, defaultR: number) => {
+  // Matched toggle inline log
+  const handleToggleInlineLog = (ex: any) => {
     triggerLightHaptic();
+    const exName = ex.name;
     if (inlineLoggingExercise === exName) {
       setInlineLoggingExercise(null);
       return;
     }
-    const matched = exercises.find((e) => e.name.toLowerCase().trim() === exName.toLowerCase().trim()) ||
-      exercises.find((e) => e.name.toLowerCase().includes(exName.toLowerCase()) || exName.toLowerCase().includes(e.name.toLowerCase()));
-    const matchedId = matched?.id;
-    const prevRecord = matchedId ? exercisePRsMap.get(matchedId) : null;
-    if (prevRecord) {
-      setInlineWeight(isMetric ? prevRecord.record.weightKg : Number(units.kgToLbs(prevRecord.record.weightKg).toFixed(1)));
-      setInlineReps(prevRecord.record.reps || defaultR);
+
+    const exLogs = getExerciseLogsThisWeek(exName);
+    const lastLog = exLogs.length > 0 ? exLogs[exLogs.length - 1] : null;
+
+    if (isTimedExercise(ex)) {
+      if (lastLog) {
+        setInlineDuration(lastLog.reps || 30);
+      } else {
+        const match = (ex.reps_or_duration || '').match(/(\d+)/);
+        setInlineDuration(match ? parseInt(match[1], 10) : 30);
+      }
+    } else if (isBodyweightExercise(ex)) {
+      if (lastLog) {
+        setInlineReps(lastLog.reps || 8);
+        setInlineBodyweightAdded(isMetric ? lastLog.weightKg : Number(units.kgToLbs(lastLog.weightKg).toFixed(1)));
+      } else {
+        const match = (ex.reps_or_duration || '').match(/(\d+)/);
+        setInlineReps(match ? parseInt(match[1], 10) : 8);
+        setInlineBodyweightAdded(0);
+      }
     } else {
-      setInlineWeight(isMetric ? defaultW : Number(units.kgToLbs(defaultW).toFixed(1)));
-      setInlineReps(defaultR);
+      if (lastLog) {
+        setInlineWeight(isMetric ? lastLog.weightKg : Number(units.kgToLbs(lastLog.weightKg).toFixed(1)));
+        setInlineReps(lastLog.reps || 5);
+      } else {
+        const wMatch = (ex.weight || '').match(/(\d+(?:\.\d+)?)/);
+        const rMatch = (ex.reps_or_duration || '').match(/(\d+)/);
+        setInlineWeight(wMatch ? parseFloat(wMatch[1]) : 60);
+        setInlineReps(rMatch ? parseInt(rMatch[1], 10) : 8);
+      }
     }
     setInlineLoggingExercise(exName);
   };
 
-  // Save inline set and auto-collapse the inline form
-  const handleSaveInlineSet = (e: React.FormEvent, exName: string) => {
+  // Save matched inline set and auto-collapse
+  const handleSaveInlineSet = (e: React.FormEvent, ex: any) => {
     e.preventDefault();
-    if (inlineWeight <= 0 || inlineReps <= 0) return;
+    const exName = ex.name;
 
-    let matched = exercises.find((e) => e.name.toLowerCase().trim() === exName.toLowerCase().trim()) ||
-      exercises.find((e) => e.name.toLowerCase().includes(exName.toLowerCase()) || exName.toLowerCase().includes(e.name.toLowerCase()));
+    let matched = exercises.find((item) => item.name.toLowerCase().trim() === exName.toLowerCase().trim()) ||
+      exercises.find((item) => item.name.toLowerCase().includes(exName.toLowerCase()) || exName.toLowerCase().includes(item.name.toLowerCase()));
     
     let targetId = matched?.id;
     if (!matched) {
@@ -431,16 +694,32 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
       onAddCustomExercise(exName, 'chest');
     }
 
-    const wKg = isMetric ? inlineWeight : units.lbsToKg(inlineWeight);
-    const calculated = calculate1RM(wKg, inlineReps);
+    let finalWeightKg = 0;
+    let finalReps = 0;
+
+    if (isTimedExercise(ex)) {
+      if (inlineDuration <= 0) return;
+      finalWeightKg = 0;
+      finalReps = inlineDuration; // Duration in seconds stored in reps
+    } else if (isBodyweightExercise(ex)) {
+      if (inlineReps <= 0) return;
+      finalWeightKg = isMetric ? inlineBodyweightAdded : units.lbsToKg(inlineBodyweightAdded);
+      finalReps = inlineReps;
+    } else {
+      if (inlineWeight <= 0 || inlineReps <= 0) return;
+      finalWeightKg = isMetric ? inlineWeight : units.lbsToKg(inlineWeight);
+      finalReps = inlineReps;
+    }
+
+    const calculated = calculate1RM(finalWeightKg, finalReps);
     const currentPR = targetId ? (exercisePRsMap.get(targetId)?.max1RM || 0) : 0;
-    const isNewPR = calculated.average > currentPR;
+    const isNewPR = !isTimedExercise(ex) && finalWeightKg > 0 && calculated.average > currentPR;
 
     onAddLift({
       exerciseId: targetId || 'bench-press',
       exerciseName: exName,
-      weightKg: wKg,
-      reps: inlineReps,
+      weightKg: finalWeightKg,
+      reps: finalReps,
       rpe: 8.5,
       date: todayStr,
     });
@@ -583,77 +862,42 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
               <div className="flex items-center justify-between text-[10px] font-mono text-amber-400 font-bold uppercase leading-tight">
                 <span className="flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                  <span>Active Routine & Execution</span>
+                  <span>Routine Tracker</span>
                 </span>
                 <Dumbbell className="w-3.5 h-3.5 text-amber-400" />
               </div>
 
-              <div className="my-0.5 space-y-1">
-                <div className="flex items-center justify-between gap-2 flex-nowrap">
-                  <h3 className="text-xs sm:text-sm font-black text-inherit tracking-tight leading-tight truncate">
-                    {aiWorkoutAnalysis.summaryTitle || 'Active Workout Split'}
+              <div className="my-1 space-y-1.5">
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-inherit tracking-tight leading-tight">
+                    Workout
                   </h3>
-                  <span className="pill text-[9px] font-mono font-bold text-amber-600 dark:text-amber-300 px-1.5 py-0.5 rounded-lg shrink-0">
-                    Today's Split
-                  </span>
+                  <p className="text-xs text-slate-300 font-medium mt-0.5">
+                    Today: {aiWorkoutAnalysis.parsedDays?.[0]?.dayTitle || 'Day 1'} · {aiWorkoutAnalysis.parsedDays?.[0]?.exercises?.length || 0} exercises
+                  </p>
                 </div>
 
-                <div
-                  className="exercise-pills-row flex flex-wrap items-center py-0.5 w-full overflow-hidden box-border"
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '4px 6px',
-                    width: '100%',
-                    boxSizing: 'border-box',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {(aiWorkoutAnalysis.parsedDays?.[0]?.exercises || []).slice(0, 3).map((ex, i) => (
-                    <span
-                      key={i}
-                      className="pill exercise-pill-badge rounded-lg text-inherit font-medium leading-none bg-black/10 dark:bg-white/[0.06] border border-black/10 dark:border-white/10"
-                      style={{
-                        fontSize: '11px',
-                        padding: '4px 8px',
-                        whiteSpace: 'nowrap',
-                        maxWidth: '100%',
-                        textOverflow: 'ellipsis',
-                        overflow: 'hidden',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {ex.name}
-                    </span>
-                  ))}
-                  {(aiWorkoutAnalysis.parsedDays?.[0]?.exercises || []).length > 3 && (
-                    <span
-                      className="pill exercise-pill-badge font-mono text-amber-600 dark:text-amber-400 font-bold rounded-lg leading-none bg-amber-500/15 border border-amber-500/30"
-                      style={{
-                        fontSize: '11px',
-                        padding: '4px 8px',
-                        whiteSpace: 'nowrap',
-                        maxWidth: '100%',
-                        textOverflow: 'ellipsis',
-                        overflow: 'hidden',
-                        flexShrink: 0,
-                      }}
-                    >
-                      +{(aiWorkoutAnalysis.parsedDays?.[0]?.exercises || []).length - 3} more
-                    </span>
-                  )}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+                    <span>Progress</span>
+                    <span className="text-amber-400 font-bold">{completedCycleExercisesCount} / {totalCycleExercises} Done</span>
+                  </div>
+                  <div className="w-full bg-black/20 dark:bg-white/10 h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-amber-400 h-full rounded-full transition-all duration-300"
+                      style={{ width: `${totalCycleExercises > 0 ? Math.min(100, Math.round((completedCycleExercisesCount / totalCycleExercises) * 100)) : 0}%` }}
+                    />
+                  </div>
                 </div>
               </div>
 
               <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/10">
                 <span className="text-slate-400 font-mono">
-                  {aiWorkoutAnalysis.parsedDays?.length || 0}-Day Split ·{' '}
-                  <strong className="text-emerald-400 font-bold">
-                    {(aiWorkoutAnalysis.parsedDays?.[0]?.exercises || []).filter((ex) => isMovementDoneThisWeek(ex.name)).length}/{(aiWorkoutAnalysis.parsedDays?.[0]?.exercises || []).length} Done
-                  </strong>
+                  {aiWorkoutAnalysis.parsedDays?.length || 0} Days Total
                 </span>
-                <span className="pill px-2 py-0.5 rounded-lg text-amber-600 dark:text-amber-300 font-bold transition-all flex items-center gap-1">
-                  <span>Open Routine & Log Sets →</span>
+                <span className="pill px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold border border-amber-500/30 transition-all flex items-center gap-1 text-[11px]">
+                  <span>Open workout</span>
+                  <ArrowRight className="w-3 h-3" />
                 </span>
               </div>
             </>
@@ -924,11 +1168,11 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
             style={{ marginTop: '28px', maxHeight: '82vh' }}
           >
             
-            {/* DRAWER HEADER WITH 'X' CLOSE BUTTON */}
+            {/* DRAWER HEADER WITH NON-TRUNCATING TITLE, + NEW, DELETE SPLIT & 'X' */}
             <div className="flex items-center justify-between border-b border-white/10 pb-3 shrink-0 gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <Dumbbell className="w-5 h-5 text-amber-400 shrink-0" />
-                <h3 className="text-base sm:text-lg font-black text-white truncate">Active Workout Routine & Live Execution</h3>
+                <h3 className="text-base sm:text-lg font-black text-white truncate">Workout</h3>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button
@@ -939,8 +1183,20 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                   }}
                   className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-[11px] transition-colors cursor-pointer whitespace-nowrap"
                 >
-                  + Create Workout Split
+                  + New
                 </button>
+                {aiWorkoutAnalysis && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerMediumHaptic();
+                      setShowDeleteSplitModal(true);
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-bold text-[11px] transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    Delete split
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -963,17 +1219,16 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                   <span>Weekly Session Cycle: {weekCycleLabel}</span>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Active checkmarks reset every Monday at midnight. All PRs, maxes, and logs are permanently retained.
+                  Resets every Monday. PRs and logs are kept.
                 </p>
               </div>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 shrink-0">
-                {completedCycleExercisesCount}/{totalCycleExercises} Done This Week
+                {completedCycleExercisesCount}/{totalCycleExercises} Done
               </span>
             </div>
 
             {/* COLLAPSIBLE ACCORDION WORKOUT SPLITS */}
-            <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1 flex-1">
-              
+            <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1 flex-1">
               {aiWorkoutAnalysis && Array.isArray(aiWorkoutAnalysis.parsedDays) && aiWorkoutAnalysis.parsedDays.length > 0 ? (
                 aiWorkoutAnalysis.parsedDays.map((day, dayIdx) => {
                   const isDayExpanded = expandedDays[`day${dayIdx + 1}` as keyof typeof expandedDays] || false;
@@ -995,14 +1250,9 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dayIdx === 0 ? 'bg-amber-400' : 'bg-cyan-400'}`} />
-                          <div className="min-w-0">
-                            <h4 className="routine-day-header text-xs sm:text-sm font-black text-white uppercase tracking-wider">
-                              {day.dayTitle} · {dayExercises.length} exercises
-                            </h4>
-                            <span className="text-[10px] text-slate-400 font-mono block">
-                              {day.focus || 'Target Focus'}
-                            </span>
-                          </div>
+                          <h4 className="routine-day-header text-xs sm:text-sm font-black text-white uppercase tracking-wider truncate">
+                            {day.dayTitle} · {dayExercises.length} exercises
+                          </h4>
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
@@ -1011,7 +1261,7 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                               ? 'text-amber-300 bg-amber-500/20 border-amber-500/30' 
                               : 'text-cyan-300 bg-cyan-500/20 border-cyan-500/30'
                           }`}>
-                            {dayExercises.filter((ex) => isMovementDoneThisWeek(ex.name)).length}/{dayExercises.length} Done
+                            {dayExercises.filter((ex) => isExerciseDoneThisWeek(ex)).length}/{dayExercises.length} Done
                           </span>
                           {isDayExpanded ? (
                             <ChevronUp className={`w-4 h-4 ${dayIdx === 0 ? 'text-amber-400' : 'text-cyan-400'}`} />
@@ -1024,21 +1274,61 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                       {/* Collapsible Content */}
                       {isDayExpanded && (
                         <div className="p-3 pt-0 border-t border-white/10 divide-y divide-white/10 animate-in fade-in duration-200">
-                          {dayExercises.map((ex, idx) => {
+                          
+                          {/* Day Actions Bar */}
+                          <div className="py-2 flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  triggerLightHaptic();
+                                  setAddingExerciseDayIdx(dayIdx);
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-white font-bold text-[11px] transition-colors flex items-center gap-1 cursor-pointer"
+                              >
+                                <Plus className="w-3 h-3 text-amber-400" />
+                                <span>Add exercise</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  triggerLightHaptic();
+                                  setRenamingDayIdx(dayIdx);
+                                  setRenamingDayTitle(day.dayTitle || '');
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-[11px] transition-colors flex items-center gap-1 cursor-pointer"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                                <span>Rename day</span>
+                              </button>
+                            </div>
+
+                            {(aiWorkoutAnalysis.parsedDays?.length || 0) > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteDay(dayIdx)}
+                                className="px-2 py-1 rounded-lg text-rose-400 hover:bg-rose-500/10 font-bold text-[11px] transition-colors cursor-pointer"
+                              >
+                                Delete day
+                              </button>
+                            )}
+                          </div>
+
+                          {dayExercises.map((ex, exIdx) => {
                             const matched = exercises.find((e) => e.name.toLowerCase().trim() === ex.name.toLowerCase().trim()) ||
                               exercises.find((e) => e.name.toLowerCase().includes(ex.name.toLowerCase()) || ex.name.toLowerCase().includes(e.name.toLowerCase()));
                             const matchedId = matched?.id;
                             const prevRecord = matchedId ? exercisePRsMap.get(matchedId) : null;
-                            const isDoneThisWeek = isMovementDoneThisWeek(ex.name);
+                            const isDone = isExerciseDoneThisWeek(ex);
                             const isInlineOpen = inlineLoggingExercise === ex.name;
+                            const isMenuOpen = openExerciseMenu?.dayIdx === dayIdx && openExerciseMenu?.exIdx === exIdx;
+                            const exLogs = getExerciseLogsThisWeek(ex.name);
 
-                            const setsVal = (ex as any).sets || ex.setsReps?.split(/x|×/i)?.[0]?.trim() || '-';
-                            const repsVal = (ex as any).reps_or_duration || ex.setsReps?.split(/x|×/i)?.[1]?.trim() || '-';
-                            const weightVal = (ex as any).weight || '-';
+                            const formattedSummary = formatExerciseRow(ex);
 
                             return (
                               <div
-                                key={idx}
+                                key={exIdx}
                                 className={`transition-all overflow-hidden ${
                                   isInlineOpen
                                     ? dayIdx === 0 
@@ -1046,16 +1336,16 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                                       : 'bg-cyan-500/10 border-cyan-500/50 shadow-md ring-1 ring-cyan-500/30 my-1 rounded-xl'
                                     : 'hover:bg-white/[0.04]'
                                 }`}
-                                style={{ padding: '12px 8px' }}
+                                style={{ padding: '10px 6px' }}
                               >
                                 <div className="flex items-center justify-between gap-2">
                                   <div 
                                     className="min-w-0 flex-1 cursor-pointer"
-                                    onClick={() => handleToggleInlineLog(ex.name, 60, 8)}
+                                    onClick={() => handleToggleInlineLog(ex)}
                                   >
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className="text-xs font-bold text-white truncate block max-w-full">{ex.name}</span>
-                                      {isDoneThisWeek && (
+                                      {isDone && (
                                         <span className="text-[9px] font-mono font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.2 rounded border border-emerald-500/30 flex items-center gap-0.5">
                                           <CheckCircle2 className="w-2.5 h-2.5" />
                                           <span>Done</span>
@@ -1072,12 +1362,12 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                                       )}
                                     </div>
                                     
-                                    {/* Line 2: "3 x 8 · 58.5 kg" (muted colour) */}
+                                    {/* Line 2: formatted exercise details */}
                                     <span className="text-[11px] text-slate-400 font-mono block mt-0.5">
-                                      {setsVal} x {repsVal} · {weightVal}
+                                      {formattedSummary}
                                     </span>
 
-                                    {/* Small muscle tags (max 2 tags) */}
+                                    {/* Primary muscle tags only (max 2) */}
                                     {Array.isArray((ex as any).muscles) && (ex as any).muscles.length > 0 && (
                                       <div className="flex items-center gap-1 mt-1">
                                         {(ex as any).muscles.slice(0, 2).map((m: string, mi: number) => (
@@ -1088,78 +1378,271 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                                       </div>
                                     )}
 
+                                    {/* Muted Secondary Muscles line */}
+                                    {Array.isArray((ex as any).secondaryMuscles) && (ex as any).secondaryMuscles.length > 0 && (
+                                      <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                        Also: {(ex as any).secondaryMuscles.join(', ')}
+                                      </div>
+                                    )}
+
                                     {/* Expandable Notes */}
                                     {(ex as any).notes && (
-                                      <div className="text-[10px] text-amber-300/90 font-mono mt-1">
+                                      <div className="text-[10px] text-amber-300/90 font-mono mt-0.5">
                                         Note: {(ex as any).notes}
                                       </div>
                                     )}
                                   </div>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleInlineLog(ex.name, 60, 8)}
-                                    className={`px-3 py-1.5 rounded-xl text-xs font-black shrink-0 transition-all cursor-pointer flex items-center gap-1 active:scale-95 ${
-                                      isInlineOpen
-                                        ? dayIdx === 0 
-                                          ? 'bg-amber-500 text-black shadow-md'
-                                          : 'bg-cyan-400 text-black shadow-md'
-                                        : dayIdx === 0
-                                          ? 'bg-white/10 hover:bg-amber-500 hover:text-black text-white'
-                                          : 'bg-white/10 hover:bg-cyan-400 hover:text-black text-white'
-                                    }`}
-                                  >
-                                    {isInlineOpen ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                                    <span>{isInlineOpen ? 'Close' : 'Log Set +'}</span>
-                                  </button>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    {/* Mark Done quick toggle */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        triggerLightHaptic();
+                                        toggleMarkDone(ex.name);
+                                      }}
+                                      className={`p-1.5 rounded-xl border text-xs transition-colors cursor-pointer ${
+                                        isDone
+                                          ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                                          : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+                                      }`}
+                                      title={isDone ? "Mark incomplete" : "Mark done"}
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                    </button>
+
+                                    {/* Log set button (no plus sign) */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleInlineLog(ex)}
+                                      className={`px-2.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer flex items-center gap-1 active:scale-95 ${
+                                        isInlineOpen
+                                          ? dayIdx === 0 
+                                            ? 'bg-amber-500 text-black shadow-md'
+                                            : 'bg-cyan-400 text-black shadow-md'
+                                          : dayIdx === 0
+                                            ? 'bg-white/10 hover:bg-amber-500 hover:text-black text-white'
+                                            : 'bg-white/10 hover:bg-cyan-400 hover:text-black text-white'
+                                      }`}
+                                    >
+                                      {isInlineOpen ? <X className="w-3.5 h-3.5" /> : null}
+                                      <span>{isInlineOpen ? 'Close' : 'Log set'}</span>
+                                    </button>
+
+                                    {/* ⋯ Three Dots Menu Button */}
+                                    <div className="relative">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          triggerLightHaptic();
+                                          setOpenExerciseMenu(isMenuOpen ? null : { dayIdx, exIdx });
+                                        }}
+                                        className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer"
+                                        title="Exercise options"
+                                      >
+                                        <MoreHorizontal className="w-4 h-4" />
+                                      </button>
+
+                                      {/* Dropdown Menu */}
+                                      {isMenuOpen && (
+                                        <div className="absolute right-0 top-8 z-30 w-36 rounded-2xl bg-slate-900 border border-white/20 shadow-xl p-1.5 space-y-0.5 text-xs animate-in fade-in duration-150">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setEditingExercise({
+                                                dayIdx,
+                                                exIdx,
+                                                name: ex.name,
+                                                sets: String((ex as any).sets || '3'),
+                                                reps: String((ex as any).reps_or_duration || '8'),
+                                                weight: String((ex as any).weight || ''),
+                                                notes: String((ex as any).notes || ''),
+                                              });
+                                              setOpenExerciseMenu(null);
+                                            }}
+                                            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white font-medium flex items-center gap-2 cursor-pointer"
+                                          >
+                                            <Edit2 className="w-3.5 h-3.5 text-amber-400" />
+                                            <span>Edit</span>
+                                          </button>
+
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setMoveExerciseState({ dayIdx, exIdx });
+                                              setOpenExerciseMenu(null);
+                                            }}
+                                            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white font-medium flex items-center gap-2 cursor-pointer"
+                                          >
+                                            <ArrowRight className="w-3.5 h-3.5 text-cyan-400" />
+                                            <span>Move to day</span>
+                                          </button>
+
+                                          {exIdx > 0 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleMoveExerciseUpDown(dayIdx, exIdx, 'up')}
+                                              className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white font-medium flex items-center gap-2 cursor-pointer"
+                                            >
+                                              <ArrowUp className="w-3.5 h-3.5 text-slate-300" />
+                                              <span>Move up</span>
+                                            </button>
+                                          )}
+
+                                          {exIdx < dayExercises.length - 1 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleMoveExerciseUpDown(dayIdx, exIdx, 'down')}
+                                              className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white font-medium flex items-center gap-2 cursor-pointer"
+                                            >
+                                              <ArrowDown className="w-3.5 h-3.5 text-slate-300" />
+                                              <span>Move down</span>
+                                            </button>
+                                          )}
+
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteExercise(dayIdx, exIdx)}
+                                            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 text-rose-400 font-medium flex items-center gap-2 cursor-pointer"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <span>Remove</span>
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
 
-                                {/* INLINE LOGGING FORM (AUTO-COLLAPSES ON SAVE) */}
+                                {/* LIST LOGGED SETS UNDER EXERCISE */}
+                                {exLogs.length > 0 && (
+                                  <div className="mt-2 pt-2 border-t border-white/5 space-y-1">
+                                    <div className="text-[10px] font-mono text-slate-400">Logged This Week:</div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {exLogs.map((log, logIdx) => {
+                                        const isTimed = isTimedExercise(ex);
+                                        const displayWeight = isMetric ? log.weightKg : Math.round(units.kgToLbs(log.weightKg));
+                                        const label = isTimed
+                                          ? `Set ${logIdx + 1} · ${log.reps} sec`
+                                          : log.weightKg === 0
+                                            ? `Set ${logIdx + 1} · BW × ${log.reps}`
+                                            : `Set ${logIdx + 1} · ${displayWeight} ${isMetric ? 'kg' : 'lbs'} × ${log.reps}`;
+
+                                        return (
+                                          <div
+                                            key={log.id}
+                                            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-[10px] font-mono text-slate-300"
+                                          >
+                                            <span>{label}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => onDeleteLift(log.id)}
+                                              className="text-slate-500 hover:text-rose-400 p-0.5 cursor-pointer"
+                                              title="Delete set"
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* MATCHED INLINE LOGGING FORM */}
                                 {isInlineOpen && (
                                   <form
-                                    onSubmit={(e) => handleSaveInlineSet(e, ex.name)}
-                                    className="set-logging-card-expanded p-3 bg-slate-950/90 border-t border-white/10 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-150"
-                                    style={{ scrollMarginBottom: '280px' }}
+                                    onSubmit={(e) => handleSaveInlineSet(e, ex)}
+                                    className="set-logging-card-expanded mt-2 p-3 bg-slate-950/90 rounded-xl border border-white/15 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-150"
                                   >
                                     <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 border-b border-white/10 pb-1.5">
                                       <span>Logging Set: {ex.name}</span>
-                                      <span className="text-amber-300">Default: {ex.setsReps || '3 sets x 8 reps'}</span>
+                                      <span className="text-amber-300">
+                                        {isTimedExercise(ex) ? 'Timed movement' : isBodyweightExercise(ex) ? 'Bodyweight movement' : 'Weighted movement'}
+                                      </span>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-2.5">
+                                    {/* TIMED LOGGING */}
+                                    {isTimedExercise(ex) ? (
                                       <div>
-                                        <label className="block text-[10px] font-bold text-slate-300 mb-1">
-                                          Weight ({isMetric ? 'kg' : 'lbs'})
+                                        <label className="block text-[10px] font-bold text-slate-300 mb-1 flex items-center gap-1">
+                                          <Clock className="w-3 h-3 text-cyan-400" />
+                                          <span>Duration (seconds)</span>
                                         </label>
                                         <input
                                           type="number"
-                                          step="0.5"
-                                          min="0"
-                                          value={inlineWeight}
-                                          onChange={(e) => setInlineWeight(parseFloat(e.target.value) || 0)}
-                                          className={`w-full bg-slate-900 border border-white/20 rounded-xl px-2.5 py-1.5 text-white text-sm font-mono font-bold outline-none ${
-                                            dayIdx === 0 ? 'focus:border-amber-400' : 'focus:border-cyan-400'
-                                          }`}
+                                          min="1"
+                                          max="3600"
+                                          value={inlineDuration}
+                                          onChange={(e) => setInlineDuration(parseInt(e.target.value, 10) || 1)}
+                                          className="w-full bg-slate-900 border border-white/20 rounded-xl px-2.5 py-1.5 text-white text-sm font-mono font-bold outline-none focus:border-cyan-400"
                                           required
                                           autoFocus
                                         />
                                       </div>
-
-                                      <div>
-                                        <label className="block text-[10px] font-bold text-slate-300 mb-1">Reps</label>
-                                        <input
-                                          type="number"
-                                          min="1"
-                                          max="50"
-                                          value={inlineReps}
-                                          onChange={(e) => setInlineReps(parseInt(e.target.value, 10) || 1)}
-                                          className={`w-full bg-slate-900 border border-white/20 rounded-xl px-2.5 py-1.5 text-white text-sm font-mono font-bold outline-none ${
-                                            dayIdx === 0 ? 'focus:border-amber-400' : 'focus:border-cyan-400'
-                                          }`}
-                                          required
-                                        />
+                                    ) : isBodyweightExercise(ex) ? (
+                                      /* BODYWEIGHT LOGGING */
+                                      <div className="grid grid-cols-2 gap-2.5">
+                                        <div>
+                                          <label className="block text-[10px] font-bold text-slate-300 mb-1">Reps</label>
+                                          <input
+                                            type="number"
+                                            min="1"
+                                            max="100"
+                                            value={inlineReps}
+                                            onChange={(e) => setInlineReps(parseInt(e.target.value, 10) || 1)}
+                                            className="w-full bg-slate-900 border border-white/20 rounded-xl px-2.5 py-1.5 text-white text-sm font-mono font-bold outline-none focus:border-amber-400"
+                                            required
+                                            autoFocus
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[10px] font-bold text-slate-300 mb-1">
+                                            Added Weight ({isMetric ? 'kg' : 'lbs'}) <span className="text-slate-500 font-normal">(Optional)</span>
+                                          </label>
+                                          <input
+                                            type="number"
+                                            step="0.5"
+                                            min="0"
+                                            value={inlineBodyweightAdded}
+                                            onChange={(e) => setInlineBodyweightAdded(parseFloat(e.target.value) || 0)}
+                                            className="w-full bg-slate-900 border border-white/20 rounded-xl px-2.5 py-1.5 text-white text-sm font-mono font-bold outline-none focus:border-amber-400"
+                                          />
+                                        </div>
                                       </div>
-                                    </div>
+                                    ) : (
+                                      /* WEIGHTED LOGGING */
+                                      <div className="grid grid-cols-2 gap-2.5">
+                                        <div>
+                                          <label className="block text-[10px] font-bold text-slate-300 mb-1">
+                                            Weight ({isMetric ? 'kg' : 'lbs'})
+                                          </label>
+                                          <input
+                                            type="number"
+                                            step="0.5"
+                                            min="0"
+                                            value={inlineWeight}
+                                            onChange={(e) => setInlineWeight(parseFloat(e.target.value) || 0)}
+                                            className="w-full bg-slate-900 border border-white/20 rounded-xl px-2.5 py-1.5 text-white text-sm font-mono font-bold outline-none focus:border-amber-400"
+                                            required
+                                            autoFocus
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[10px] font-bold text-slate-300 mb-1">Reps</label>
+                                          <input
+                                            type="number"
+                                            min="1"
+                                            max="100"
+                                            value={inlineReps}
+                                            onChange={(e) => setInlineReps(parseInt(e.target.value, 10) || 1)}
+                                            className="w-full bg-slate-900 border border-white/20 rounded-xl px-2.5 py-1.5 text-white text-sm font-mono font-bold outline-none focus:border-amber-400"
+                                            required
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
 
                                     <div className="flex gap-2 pt-0.5">
                                       <button
@@ -1171,12 +1654,18 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                                       </button>
                                       <button
                                         type="submit"
-                                        className={`flex-1 py-1.5 px-3 rounded-xl text-black font-black text-xs shadow-md active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                                          dayIdx === 0 ? 'bg-amber-500 hover:bg-amber-400' : 'bg-cyan-400 hover:bg-cyan-300'
-                                        }`}
+                                        className="flex-1 py-1.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs shadow-md active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
                                       >
                                         <Check className="w-3.5 h-3.5" />
-                                        <span>Save Set ({inlineWeight}{isMetric ? 'kg' : 'lbs'} × {inlineReps})</span>
+                                        <span>
+                                          {isTimedExercise(ex)
+                                            ? `Save Set (${inlineDuration} sec)`
+                                            : isBodyweightExercise(ex)
+                                              ? inlineBodyweightAdded > 0
+                                                ? `Save Set (BW + ${inlineBodyweightAdded}${isMetric ? 'kg' : 'lbs'} × ${inlineReps})`
+                                                : `Save Set (BW × ${inlineReps})`
+                                              : `Save Set (${inlineWeight}${isMetric ? 'kg' : 'lbs'} × ${inlineReps})`}
+                                        </span>
                                       </button>
                                     </div>
                                   </form>
@@ -1209,7 +1698,6 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                   </button>
                 </div>
               )}
-
             </div>
 
             {/* DRAWER FOOTER: ANCHORED PROMINENT 'DONE' BUTTON */}
@@ -1227,6 +1715,338 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* GLASS CONFIRMATION MODAL: DELETE ACTIVE SPLIT */}
+      {showDeleteSplitModal && (
+        <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-modal modal-content liquid-glass-enabled bg-slate-900/80 border border-white/20 rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+              <h3 className="text-base font-black text-white">Delete Active Split?</h3>
+              <button
+                type="button"
+                onClick={() => setShowDeleteSplitModal(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-300">
+              Are you sure you want to delete this workout split? This will remove the active split from your dashboard.
+            </p>
+            <p className="text-[11px] text-amber-300 font-mono">
+              Note: All past workout logs, PR records, and statistics remain permanently retained.
+            </p>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteSplitModal(false)}
+                className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteSplit}
+                className="flex-1 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow"
+              >
+                Delete split
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT EXERCISE MODAL */}
+      {editingExercise && (
+        <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSaveEditedExercise}
+            className="glass-modal modal-content liquid-glass-enabled bg-slate-900/85 border border-white/20 rounded-3xl p-5 max-w-md w-full space-y-3 shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+              <h3 className="text-base font-black text-white">Edit Exercise</h3>
+              <button
+                type="button"
+                onClick={() => setEditingExercise(null)}
+                className="p-1 rounded-full text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Exercise Name</label>
+                <input
+                  type="text"
+                  value={editingExercise.name}
+                  onChange={(e) => setEditingExercise({ ...editingExercise, name: e.target.value })}
+                  className="w-full bg-slate-950 border border-white/20 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-amber-400"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-300 mb-1">Sets</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingExercise.sets}
+                    onChange={(e) => setEditingExercise({ ...editingExercise, sets: e.target.value })}
+                    className="w-full bg-slate-950 border border-white/20 rounded-xl px-2.5 py-1.5 text-white text-xs outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-300 mb-1">Reps / Time</label>
+                  <input
+                    type="text"
+                    value={editingExercise.reps}
+                    onChange={(e) => setEditingExercise({ ...editingExercise, reps: e.target.value })}
+                    className="w-full bg-slate-950 border border-white/20 rounded-xl px-2.5 py-1.5 text-white text-xs outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-300 mb-1">Weight</label>
+                  <input
+                    type="text"
+                    value={editingExercise.weight}
+                    onChange={(e) => setEditingExercise({ ...editingExercise, weight: e.target.value })}
+                    className="w-full bg-slate-950 border border-white/20 rounded-xl px-2.5 py-1.5 text-white text-xs outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Notes</label>
+                <input
+                  type="text"
+                  value={editingExercise.notes}
+                  onChange={(e) => setEditingExercise({ ...editingExercise, notes: e.target.value })}
+                  className="w-full bg-slate-950 border border-white/20 rounded-xl px-3 py-2 text-white text-xs outline-none focus:border-amber-400"
+                  placeholder="e.g. 5s hold, 2-3 sets"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditingExercise(null)}
+                className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs shadow"
+              >
+                Save
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ADD EXERCISE TO DAY MODAL */}
+      {addingExerciseDayIdx !== null && (
+        <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+          <form
+            onSubmit={handleAddExerciseSubmit}
+            className="glass-modal modal-content liquid-glass-enabled bg-slate-900/85 border border-white/20 rounded-3xl p-5 max-w-md w-full space-y-3 shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+              <h3 className="text-base font-black text-white">
+                Add Exercise to {aiWorkoutAnalysis?.parsedDays?.[addingExerciseDayIdx]?.dayTitle || 'Day'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setAddingExerciseDayIdx(null)}
+                className="p-1 rounded-full text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Exercise Name</label>
+                <input
+                  type="text"
+                  value={addExName}
+                  onChange={(e) => setAddExName(e.target.value)}
+                  className="w-full bg-slate-950 border border-white/20 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-amber-400"
+                  placeholder="e.g. Incline Dumbbell Press"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-300 mb-1">Sets</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={addExSets}
+                    onChange={(e) => setAddExSets(e.target.value)}
+                    className="w-full bg-slate-950 border border-white/20 rounded-xl px-2.5 py-1.5 text-white text-xs outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-300 mb-1">Reps / Time</label>
+                  <input
+                    type="text"
+                    value={addExReps}
+                    onChange={(e) => setAddExReps(e.target.value)}
+                    className="w-full bg-slate-950 border border-white/20 rounded-xl px-2.5 py-1.5 text-white text-xs outline-none focus:border-amber-400"
+                    placeholder="8 or 30 sec"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-300 mb-1">Weight</label>
+                  <input
+                    type="text"
+                    value={addExWeight}
+                    onChange={(e) => setAddExWeight(e.target.value)}
+                    className="w-full bg-slate-950 border border-white/20 rounded-xl px-2.5 py-1.5 text-white text-xs outline-none focus:border-amber-400"
+                    placeholder="e.g. 20 kg"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Notes</label>
+                <input
+                  type="text"
+                  value={addExNotes}
+                  onChange={(e) => setAddExNotes(e.target.value)}
+                  className="w-full bg-slate-950 border border-white/20 rounded-xl px-3 py-2 text-white text-xs outline-none focus:border-amber-400"
+                  placeholder="Optional notes"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setAddingExerciseDayIdx(null)}
+                className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs shadow"
+              >
+                Add Exercise
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* RENAME DAY MODAL */}
+      {renamingDayIdx !== null && (
+        <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+          <form
+            onSubmit={handleRenameDaySubmit}
+            className="glass-modal modal-content liquid-glass-enabled bg-slate-900/85 border border-white/20 rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+              <h3 className="text-base font-black text-white">Rename Day</h3>
+              <button
+                type="button"
+                onClick={() => setRenamingDayIdx(null)}
+                className="p-1 rounded-full text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-300 mb-1">Day Name</label>
+              <input
+                type="text"
+                value={renamingDayTitle}
+                onChange={(e) => setRenamingDayTitle(e.target.value)}
+                className="w-full bg-slate-950 border border-white/20 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-amber-400"
+                required
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setRenamingDayIdx(null)}
+                className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs shadow"
+              >
+                Save
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* MOVE EXERCISE TO DAY MODAL */}
+      {moveExerciseState !== null && (
+        <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-modal modal-content liquid-glass-enabled bg-slate-900/85 border border-white/20 rounded-3xl p-5 max-w-sm w-full space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+              <h3 className="text-base font-black text-white">Move to Day</h3>
+              <button
+                type="button"
+                onClick={() => setMoveExerciseState(null)}
+                className="p-1 rounded-full text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              Select the day you want to move this exercise to:
+            </p>
+
+            <div className="space-y-1.5 pt-1">
+              {(aiWorkoutAnalysis?.parsedDays || []).map((d, dIdx) => (
+                <button
+                  key={dIdx}
+                  type="button"
+                  disabled={dIdx === moveExerciseState.dayIdx}
+                  onClick={() => handleMoveExerciseToDay(dIdx)}
+                  className={`w-full p-2.5 rounded-xl text-left font-bold text-xs transition-colors flex items-center justify-between ${
+                    dIdx === moveExerciseState.dayIdx
+                      ? 'bg-white/5 text-slate-500 cursor-not-allowed'
+                      : 'bg-white/10 hover:bg-white/20 text-white cursor-pointer'
+                  }`}
+                >
+                  <span>{d.dayTitle}</span>
+                  {dIdx === moveExerciseState.dayIdx ? (
+                    <span className="text-[10px] text-slate-500 font-mono">Current Day</span>
+                  ) : (
+                    <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setMoveExerciseState(null)}
+              className="w-full py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs mt-2"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}

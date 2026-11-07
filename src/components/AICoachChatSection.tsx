@@ -17,12 +17,17 @@ import { UserProfile } from '../types/fitness';
 import confetti from 'canvas-confetti';
 import { loadFromStorage, saveToStorage } from '../utils/storage';
 import { executeToolCalls, RoutineState, ToolCall } from '../utils/routineTools';
+import { sendCoachMessage } from '../utils/geminiService';
+
+// TODO: Security Recommendation - Move client Gemini AI calls behind a secure Firebase Cloud Function before release.
+// TODO: Restrict the API key to the Generative Language API in Google Cloud Console.
 
 interface AICoachChatSectionProps {
   profile?: UserProfile;
   currentRoutine?: AIWorkoutAnalysisResult | null;
   onUpdateRoutine?: (updated: AIWorkoutAnalysisResult) => void;
   onNavigateToRoutine?: () => void;
+  liftRecords?: any[];
 }
 
 export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
@@ -30,6 +35,7 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
   currentRoutine,
   onUpdateRoutine,
   onNavigateToRoutine,
+  liftRecords,
 }) => {
   const userName = profile?.name || 'Athlete';
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -124,23 +130,15 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
     setChatLoading(true);
 
     try {
-      const res = await fetch('/api/ai/coach-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: nextMessages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
-          modelChoice: selectedModel,
-          currentRoutine,
-          userProfile: profile,
-        }),
-      });
+      const storedLifts = liftRecords || loadFromStorage('overhaul_lifts_records', []);
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: `HTTP ${res.status} Error` }));
-        throw new Error(errorData.error || `Server HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
+      const data = await sendCoachMessage(
+        nextMessages.map((m) => ({ role: m.role || 'user', content: m.content || '' })),
+        currentRoutine || null,
+        profile,
+        selectedModel,
+        storedLifts
+      );
 
       let replyContent = data.reply || 'Routine updated.';
 
@@ -156,7 +154,7 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
             title: 'Confirmation Required',
             summary: data.confirmationPrompt || 'Destructive split operation requested.',
             changes: ['This will delete day(s) or clear your workout split.'],
-            updatedRoutine: currentRoutine || {} as any,
+            updatedRoutine: (currentRoutine || {}) as any,
             status: 'pending',
           },
           pendingToolCalls: data.tool_calls,
@@ -181,13 +179,11 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
       setChatMessages((prev) => [...prev, assistantMsg]);
     } catch (err: any) {
       console.error('AI Coach Error:', err);
-      const errMsg = err?.message || String(err);
-      
-      // Display real error directly in chat (NO canned fallback reply)
+      // Clean user-facing error message instead of raw parser or HTML errors
       const errorMsg: AIChatMessage = {
         id: 'msg-err-' + Date.now(),
         role: 'assistant',
-        content: `⚠️ Error communicating with AI Coach: ${errMsg}. Please check your connection or try again.`,
+        content: '⚠️ Coach is unreachable. Check your connection.',
         timestamp: 'Just now',
       };
       setChatMessages((prev) => [...prev, errorMsg]);
