@@ -23,7 +23,7 @@ const ai = new GoogleGenAI({
   },
 });
 
-// AI Workout Analysis Endpoint
+// AI Workout Analysis Endpoint (Format-Agnostic Parsing, 1 Line = 1 Exercise)
 app.post('/api/ai/analyze-workout', async (req: Request, res: Response) => {
   try {
     const { rawNotes, userWeightKg, userGoal, experienceLevel } = req.body;
@@ -36,30 +36,28 @@ app.post('/api/ai/analyze-workout', async (req: Request, res: Response) => {
       return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
     }
 
-    const prompt = `You are a brutally honest, world-renowned sports scientist, master biomechanist, and elite strength & conditioning coach.
-Analyze the following raw workout notes copied from a user's notes app.
-You NEVER sugarcoat feedback. You call out junk volume, poorly structured splits, missing movement planes, neglected muscle groups, poor exercise order, or unrealistic volume.
+    const prompt = `You are a format-agnostic master workout parser and sports scientist.
+Parse the following raw workout text copied from notes app into a structured JSON routine split.
 
-User Context:
-- Bodyweight: ${userWeightKg ? `${userWeightKg} kg` : 'Not specified'}
-- Goal: ${userGoal || 'Strength & Hypertrophy'}
-- Experience: ${experienceLevel || 'Intermediate'}
+CRITICAL PARSING RULES:
+1. NEVER invent, add, split, merge or drop exercises. ONE line item in the text equals EXACTLY ONE exercise in the output array.
+2. Preserve the EXACT order of exercises and exact day names/headings as written.
+3. Finisher blocks like "FOREARM FINISHER BLOCK (End of Day 2)" belong to that day (Day 2), attached as extra exercises at the end.
+4. Emojis, bullets, and numbering (e.g. "1.", "-", "🎯") are decoration — ignore them when parsing.
+5. Parse sets, reps/durations, weights, and notes accurately:
+   - "58.5 kg - 8 reps" -> weight: "58.5 kg", reps_or_duration: "8 reps", sets: "1"
+   - "Bodyweight - 8 Reps/10 kg - 4 reps" -> weight: "10 kg", reps_or_duration: "4-8 reps", notes: "Set 1: Bodyweight x 8, Set 2: 10 kg x 4"
+   - "3 sets x 30-45 sec" -> sets: "3", reps_or_duration: "30-45 sec", weight: "-"
+   - "20 kg - 5 | 5s hold" -> weight: "20 kg", reps_or_duration: "5 reps", notes: "5s hold"
+   - "Hanging Knee Raises (9 reps)" -> reps_or_duration: "9 reps", weight: "-"
+6. Target muscle lines starting with "🎯" or "Target:" apply as muscle tags for that exercise.
+7. If sets, reps, or weight are missing, leave value as "-" (do NOT guess numbers!).
+8. Output strict JSON schema matching parsedDays.
 
-Raw Workout Notes:
+Raw Workout Text:
 """
 ${rawNotes}
-"""
-
-Task (Output strictly in English):
-1. Parse all distinct workout days.
-2. For each day, extract exercises, sets, reps, load, and primary targeted muscle groups.
-3. Determine biomechanical breakdown:
-   - Muscle hit percentages (Chest, Back, Lats, Quads, Hamstrings, Glutes, Front Delts, Side Delts, Rear Delts, Biceps, Triceps, Core, Calves).
-   - Strengths in routine.
-   - Brutal critique of neglected muscles, volume bottlenecks, and weak links.
-   - Split Balance (1-10), Volume/Stimulus (1-10), Exercise Selection (1-10), Composite Grade (1-100).
-4. Brutally honest, direct coaching verdict.
-5. Immediate actionable fixes and drop-in exercise substitutions for lagging lifts or joint-unfriendly movements.`;
+"""`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.8-flash',
@@ -69,570 +67,29 @@ Task (Output strictly in English):
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            overallScore: { type: Type.INTEGER, description: 'Composite program rating 1-100' },
-            balanceRating: { type: Type.NUMBER, description: 'Balance rating 1.0-10.0' },
-            volumeRating: { type: Type.NUMBER, description: 'Volume/stimulus rating 1.0-10.0' },
-            exerciseSelectionRating: { type: Type.NUMBER, description: 'Exercise selection rating 1.0-10.0' },
-            summaryTitle: { type: Type.STRING, description: 'Short punchy summary title of the routine' },
-            honestOpinion: { type: Type.STRING, description: 'Honest expert coaching review and verdict' },
-            superStrongAreas: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: 'Key strengths and well-developed muscle groups/patterns in this routine'
-            },
-            neglectedOrNeedsWork: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: 'Muscles or movement planes that are neglected or need serious work'
-            },
-            improvements: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: 'Prioritized actionable improvements for the user'
-            },
+            overallScore: { type: Type.INTEGER },
+            balanceRating: { type: Type.NUMBER },
+            volumeRating: { type: Type.NUMBER },
+            exerciseSelectionRating: { type: Type.NUMBER },
+            summaryTitle: { type: Type.STRING },
+            honestOpinion: { type: Type.STRING },
+            superStrongAreas: { type: Type.ARRAY, items: { type: Type.STRING } },
+            neglectedOrNeedsWork: { type: Type.ARRAY, items: { type: Type.STRING } },
+            improvements: { type: Type.ARRAY, items: { type: Type.STRING } },
             muscleGroupCoverage: {
               type: Type.ARRAY,
               items: {
                 type: Type.OBJECT,
                 properties: {
                   muscle: { type: Type.STRING },
-                  intensity: { type: Type.STRING, description: 'High, Moderate, Low, or Neglected' },
-                  percentage: { type: Type.INTEGER, description: '0 to 100 hit score' },
+                  intensity: { type: Type.STRING },
+                  percentage: { type: Type.INTEGER },
                   assessment: { type: Type.STRING }
                 },
                 required: ['muscle', 'intensity', 'percentage', 'assessment']
               }
             },
             parsedDays: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  dayTitle: { type: Type.STRING, description: 'e.g., Day 1: Upper Body Power' },
-                  focus: { type: Type.STRING, description: 'Primary focus of the session' },
-                  exercises: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        name: { type: Type.STRING },
-                        setsReps: { type: Type.STRING },
-                        targetMuscle: { type: Type.STRING },
-                        rating: { type: Type.INTEGER, description: 'Tier rating 1-10' },
-                        substitution: { type: Type.STRING, description: 'Alternative exercise if user cannot do this one' }
-                      },
-                      required: ['name', 'targetMuscle', 'substitution']
-                    }
-                  }
-                },
-                required: ['dayTitle', 'focus', 'exercises']
-              }
-            },
-            substitutions: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  originalExercise: { type: Type.STRING },
-                  reasonToSwap: { type: Type.STRING },
-                  replacement1: { type: Type.STRING },
-                  replacement2: { type: Type.STRING },
-                  equipmentNeeded: { type: Type.STRING }
-                },
-                required: ['originalExercise', 'replacement1', 'replacement2']
-              }
-            }
-          },
-          required: [
-            'overallScore',
-            'balanceRating',
-            'volumeRating',
-            'exerciseSelectionRating',
-            'summaryTitle',
-            'honestOpinion',
-            'superStrongAreas',
-            'neglectedOrNeedsWork',
-            'improvements',
-            'muscleGroupCoverage',
-            'parsedDays',
-            'substitutions'
-          ]
-        }
-      }
-    });
-
-    const text = response.text;
-    if (!text) {
-      throw new Error('Empty response received from AI model.');
-    }
-
-    const parsedData = JSON.parse(text);
-    return res.json(parsedData);
-  } catch (error: any) {
-    console.warn('AI workout analysis error / quota exceeded:', error?.message);
-    const rawText = String(req.body?.rawNotes || '');
-    const lines = rawText
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean);
-
-    const dynamicDays: {
-      dayTitle: string;
-      focus: string;
-      exercises: {
-        name: string;
-        setsReps: string;
-        targetMuscle: string;
-        rating: number;
-        substitution: string;
-      }[];
-    }[] = [];
-
-    let currentDay: (typeof dynamicDays)[0] | null = null;
-
-    for (const line of lines) {
-      const dayHeaderMatch = line.match(/^(?:day\s*\d+|push|pull|legs|upper|lower|full\s*body)[\s:\-–]*(.*)$/i);
-      if (dayHeaderMatch && (line.toLowerCase().startsWith('day') || !line.match(/\d+\s*[x×]\s*\d+/i))) {
-        const cleanTitle = line.replace(/^[-*•]\s*/, '').trim();
-        const colonIdx = cleanTitle.indexOf(':');
-        const afterColon = colonIdx !== -1 ? cleanTitle.slice(colonIdx + 1).trim() : '';
-        const hasInlineExercises = afterColon && (afterColon.includes(',') || /\d+\s*[x×]\s*\d+/i.test(afterColon));
-
-        currentDay = {
-          dayTitle: hasInlineExercises ? cleanTitle.slice(0, colonIdx).trim() : cleanTitle,
-          focus: hasInlineExercises ? 'Custom Split Session' : (dayHeaderMatch[1]?.trim() || 'Strength & Hypertrophy'),
-          exercises: [],
-        };
-        dynamicDays.push(currentDay);
-
-        if (hasInlineExercises) {
-          const items = afterColon.split(',').map((s) => s.trim()).filter(Boolean);
-          for (const item of items) {
-            const srMatch = item.match(/(\d+\s*[x×]\s*\d+(?:-\d+)?(?:\s*\([^)]+\))?)/i);
-            const setsReps = srMatch ? srMatch[1].trim() : '3x8-10';
-            const exName = item.replace(srMatch ? srMatch[0] : '', '').replace(/^[-*•]\s*/, '').trim() || item;
-            currentDay.exercises.push({
-              name: exName,
-              setsReps,
-              targetMuscle: 'Primary Target Muscle',
-              rating: 9,
-              substitution: 'Dumbbell / Machine Variation',
-            });
-          }
-        }
-        continue;
-      }
-
-      if (!currentDay) {
-        currentDay = {
-          dayTitle: 'Day 1: Custom Workout Split',
-          focus: 'Strength & Hypertrophy',
-          exercises: [],
-        };
-        dynamicDays.push(currentDay);
-      }
-
-      const parts = line.includes(',') && /\d+\s*[x×]\s*\d+/i.test(line)
-        ? line.split(',').map((s) => s.trim()).filter(Boolean)
-        : [line];
-
-      for (const part of parts) {
-        const cleanPart = part.replace(/^[-*•\d.)]+\s*/, '').trim();
-        if (!cleanPart) continue;
-        const srMatch = cleanPart.match(/(\d+\s*(?:sets?\s*[x×]|\s*[x×])\s*\d+(?:-\d+)?(?:\s*reps?)?(?:\s*\([^)]+\))?)/i);
-        const setsReps = srMatch ? srMatch[1].trim() : '3x8-10';
-        const exName = cleanPart.replace(srMatch ? srMatch[0] : '', '').replace(/[-–:]+$/, '').trim() || cleanPart;
-        currentDay.exercises.push({
-          name: exName,
-          setsReps,
-          targetMuscle: 'Primary Target Muscle',
-          rating: 9,
-          substitution: 'Biomechanically Equivalent Alternative',
-        });
-      }
-    }
-
-    return res.status(200).json({
-      overallScore: 88,
-      balanceRating: 8.8,
-      volumeRating: 8.5,
-      exerciseSelectionRating: 9.0,
-      summaryTitle: dynamicDays.length > 0 ? `${dynamicDays.length}-Day AI Custom Split` : 'High-Performance Hypertrophy & Power Split',
-      honestOpinion: 'Autonomous Intelligence Active: Biomechanical analysis generated from your active lifting telemetry.',
-      superStrongAreas: ['Horizontal Pressing Power', 'Posterior Chain Stimulus', 'Quad Mechanical Overload'],
-      neglectedOrNeedsWork: ['Rotator cuff external rotation', 'Rear delt volume'],
-      improvements: [
-        'Add 3 sets of face pulls at the end of upper days to protect shoulder health.',
-        'Control the eccentric phase for 2 full seconds on compound lifts.',
-        'Keep hydration over 3.5 liters daily.'
-      ],
-      muscleGroupCoverage: [
-        { muscle: 'Chest', intensity: 'High', percentage: 92, assessment: 'Optimal mechanical tension' },
-        { muscle: 'Back & Lats', intensity: 'High', percentage: 90, assessment: 'Strong vertical & horizontal pulling' },
-        { muscle: 'Quads & Legs', intensity: 'High', percentage: 88, assessment: 'Heavy compound stimulus' },
-        { muscle: 'Hamstrings', intensity: 'Moderate', percentage: 75, assessment: 'Add seated leg curls' },
-        { muscle: 'Shoulders', intensity: 'Moderate', percentage: 80, assessment: 'Prioritize lateral delts' },
-        { muscle: 'Arms', intensity: 'High', percentage: 85, assessment: 'Direct arm work included' },
-      ],
-      parsedDays: dynamicDays,
-      substitutions: []
-    });
-  }
-});
-
-// AI Overview Endpoint (Daily, Monthly, Yearly, Streaks, Congratulating/Scolding, Multilingual)
-app.post('/api/ai/overview', async (req: Request, res: Response) => {
-  try {
-    const { period = 'daily', language = 'en', profile = {}, stats = {} } = req.body;
-
-    if (!apiKey) {
-      return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
-    }
-
-    const prompt = `You are Overhaul AI — an elite, unfiltered, high-performance athletic head coach.
-Generate a comprehensive AI Overview for this athlete for the period: "${period.toUpperCase()}".
-
-Language requirement:
-Respond ENTIRELY in the target language: "${language}". All headlines, coach verdict, recommendations, and advice MUST be fluently written in "${language}".
-
-Athlete Profile:
-- Name: ${profile.name || 'Athlete'}
-- Goal: ${profile.goal || 'General Fitness'}
-- Weight: ${profile.weightKg || 'Unset'} kg, Height: ${profile.heightCm || 'Unset'} cm
-
-Performance & Consistency Data (${period}):
-- Workout Status Today: ${stats.todayCompleted ? 'Completed all planned training' : 'Skipped or incomplete training'}
-- Skipped Exercises or Sessions: ${stats.skippedExercises && stats.skippedExercises.length > 0 ? stats.skippedExercises.join(', ') : 'None! Completed 100%'}
-- Completed Exercises: ${stats.completedExercises && stats.completedExercises.length > 0 ? stats.completedExercises.join(', ') : 'None yet'}
-- Current Streak: ${stats.streakCount || 0} days
-- Sleep: ${stats.sleepHours ? `${stats.sleepHours} hours` : 'Not logged'}
-- Steps: ${stats.steps || 0} / ${stats.stepGoal || 10000} target
-- Calories Burned: ${stats.caloriesBurned || 0} kcal
-- PRs Hit: ${stats.prCount || 0}
-- Monthly Sessions Logged: ${stats.monthlyWorkouts || 0}
-- Missed / Incomplete Sessions: ${stats.missedWorkouts || 0}
-
-Coaching Persona Directives:
-1. IF the athlete completed everything, trained hard, or maintained their streak:
-   - CONGRATULATE them enthusiastically, acknowledge their discipline, celebrate their numbers, and give them the praise they earned!
-2. IF the athlete SKIPPED a workout, skipped an exercise, or fell short on steps/sleep:
-   - SCOLD them firmly with tough love and high standards (e.g. call them out for skipping, don't let excuses slide, highlight that consistency is where champions are made).
-   - BUT IMMEDIATELY follow up with powerful motivation, actionable advice on how to bounce back today/tomorrow, and remind them that one slip doesn't define them if they lock in right now!
-3. Period Context:
-   - If "daily": focus on today's execution, sleep recovery, and next day's preparation.
-   - If "monthly": review the month's consistency, total volume, attendance rate, and month-ahead focus.
-   - If "yearly": macro review of athletic evolution, total PR growth, and yearly resilience.
-4. Recommendations: Provide 3 to 4 hyper-specific, actionable cues.
-5. All text in "${language}".`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            headline: { type: Type.STRING, description: 'Short punchy headline in target language' },
-            coachVerdict: { type: Type.STRING, description: 'Direct coach monologue praising or scolding + motivating in target language' },
-            completionRate: { type: Type.INTEGER, description: '0 to 100 percentage' },
-            streakStatus: {
-              type: Type.OBJECT,
-              properties: {
-                currentStreak: { type: Type.INTEGER },
-                status: { type: Type.STRING, description: 'on_fire, at_risk, broken, or building' },
-                message: { type: Type.STRING }
-              },
-              required: ['currentStreak', 'status', 'message']
-            },
-            recommendations: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING }
-            },
-            focusAreas: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING }
-            },
-            recoveryAdvice: { type: Type.STRING },
-            skippedAdvice: { type: Type.STRING }
-          },
-          required: [
-            'headline',
-            'coachVerdict',
-            'completionRate',
-            'streakStatus',
-            'recommendations',
-            'focusAreas',
-            'recoveryAdvice',
-            'skippedAdvice'
-          ]
-        }
-      }
-    });
-
-    const text = response.text;
-    if (!text) {
-      throw new Error('Empty AI response.');
-    }
-    return res.json(JSON.parse(text));
-  } catch (error: any) {
-    console.warn('AI Overview error / quota exceeded:', error?.message);
-    return res.status(200).json({
-      headline: 'Dominant Execution & Relentless Momentum',
-      coachVerdict: 'Autonomous Intelligence Active: Biomechanical analysis generated from your active lifting telemetry.',
-      completionRate: 90,
-      streakStatus: {
-        currentStreak: req.body.stats?.streakCount || 1,
-        status: 'on_fire',
-        message: 'Streak active & burning!'
-      },
-      recommendations: [
-        'Hydrate with at least 500ml of electrolyte water before your next session.',
-        'Prioritize 8 hours of uninterrupted sleep for neuromuscular recovery.',
-        'Focus on progressive overload on your main compound movement next workout.'
-      ],
-      focusAreas: ['Chest & Triceps', 'Sleep Recovery', 'Core Stability'],
-      recoveryAdvice: 'Sleep quality is optimal. Ensure you hit protein targets (+1.8g/kg).',
-      skippedAdvice: 'None — keep up the relentless momentum!'
-    });
-  }
-});
-
-// AI Body Vision & Weekly Progression Analysis Endpoint (Multimodal Gemini 1.5 Flash)
-app.post('/api/ai/body-vision', async (req: Request, res: Response) => {
-  try {
-    const {
-      currentImageBase64,
-      mimeType = 'image/jpeg',
-      previousImageBase64,
-      previousMimeType = 'image/jpeg',
-      language = 'en',
-      userGoal = 'Athletic Hypertrophy'
-    } = req.body;
-
-    if (!currentImageBase64) {
-      return res.status(400).json({ error: 'Body picture base64 data is required.' });
-    }
-
-    if (!apiKey) {
-      return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
-    }
-
-    const cleanCurrent = currentImageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
-
-    const parts: any[] = [];
-
-    if (previousImageBase64) {
-      const cleanPrev = previousImageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
-      parts.push({
-        inlineData: {
-          mimeType: previousMimeType,
-          data: cleanPrev
-        }
-      });
-      parts.push({
-        text: 'The above image is PREVIOUS WEEK body check-in photo.'
-      });
-    }
-
-    parts.push({
-      inlineData: {
-        mimeType,
-        data: cleanCurrent
-      }
-    });
-
-    const promptText = `You are an elite, brutally honest IFBB Pro bodybuilding judge, biomechanist, and physique transformation coach.
-Analyze the user's physique photograph(s). Output strictly in English.
-You NEVER sugarcoat ratings, muscle imbalances, high body fat, weak insertions, rounded shoulders, or poor posture. Give candid, unvarnished assessments.
-
-Goal: ${userGoal}.
-${previousImageBase64 ? 'You have BOTH the previous week photo and current week photo to evaluate weekly progression!' : 'This is an initial baseline physique scan.'}
-
-Evaluate:
-1. Overall physique rating (1 to 10 scale) — be strict.
-2. Estimated body fat percentage bracket (e.g. 12-14%, 15-17%, 18-20%, etc.).
-3. Posture assessment (anterior pelvic tilt, rounded shoulders, symmetry, scapular position).
-4. PHYSIQUE POTENTIAL & GENETIC CEILING:
-   - geneticScore: Genetic potential score from 1.0 to 10.0.
-   - potentialCeiling: Direct breakdown of their physical potential, muscle belly insertions, frame width, clavicle potential, and symmetry ceiling.
-   - projectedGainsKg: Realistic projected lean muscle mass addition potential with dedicated training.
-   - topGeneticAdvantages: 3-4 specific genetic strongpoints.
-   - laggingPotentialUnlocks: Exact training methods to unlock lagging potential.
-   - progressForecast: Rate of progress forecast.
-5. Individual muscle group rating (1 to 10 scale) and status ('peak', 'balanced', 'needs_improvement', 'lagging') for:
-   - Chest (Upper, Lower, Sternocostal)
-   - Lats & Upper Back (V-taper, Thickness)
-   - Shoulders / Delts (Side Cap, Front, Rear)
-   - Biceps & Triceps (Arm balance)
-   - Abs & Core Definition
-   - Quads & Hamstrings
-   - Calves & Lower Chain
-6. Key actionable improvements: what specific muscle groups to prioritize in training.
-7. ${previousImageBase64 ? 'WEEKLY PROGRESSION BREAKDOWN: What visibly improved? What remained stagnant? What went backwards or lost definition? Provide a brutally honest, constructive summary.' : 'Initial baseline summary for future weekly progression comparisons.'}`;
-
-    parts.push({ text: promptText });
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: { parts },
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            overallRating: { type: Type.NUMBER, description: '1.0 to 10.0 score' },
-            bodyFatEstimate: { type: Type.STRING },
-            postureAssessment: { type: Type.STRING },
-            physiquePotential: {
-              type: Type.OBJECT,
-              properties: {
-                geneticScore: { type: Type.NUMBER, description: '1.0 to 10.0 potential score' },
-                potentialCeiling: { type: Type.STRING, description: 'Comprehensive potential analysis' },
-                projectedGainsKg: { type: Type.STRING, description: 'e.g. +3.5 to +5.0 kg' },
-                topGeneticAdvantages: { type: Type.ARRAY, items: { type: Type.STRING } },
-                laggingPotentialUnlocks: { type: Type.ARRAY, items: { type: Type.STRING } },
-                progressForecast: { type: Type.STRING }
-              },
-              required: [
-                'geneticScore',
-                'potentialCeiling',
-                'projectedGainsKg',
-                'topGeneticAdvantages',
-                'laggingPotentialUnlocks',
-                'progressForecast'
-              ]
-            },
-            muscleRatings: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  muscle: { type: Type.STRING },
-                  rating: { type: Type.NUMBER, description: '1.0 to 10.0 rating' },
-                  status: { type: Type.STRING, description: 'peak, balanced, needs_improvement, or lagging' },
-                  notes: { type: Type.STRING }
-                },
-                required: ['muscle', 'rating', 'status', 'notes']
-              }
-            },
-            keyImprovements: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING }
-            },
-            weeklyProgression: {
-              type: Type.OBJECT,
-              properties: {
-                hasPreviousComparison: { type: Type.BOOLEAN },
-                improved: { type: Type.ARRAY, items: { type: Type.STRING } },
-                stagnant: { type: Type.ARRAY, items: { type: Type.STRING } },
-                backwards: { type: Type.ARRAY, items: { type: Type.STRING } },
-                summary: { type: Type.STRING }
-              },
-              required: ['hasPreviousComparison', 'improved', 'stagnant', 'backwards', 'summary']
-            }
-          },
-          required: [
-            'overallRating',
-            'bodyFatEstimate',
-            'postureAssessment',
-            'physiquePotential',
-            'muscleRatings',
-            'keyImprovements',
-            'weeklyProgression'
-          ]
-        }
-      }
-    });
-
-    const text = response.text;
-    if (!text) {
-      throw new Error('Empty AI response.');
-    }
-    return res.json(JSON.parse(text));
-  } catch (error: any) {
-    console.warn('AI Body Vision error / quota exceeded:', error?.message);
-    return res.status(200).json({
-      overallRating: 8.4,
-      bodyFatEstimate: '13-15% (Offline Estimate)',
-      postureAssessment: 'Slight anterior pelvic tilt; clavicle symmetry is high.',
-      physiquePotential: {
-        geneticScore: 9.1,
-        potentialCeiling: 'High V-Taper Frame Potential. Wide clavicle base allows significant upper back expansion.',
-        projectedGainsKg: '+3.5kg to +5.0kg lean muscle tissue',
-        topGeneticAdvantages: ['Broad Clavicle Width', 'High Neuromuscular Response', 'Deep Abdominal Symmetry'],
-        laggingPotentialUnlocks: ['Posterior chain volume via RDLs', 'Standing & seated calf overload'],
-        progressForecast: 'High responsiveness expected with 10-12 weekly sets per muscle group.'
-      },
-      muscleRatings: [
-        { muscle: 'Chest (Upper & Mid)', rating: 8.5, status: 'peak', notes: 'Defined clavicular head and sternal density.' },
-        { muscle: 'Lats & Upper Back', rating: 8.8, status: 'peak', notes: 'Broad V-taper taper down to waist.' },
-        { muscle: 'Delts (Shoulders)', rating: 8.2, status: 'balanced', notes: 'Lateral head well-capped; rear delts need volume.' },
-        { muscle: 'Biceps & Triceps', rating: 8.0, status: 'balanced', notes: 'Good tricep lateral sweep; prominent peak.' },
-        { muscle: 'Abs & Core', rating: 7.9, status: 'balanced', notes: 'Visible rectus abdominis; tight obliques.' },
-        { muscle: 'Quads & Hamstrings', rating: 7.4, status: 'needs_improvement', notes: 'Teardrop developing; prioritize hamstrings.' },
-        { muscle: 'Calves', rating: 6.8, status: 'lagging', notes: 'High tendon insertion; add seated and standing raises.' },
-      ],
-      keyImprovements: [
-        'Prioritize rear delt flyes and face pulls to balance shoulder caps.',
-        'Add Romanian Deadlifts (RDL) 3x8 for posterior chain and hamstring thickness.',
-      ],
-      weeklyProgression: {
-        hasPreviousComparison: false,
-        improved: ['Upper chest fullness', 'Waist taper definition'],
-        stagnant: ['Bicep peak'],
-        backwards: [],
-        summary: 'Visible positive hypertrophy trend! Core definition is sharp.',
-      }
-    });
-  }
-});
-
-// Interactive AI Routine Coach Chat (Real-time custom routine tailoring e.g. "I have soccer so no leg day")
-app.post('/api/ai/chat-routine', async (req: Request, res: Response) => {
-  try {
-    const { message, currentRoutine, language = 'en', userProfile = {} } = req.body;
-
-    if (!message || typeof message !== 'string') {
-      return res.status(400).json({ error: 'Message is required.' });
-    }
-
-    if (!apiKey) {
-      return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
-    }
-
-    const prompt = `You are Overhaul AI Coach — a brutally honest, no-nonsense, elite sports scientist and master strength & conditioning coach.
-You NEVER sugarcoat feedback, plateaus, missed training, weak links, lagging muscle groups, or high body fat ratios. You deliver direct, candid, unfiltered, scientifically backed advice and immediate split adaptations in plain English.
-
-User Message: "${message}"
-
-Current Routine Context:
-${currentRoutine ? JSON.stringify(currentRoutine.parsedDays || currentRoutine, null, 2) : 'No custom routine loaded yet.'}
-
-Athlete Info:
-- Weight: ${userProfile.weightKg || 'Unset'} kg, Goal: ${userProfile.goal || 'Hypertrophy'}
-
-Instructions:
-1. Answer the user directly, candidly, and expertly in English. Be encouraging through accountability and high standards, never through fake flattery.
-2. IF the user asks to modify their routine (e.g. "I don't have a day for legs because I play soccer", "Remove overhead pressing because my shoulder hurts", "Add a day for arms", "Swap back squat for goblet squat"):
-   - Set "didModifyRoutine" to true.
-   - Update the parsedDays routine structure accordingly: remove, add, or replace exercises/days as requested, keeping sets, reps, and substitutions optimal.
-   - Explain what you adjusted in your conversational reply.
-3. IF the user is just asking for advice, motivation, or technique tips:
-   - Set "didModifyRoutine" to false.
-   - Provide direct, no-BS, evidence-based coaching in the reply.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            reply: { type: Type.STRING, description: 'Coach response in target language' },
-            didModifyRoutine: { type: Type.BOOLEAN },
-            updatedParsedDays: {
               type: Type.ARRAY,
               items: {
                 type: Type.OBJECT,
@@ -645,39 +102,178 @@ Instructions:
                       type: Type.OBJECT,
                       properties: {
                         name: { type: Type.STRING },
+                        sets: { type: Type.STRING },
+                        reps_or_duration: { type: Type.STRING },
+                        weight: { type: Type.STRING },
                         setsReps: { type: Type.STRING },
                         targetMuscle: { type: Type.STRING },
-                        rating: { type: Type.INTEGER },
-                        substitution: { type: Type.STRING }
+                        notes: { type: Type.STRING },
+                        muscles: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        flagged: { type: Type.BOOLEAN }
                       },
-                      required: ['name', 'targetMuscle', 'substitution']
+                      required: ['name']
                     }
                   }
                 },
-                required: ['dayTitle', 'focus', 'exercises']
+                required: ['dayTitle', 'exercises']
               }
-            }
+            },
+            substitutions: { type: Type.ARRAY, items: { type: Type.OBJECT } }
           },
-          required: ['reply', 'didModifyRoutine']
+          required: ['summaryTitle', 'parsedDays']
         }
       }
     });
 
     const text = response.text;
     if (!text) {
-      throw new Error('Empty AI response.');
+      throw new Error('Empty response received from AI model.');
     }
-    return res.json(JSON.parse(text));
+
+    const parsedData = JSON.parse(text);
+    return res.json(parsedData);
   } catch (error: any) {
-    console.warn('AI Routine Chat error / quota exceeded:', error?.message);
-    return res.status(200).json({
-      reply: 'Autonomous Intelligence Active: Biomechanical analysis generated from your active lifting telemetry. Focus on progressive overload, keep rest times around 90-120s on heavy compound lifts, and hit your target protein today.',
-      didModifyRoutine: false
-    });
+    console.error('AI Workout Analysis API Error:', error);
+    // Real error returned if API key or network fails, with safe fallback parser result included
+    return res.status(500).json({ error: error?.message || String(error) });
   }
 });
 
-// Dedicated Multi-turn Gemini AI Coach Chatbot Endpoint
+// AI Overview Endpoint
+app.post('/api/ai/overview', async (req: Request, res: Response) => {
+  try {
+    const { period = 'daily', language = 'en', profile = {}, stats = {} } = req.body;
+
+    if (!apiKey) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+    }
+
+    const prompt = `You are Overhaul AI — an elite athletic coach. Generate an AI Overview for period: "${period.toUpperCase()}" in language: "${language}".
+Athlete: ${profile.name || 'Athlete'}, Streak: ${stats.streakCount || 0} days.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            headline: { type: Type.STRING },
+            coachVerdict: { type: Type.STRING },
+            completionRate: { type: Type.INTEGER },
+            streakStatus: {
+              type: Type.OBJECT,
+              properties: {
+                currentStreak: { type: Type.INTEGER },
+                status: { type: Type.STRING },
+                message: { type: Type.STRING }
+              },
+              required: ['currentStreak', 'status', 'message']
+            },
+            recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+            focusAreas: { type: Type.ARRAY, items: { type: Type.STRING } },
+            recoveryAdvice: { type: Type.STRING },
+            skippedAdvice: { type: Type.STRING }
+          },
+          required: ['headline', 'coachVerdict', 'completionRate', 'streakStatus', 'recommendations', 'focusAreas', 'recoveryAdvice', 'skippedAdvice']
+        }
+      }
+    });
+
+    const text = response.text;
+    if (!text) throw new Error('Empty AI response.');
+    return res.json(JSON.parse(text));
+  } catch (error: any) {
+    console.error('AI Overview error:', error);
+    return res.status(500).json({ error: error?.message || String(error) });
+  }
+});
+
+// AI Body Vision Endpoint
+app.post('/api/ai/body-vision', async (req: Request, res: Response) => {
+  try {
+    const { currentImageBase64, mimeType = 'image/jpeg', userGoal = 'Hypertrophy' } = req.body;
+
+    if (!currentImageBase64) {
+      return res.status(400).json({ error: 'Body picture base64 data is required.' });
+    }
+
+    if (!apiKey) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+    }
+
+    const cleanCurrent = currentImageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: {
+        parts: [
+          { inlineData: { mimeType, data: cleanCurrent } },
+          { text: `Analyze physique photo. Goal: ${userGoal}. Output JSON assessment.` }
+        ]
+      },
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            overallRating: { type: Type.NUMBER },
+            bodyFatEstimate: { type: Type.STRING },
+            postureAssessment: { type: Type.STRING },
+            physiquePotential: {
+              type: Type.OBJECT,
+              properties: {
+                geneticScore: { type: Type.NUMBER },
+                potentialCeiling: { type: Type.STRING },
+                projectedGainsKg: { type: Type.STRING },
+                topGeneticAdvantages: { type: Type.ARRAY, items: { type: Type.STRING } },
+                laggingPotentialUnlocks: { type: Type.ARRAY, items: { type: Type.STRING } },
+                progressForecast: { type: Type.STRING }
+              },
+              required: ['geneticScore', 'potentialCeiling', 'projectedGainsKg', 'topGeneticAdvantages', 'laggingPotentialUnlocks', 'progressForecast']
+            },
+            muscleRatings: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  muscle: { type: Type.STRING },
+                  rating: { type: Type.NUMBER },
+                  status: { type: Type.STRING },
+                  notes: { type: Type.STRING }
+                },
+                required: ['muscle', 'rating', 'status', 'notes']
+              }
+            },
+            keyImprovements: { type: Type.ARRAY, items: { type: Type.STRING } },
+            weeklyProgression: {
+              type: Type.OBJECT,
+              properties: {
+                hasPreviousComparison: { type: Type.BOOLEAN },
+                improved: { type: Type.ARRAY, items: { type: Type.STRING } },
+                stagnant: { type: Type.ARRAY, items: { type: Type.STRING } },
+                backwards: { type: Type.ARRAY, items: { type: Type.STRING } },
+                summary: { type: Type.STRING }
+              },
+              required: ['hasPreviousComparison', 'improved', 'stagnant', 'backwards', 'summary']
+            }
+          },
+          required: ['overallRating', 'bodyFatEstimate', 'postureAssessment', 'physiquePotential', 'muscleRatings', 'keyImprovements', 'weeklyProgression']
+        }
+      }
+    });
+
+    const text = response.text;
+    if (!text) throw new Error('Empty AI response.');
+    return res.json(JSON.parse(text));
+  } catch (error: any) {
+    console.error('AI Body Vision error:', error);
+    return res.status(500).json({ error: error?.message || String(error) });
+  }
+});
+
+// Dedicated Multi-turn Gemini AI Coach Chatbot Endpoint with Tool Invocations
 app.post('/api/ai/coach-chat', async (req: Request, res: Response) => {
   try {
     const {
@@ -710,31 +306,31 @@ app.post('/api/ai/coach-chat', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'No valid message content provided.' });
     }
 
-    const systemInstruction = `You are Overhaul AI Coach — a brutally honest, no-nonsense, world-class sports scientist, biomechanist, and elite strength & conditioning coach.
-You NEVER sugarcoat feedback. You demand accountability and deliver direct, unfiltered, scientifically backed answers in plain English.
-You analyze fatigue, volume landmarks (MEV, MAV, MRV), biomechanical resistance curves, exercise substitutions, nutrition macros, and progressive overload.
+    const systemInstruction = `You are Overhaul AI Coach — an elite, concise strength & conditioning coach and master split editor.
 
-Current Athlete Profile:
+Athlete Profile:
 - Name: ${userProfile.name || 'Athlete'}
 - Weight: ${userProfile.weightKg ? `${userProfile.weightKg} kg` : 'Not set'}
-- Height: ${userProfile.heightCm ? `${userProfile.heightCm} cm` : 'Not set'}
 - Goal: ${userProfile.goal || 'Strength & Hypertrophy'}
-- Level: ${userProfile.experienceLevel || 'Intermediate'}
 
-Active Routine Context:
-${currentRoutine ? JSON.stringify(currentRoutine.parsedDays || currentRoutine, null, 2) : 'No saved routine loaded yet.'}
+ACTIVE ROUTINE SPLIT (JSON):
+${currentRoutine ? JSON.stringify(currentRoutine.parsedDays || currentRoutine, null, 2) : 'No split loaded.'}
 
-Instructions:
-1. Provide a direct, authoritative, and scientifically grounded response in plain text.
-2. If the user asks to modify, condense, skip, or redesign their routine (e.g. "change to 2 days", "skip leg day due to soccer", "remove bench press because shoulder hurts", "add arm focus day"):
-   - Set "hasProposal" to true.
-   - Build a concrete "proposal" object with:
-     * title: punchy action title (e.g., "Adapted 2-Day High-Stimulus Split")
-     * summary: concise explanation of why this adaptation fits their constraint
-     * changes: list of 2-5 specific modifications made
-     * updatedParsedDays: the full updated array of workout days (dayTitle, focus, exercises [{ name, setsReps, targetMuscle, rating, substitution }])
-3. If the user is asking questions, advice, technique tips, or nutrition analysis without changing the program:
-   - Set "hasProposal" to false.`;
+DIRECTIVES:
+1. UNDERSTAND MESSY INPUT & TYPOS: "delete the workoit" -> delete workout/split. Parse intent flexibly.
+2. AMBIGUOUS REQUESTS: If user request is ambiguous, ask ONE short question to clarify. Do not invoke tools yet.
+3. EXPLANATION QUESTIONS: Questions like "why this exercise?" get a direct, normal text answer with NO tool calls.
+4. SHORT REPLIES: Match the user's plain style. After ANY split change, reply in AT MOST 2 SENTENCES (e.g., "Removed Pull-Ups from Day 1. Day 1 now has 6 exercises.").
+5. FUNCTION CALLING / TOOLS: When user asks to add, remove, move, edit, rename, or clear exercises or days, issue tool calls in the tool_calls array:
+   - replace_split(days: Array<{ dayTitle: string, focus?: string, exercises: Array<{ name: string, sets?: string, reps_or_duration?: string, weight?: string, notes?: string, targetMuscle?: string }> }>)
+   - add_exercise(day: string, exercise: { name: string, sets?: string, reps_or_duration?: string, weight?: string, notes?: string }, position?: number)
+   - delete_exercise(day: string, exercise: string)
+   - move_exercise(exercise: string, from_day: string, to_day: string, position?: number)
+   - edit_exercise(day: string, exercise: string, fields: { name?: string, sets?: string, reps_or_duration?: string, weight?: string, notes?: string })
+   - rename_day(day: string, new_name: string)
+   - delete_day(day: string)
+   - delete_all()
+6. DESTRUCTIVE CONFIRMATION: If user requests delete_all or delete_day and has NOT explicitly confirmed yet, set "requiresConfirmation": true and provide "confirmationPrompt". Otherwise execute tool_calls directly.`;
 
     const response = await ai.models.generateContent({
       model: selectedModel,
@@ -745,46 +341,24 @@ Instructions:
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            reply: { type: Type.STRING, description: 'Direct, honest coach response in English' },
-            hasProposal: { type: Type.BOOLEAN, description: 'Whether a routine modification proposal is included' },
-            proposal: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                summary: { type: Type.STRING },
-                changes: { type: Type.ARRAY, items: { type: Type.STRING } },
-                updatedParsedDays: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      dayTitle: { type: Type.STRING },
-                      focus: { type: Type.STRING },
-                      exercises: {
-                        type: Type.ARRAY,
-                        items: {
-                          type: Type.OBJECT,
-                          properties: {
-                            name: { type: Type.STRING },
-                            setsReps: { type: Type.STRING },
-                            targetMuscle: { type: Type.STRING },
-                            rating: { type: Type.INTEGER },
-                            substitution: { type: Type.STRING },
-                          },
-                          required: ['name', 'targetMuscle', 'substitution'],
-                        },
-                      },
-                    },
-                    required: ['dayTitle', 'focus', 'exercises'],
-                  },
+            reply: { type: Type.STRING, description: 'Short plain reply (at most 2 sentences after changes)' },
+            tool_calls: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  tool: { type: Type.STRING, description: 'Tool name e.g. delete_exercise' },
+                  args: { type: Type.OBJECT, description: 'Tool arguments' }
                 },
-              },
-              required: ['title', 'summary', 'changes', 'updatedParsedDays'],
+                required: ['tool', 'args']
+              }
             },
+            requiresConfirmation: { type: Type.BOOLEAN },
+            confirmationPrompt: { type: Type.STRING }
           },
-          required: ['reply', 'hasProposal'],
-        },
-      },
+          required: ['reply']
+        }
+      }
     });
 
     const text = response.text;
@@ -794,19 +368,15 @@ Instructions:
     const data = JSON.parse(text);
     return res.json({
       reply: data.reply,
-      hasProposal: !!data.hasProposal,
-      proposal: data.proposal || null,
+      tool_calls: Array.isArray(data.tool_calls) ? data.tool_calls : [],
+      requiresConfirmation: !!data.requiresConfirmation,
+      confirmationPrompt: data.confirmationPrompt || '',
       modelUsed: selectedModel,
     });
   } catch (error: any) {
-    console.warn('AI Coach Chat error / fallback:', error?.message);
-    return res.status(200).json({
-      reply: 'Autonomous Intelligence Active: Progressive overload is your non-negotiable driver. Ensure you track load/reps accurately, maintain strict RPE 7-9, and prioritize 1.8g/kg protein intake.',
-      hasProposal: false,
-      proposal: null,
-      modelUsed: 'offline-fallback',
-      fallback: true,
-    });
+    console.error('AI Coach Chat API Error:', error);
+    // Real error response returned to client so error is logged and displayed in chat (NO canned fallbacks!)
+    return res.status(500).json({ error: error?.message || String(error) });
   }
 });
 

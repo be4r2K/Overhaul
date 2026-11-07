@@ -997,7 +997,7 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                           <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dayIdx === 0 ? 'bg-amber-400' : 'bg-cyan-400'}`} />
                           <div className="min-w-0">
                             <h4 className="routine-day-header text-xs sm:text-sm font-black text-white uppercase tracking-wider">
-                              {day.dayTitle}
+                              {day.dayTitle} · {dayExercises.length} exercises
                             </h4>
                             <span className="text-[10px] text-slate-400 font-mono block">
                               {day.focus || 'Target Focus'}
@@ -1023,7 +1023,7 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
 
                       {/* Collapsible Content */}
                       {isDayExpanded && (
-                        <div className="p-3 pt-0 border-t border-white/10 space-y-2 animate-in fade-in duration-200">
+                        <div className="p-3 pt-0 border-t border-white/10 divide-y divide-white/10 animate-in fade-in duration-200">
                           {dayExercises.map((ex, idx) => {
                             const matched = exercises.find((e) => e.name.toLowerCase().trim() === ex.name.toLowerCase().trim()) ||
                               exercises.find((e) => e.name.toLowerCase().includes(ex.name.toLowerCase()) || ex.name.toLowerCase().includes(e.name.toLowerCase()));
@@ -1032,25 +1032,33 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                             const isDoneThisWeek = isMovementDoneThisWeek(ex.name);
                             const isInlineOpen = inlineLoggingExercise === ex.name;
 
+                            const setsVal = (ex as any).sets || ex.setsReps?.split(/x|×/i)?.[0]?.trim() || '-';
+                            const repsVal = (ex as any).reps_or_duration || ex.setsReps?.split(/x|×/i)?.[1]?.trim() || '-';
+                            const weightVal = (ex as any).weight || '-';
+
                             return (
                               <div
                                 key={idx}
-                                className={`rounded-xl border transition-all overflow-hidden ${
+                                className={`transition-all overflow-hidden ${
                                   isInlineOpen
                                     ? dayIdx === 0 
-                                      ? 'bg-amber-500/10 border-amber-500/50 shadow-md ring-1 ring-amber-500/30'
-                                      : 'bg-cyan-500/10 border-cyan-500/50 shadow-md ring-1 ring-cyan-500/30'
-                                    : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.06]'
+                                      ? 'bg-amber-500/10 border-amber-500/50 shadow-md ring-1 ring-amber-500/30 my-1 rounded-xl'
+                                      : 'bg-cyan-500/10 border-cyan-500/50 shadow-md ring-1 ring-cyan-500/30 my-1 rounded-xl'
+                                    : 'hover:bg-white/[0.04]'
                                 }`}
+                                style={{ padding: '12px 8px' }}
                               >
-                                <div className="p-2.5 flex items-center justify-between gap-2">
-                                  <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div 
+                                    className="min-w-0 flex-1 cursor-pointer"
+                                    onClick={() => handleToggleInlineLog(ex.name, 60, 8)}
+                                  >
                                     <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="text-xs font-bold text-white truncate block">{ex.name}</span>
+                                      <span className="text-xs font-bold text-white truncate block max-w-full">{ex.name}</span>
                                       {isDoneThisWeek && (
                                         <span className="text-[9px] font-mono font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.2 rounded border border-emerald-500/30 flex items-center gap-0.5">
                                           <CheckCircle2 className="w-2.5 h-2.5" />
-                                          <span>Done this week</span>
+                                          <span>Done</span>
                                         </span>
                                       )}
                                       {prevRecord && (
@@ -1063,9 +1071,29 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                                         </span>
                                       )}
                                     </div>
-                                    <span className="text-[10px] text-slate-400 font-mono block">
-                                      {ex.setsReps || '3 sets x 8 reps'} · {ex.targetMuscle || 'Target Muscle'}
+                                    
+                                    {/* Line 2: "3 x 8 · 58.5 kg" (muted colour) */}
+                                    <span className="text-[11px] text-slate-400 font-mono block mt-0.5">
+                                      {setsVal} x {repsVal} · {weightVal}
                                     </span>
+
+                                    {/* Small muscle tags (max 2 tags) */}
+                                    {Array.isArray((ex as any).muscles) && (ex as any).muscles.length > 0 && (
+                                      <div className="flex items-center gap-1 mt-1">
+                                        {(ex as any).muscles.slice(0, 2).map((m: string, mi: number) => (
+                                          <span key={mi} className="text-[9px] font-mono font-bold text-cyan-300 bg-cyan-500/15 border border-cyan-500/25 px-1.5 py-0.2 rounded">
+                                            {m}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    {/* Expandable Notes */}
+                                    {(ex as any).notes && (
+                                      <div className="text-[10px] text-amber-300/90 font-mono mt-1">
+                                        Note: {(ex as any).notes}
+                                      </div>
+                                    )}
                                   </div>
 
                                   <button
