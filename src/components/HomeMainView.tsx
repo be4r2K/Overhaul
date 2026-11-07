@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Sun, 
   Cloud, 
@@ -119,6 +119,32 @@ export const HomeMainView: React.FC<HomeMainViewProps> = ({
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [showAthleteModal, setShowAthleteModal] = useState(false);
+  const [pullProgress, setPullProgress] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const touchStartY = useRef(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (containerRef.current?.scrollTop === 0) {
+      touchStartY.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (containerRef.current?.scrollTop === 0) {
+      const deltaY = e.touches[0].clientY - touchStartY.current;
+      if (deltaY > 0) {
+        setPullProgress(Math.min(deltaY, 100));
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (pullProgress > 80) {
+      onRefreshWeather();
+      // Also potentially trigger a global sync if available via onUpdateProfile or similar
+    }
+    setPullProgress(0);
+  };
 
   // Report modal state to parent to hide top & bottom bars
   React.useEffect(() => {
@@ -275,6 +301,10 @@ export const HomeMainView: React.FC<HomeMainViewProps> = ({
 
   return (
     <div 
+      ref={containerRef}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       className="page-container dashboard-page h-full max-h-full flex-1 min-h-0 overflow-hidden flex flex-col justify-between max-w-7xl mx-auto w-full gap-[6px] select-none box-border"
       style={{
         height: '100%',
@@ -287,9 +317,20 @@ export const HomeMainView: React.FC<HomeMainViewProps> = ({
         justifyContent: 'space-between',
         padding: '6px 12px 10px 12px',
         boxSizing: 'border-box',
-        touchAction: 'none',
+        touchAction: 'pan-y', // Allow vertical scrolling, handle PTR manually
       }}
     >
+      {/* PTR Visual Indicator */}
+      {pullProgress > 0 && (
+        <div 
+          className="absolute top-2 left-0 right-0 flex justify-center z-50 transition-all duration-200"
+          style={{ opacity: pullProgress / 100 }}
+        >
+          <div className="bg-white/20 backdrop-blur-md p-2 rounded-full shadow-lg">
+            <RefreshCw className="w-5 h-5 text-white animate-spin" />
+          </div>
+        </div>
+      )}
       {/* COMPACT 1-PAGE HERO BAR: Minimalist, clean, Instagram glass */}
       <div 
         className="card dashboard-item ig-glass-card glass-card-light rounded-2xl flex flex-col justify-between relative shrink-0"
