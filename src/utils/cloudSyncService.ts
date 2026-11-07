@@ -217,3 +217,41 @@ export async function pullLatestDataFromCloud(userId: string) {
     };
   }
 }
+
+/**
+ * Check Firestore for existing user document (users/{userId}); auto-create if missing.
+ */
+export async function ensureFirestoreUserAccount(userId: string, user: { email?: string; displayName?: string; photoURL?: string }) {
+  if (!userId || userId === 'anonymous') return null;
+  const localBackup = getLocalCloudBackup(userId);
+
+  if (!db) {
+    return { isNew: false, data: localBackup };
+  }
+
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      return { isNew: false, data };
+    } else {
+      const newUserData = {
+        uid: userId,
+        email: user.email || 'christiansalameh7@gmail.com',
+        displayName: user.displayName || 'Christian Salameh',
+        createdAt: new Date().toISOString(),
+        activeStreak: 0,
+        bestStreak: 0,
+        workoutLogs: [],
+        biometrics: { weight: 0, height: 0 }
+      };
+      await setDoc(userRef, newUserData, { merge: true });
+      return { isNew: true, data: newUserData };
+    }
+  } catch (err) {
+    console.warn("Firestore user lookup/auto-create non-fatal:", err);
+    return { isNew: false, data: localBackup };
+  }
+}

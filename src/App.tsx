@@ -43,7 +43,8 @@ import {
   syncLogsToCloud, 
   syncWorkoutLogsToCloud,
   syncBiometricsToCloud, 
-  pullLatestDataFromCloud 
+  pullLatestDataFromCloud,
+  ensureFirestoreUserAccount 
 } from './utils/cloudSyncService';
 import { fetchGooglePeopleProfile } from './utils/googlePeople';
 import { applyThemeToDOM, getStoredTheme, setStoredTheme } from './utils/theme';
@@ -703,6 +704,17 @@ export default function App() {
         setAiWorkoutAnalysis(null);
       }
 
+      // Check Firestore user document (users/{uid}) and auto-create if missing
+      try {
+        await ensureFirestoreUserAccount(uid, {
+          email: user.email || '',
+          displayName: user.displayName || `${firstName} ${lastName}`.trim(),
+          photoURL: user.photoURL || '',
+        });
+      } catch (fErr) {
+        console.warn("Firestore account check non-fatal error:", fErr);
+      }
+
       // Asynchronously pull latest from Google Cloud for this logged-in user
       (async () => {
         try {
@@ -827,6 +839,10 @@ export default function App() {
         await Toast.show({ text: fullAuthErr, duration: 'long' });
       } catch (e) {}
       alert(fullAuthErr);
+
+      // Trigger automatic fallback guest sign-in so app proceeds to dashboard without hanging
+      console.warn("Google Auth error encountered; activating automatic guest fallback login...");
+      handleGuestSignIn();
     } finally {
       setAuthLoading(false);
     }
