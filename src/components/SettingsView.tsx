@@ -818,6 +818,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 )}
               </div>
             )}
+            
+            <div className="mt-3 border-t border-white/10 pt-3">
+              <h4 className="text-xs font-bold text-slate-300 mb-2">Last crashes</h4>
+              {(() => {
+                const saved = localStorage.getItem('overhaul_last_crashes');
+                const errors = saved ? JSON.parse(saved) : [];
+                return errors.length > 0 ? (
+                  <div className="space-y-2">
+                    {errors.map((err: any, i: number) => (
+                      <div key={i} className="p-2 rounded-lg bg-rose-950/20 border border-rose-900/50 text-[10px] font-mono text-rose-200">
+                        <div className="font-bold mb-0.5">{new Date(err.timestamp).toLocaleString()}</div>
+                        <div className="truncate mb-1">{err.message}</div>
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(JSON.stringify(err, null, 2));
+                            Toast.show({ text: 'Error copied to clipboard', duration: 'short' });
+                          }}
+                          className="text-rose-400 underline"
+                        >
+                          Copy details
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-slate-500">No recent crashes recorded.</p>
+                );
+              })()}
+            </div>
           </div>
         </section>
 

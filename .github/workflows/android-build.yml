@@ -10,16 +10,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
-      KEYSTORE_PATH: ${{ secrets.KEYSTORE_PATH }}
-      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 || secrets.KEYSTORE_BASE64 }}
-      VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY || secrets.GEMINI_API_KEY }}
+      VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
       CI: "true"
 
     steps:
+      - name: Validate Secrets
+        run: |
+          if [ -z "${{ secrets.GEMINI_API_KEY }}" ]; then
+            echo "Missing GitHub secret: GEMINI_API_KEY"
+            exit 1
+          fi
+
       - name: Checkout Repository
         uses: actions/checkout@v4
 
@@ -34,7 +36,7 @@ jobs:
       - name: Build Web Production Bundle
         run: bun run build
         env:
-          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY || secrets.GEMINI_API_KEY }}
+          VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -45,17 +47,21 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Ensure Debug Keystore
+      - name: Use fixed debug signing key
+        env:
+          KS: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
         run: |
-          mkdir -p ~/.android android/app
-          if [ ! -f android/app/debug.keystore ]; then
-            echo "Generating deterministic debug keystore..."
-            keytool -genkeypair -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          fi
-          cp -f android/app/debug.keystore ~/.android/debug.keystore 2>/dev/null || true
+          mkdir -p ~/.android
+          echo "$KS" | base64 -d > ~/.android/debug.keystore
+          # password android, alias androiddebugkey
 
       - name: Sync Capacitor Android
         run: npx cap sync android
+
+      - name: Set Version Code and Name
+        run: |
+          sed -i "s/versionCode .*/versionCode ${{ github.run_number }}/" android/app/build.gradle
+          sed -i "s/versionName .*/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
 
       - name: Build Android Debug APK
         run: |

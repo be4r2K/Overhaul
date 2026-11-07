@@ -26,6 +26,16 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an unhandled error:', error, errorInfo);
+    
+    // Save to localStorage
+    const savedErrors = localStorage.getItem('overhaul_last_crashes');
+    const errors = savedErrors ? JSON.parse(savedErrors) : [];
+    errors.unshift({
+      timestamp: new Date().toISOString(),
+      message: error.message,
+      stack: error.stack
+    });
+    localStorage.setItem('overhaul_last_crashes', JSON.stringify(errors.slice(0, 5)));
   }
 
   public handleReset = () => {

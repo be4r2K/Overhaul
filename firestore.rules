@@ -1,40 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
-  match /databases/{database}/documents {
-    
-    // Global Safety Net (Pillar 1)
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Common helper functions (Pillar 3 & 4)
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    // Rules for user-specific folders
-    match /users/{userId} {
-      allow get: if isOwner(userId) && isValidId(userId);
-      
-      match /biometrics/profile {
-        allow read, write: if isOwner(userId) && isValidId(userId);
-      }
-
-      match /routines/active {
-        allow read, write: if isOwner(userId) && isValidId(userId);
-      }
-
-      match /logs/history {
-        allow read, write: if isOwner(userId) && isValidId(userId);
-      }
+  match /databases/{db}/documents {
+    match /users/{uid}/{doc=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
     }
   }
 }
