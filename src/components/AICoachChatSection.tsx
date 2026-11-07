@@ -59,7 +59,7 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
 
   const [inputMsg, setInputMsg] = useState<string>('');
   const [chatLoading, setChatLoading] = useState<boolean>(false);
-  const [selectedModel, setSelectedModel] = useState<'gemini-3.8-flash' | 'gemini-3.1-flash-lite' | 'gemini-4-argon'>('gemini-3.8-flash');
+  const [selectedModel, setSelectedModel] = useState<'gemini-2.5-flash' | 'gemini-2.5-pro' | 'gemini-2.5-flash-lite'>('gemini-2.5-flash');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const showToast = (msg: string) => {
@@ -128,7 +128,7 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: nextMessages.map((m) => ({ role: m.role, content: m.content })),
+          messages: nextMessages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
           modelChoice: selectedModel,
           currentRoutine,
           userProfile: profile,
@@ -278,36 +278,36 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
         <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={() => setSelectedModel('gemini-3.8-flash')}
+            onClick={() => setSelectedModel('gemini-2.5-flash')}
             className={`px-2 py-0.5 rounded-lg text-[10px] font-medium transition-all ${
-              selectedModel === 'gemini-3.8-flash'
+              selectedModel === 'gemini-2.5-flash'
                 ? 'bg-cyan-500 text-black font-black shadow-sm'
                 : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
             }`}
           >
-            3.8 Flash
+            2.5 Flash
           </button>
           <button
             type="button"
-            onClick={() => setSelectedModel('gemini-3.1-flash-lite')}
+            onClick={() => setSelectedModel('gemini-2.5-pro')}
             className={`px-2 py-0.5 rounded-lg text-[10px] font-medium transition-all ${
-              selectedModel === 'gemini-3.1-flash-lite'
+              selectedModel === 'gemini-2.5-pro'
                 ? 'bg-cyan-500 text-black font-black shadow-sm'
                 : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
             }`}
           >
-            3.1 Lite
+            2.5 Pro
           </button>
           <button
             type="button"
-            onClick={() => setSelectedModel('gemini-4-argon')}
+            onClick={() => setSelectedModel('gemini-2.5-flash-lite')}
             className={`px-2 py-0.5 rounded-lg text-[10px] font-medium transition-all ${
-              selectedModel === 'gemini-4-argon'
+              selectedModel === 'gemini-2.5-flash-lite'
                 ? 'bg-cyan-500 text-black font-black shadow-sm'
                 : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
             }`}
           >
-            4 Argon
+            2.5 Lite
           </button>
           <button
             type="button"

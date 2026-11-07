@@ -183,6 +183,45 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
+      {/* COMPACT STATS ROWS: Weekly Consistency & Muscle Volume */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Weekly Consistency Row */}
+        <div className="rounded-xl bg-zinc-900/90 border border-zinc-800 p-4 flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">Weekly Consistency</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl font-black text-white font-mono">{thisWeekWorkouts.length} / {(profile as any)?.weeklyGoal || 5}</span>
+              <span className="text-xs text-emerald-400 font-mono font-bold">({Math.min(100, Math.round((thisWeekWorkouts.length / ((profile as any)?.weeklyGoal || 5)) * 100))}% Completed)</span>
+            </div>
+            <p className="text-[11px] text-zinc-500">Sessions completed vs planned target for current week</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-mono font-bold text-xs">
+            {Math.min(100, Math.round((thisWeekWorkouts.length / ((profile as any)?.weeklyGoal || 5)) * 100))}%
+          </div>
+        </div>
+
+        {/* Muscle Volume Breakdown Row */}
+        <div className="rounded-xl bg-zinc-900/90 border border-zinc-800 p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Weekly Muscle Volume</span>
+            <span className="text-[10px] font-mono text-cyan-400">sets × reps × kg</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+            {['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core'].map((m) => {
+              const thisVol = workouts.filter(w => (Date.now() - new Date(w.date).getTime()) <= 7 * 24 * 3600 * 1000).reduce((sum, w) => {
+                return sum + (w.exercises || []).filter(ex => ((ex as any).category || '').toLowerCase().includes(m.toLowerCase()) || m === 'Chest').reduce((s, ex) => s + (ex.sets || []).reduce((setSum, st) => setSum + ((st.reps || 1) * ((st as any).weightKg || st.weight || 10)), 0), 0);
+              }, 0);
+              return (
+                <div key={m} className="p-1.5 rounded-lg bg-zinc-950/60 border border-zinc-800/60 flex items-center justify-between">
+                  <span className="text-zinc-400 text-[10px]">{m}</span>
+                  <span className="font-bold text-white text-[10px]">{thisVol > 0 ? `${thisVol}k` : '-'}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       {/* Main 2-Column Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: 1RM Hall of Fame & Training Streak */}

@@ -60,7 +60,7 @@ ${rawNotes}
 """`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -273,12 +273,13 @@ app.post('/api/ai/body-vision', async (req: Request, res: Response) => {
   }
 });
 
+// TODO: Security Note - VITE_GEMINI_API_KEY is currently used. In production, move Gemini AI requests behind a secure Firebase Cloud Function.
 // Dedicated Multi-turn Gemini AI Coach Chatbot Endpoint with Tool Invocations
 app.post('/api/ai/coach-chat', async (req: Request, res: Response) => {
   try {
     const {
       messages,
-      modelChoice = 'gemini-3.8-flash',
+      modelChoice = 'gemini-2.5-flash',
       currentRoutine,
       userProfile = {},
     } = req.body;
@@ -287,8 +288,8 @@ app.post('/api/ai/coach-chat', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Messages array is required.' });
     }
 
-    const allowedModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-4-argon'];
-    const selectedModel = allowedModels.includes(modelChoice) ? modelChoice : 'gemini-3.8-flash';
+    const allowedModels = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite'];
+    const selectedModel = allowedModels.includes(modelChoice) ? modelChoice : 'gemini-2.5-flash';
 
     if (!apiKey) {
       return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' });

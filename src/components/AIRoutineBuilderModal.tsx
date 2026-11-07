@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, AlertCircle, CheckCircle2, ChevronRight, RotateCcw } from 'lucide-react';
+import { Dumbbell, AlertCircle, CheckCircle2, ChevronRight, RotateCcw } from 'lucide-react';
 import { useRoutine } from '../context/RoutineContext';
 import { UserProfile } from '../types/fitness';
 import { triggerLightHaptic } from '../utils/audio';
@@ -176,7 +176,7 @@ export const AIRoutineBuilderModal: React.FC<AIRoutineBuilderModalProps> = ({
           <>
             <div className="flex items-center gap-2.5 mb-2">
               <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/30">
-                <Sparkles className="w-5 h-5 text-amber-400" />
+                <Dumbbell className="w-5 h-5 text-amber-400" />
               </div>
               <h2 className="text-lg font-black tracking-tight text-white">Import Workout Routine</h2>
             </div>
@@ -208,7 +208,7 @@ export const AIRoutineBuilderModal: React.FC<AIRoutineBuilderModalProps> = ({
                 className="w-full py-3.5 rounded-xl text-black font-black text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
                 style={{ backgroundColor: 'var(--accent-primary, #10b981)' }}
               >
-                {loading ? 'Parsing Workout...' : 'Parse Workout & Preview'}
+                {loading ? 'Parsing Workout...' : 'Generate Routine'}
               </button>
             </form>
           </>
