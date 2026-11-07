@@ -253,14 +253,14 @@ export const AIRoutineBuilderModal: React.FC<AIRoutineBuilderModalProps> = ({
             </div>
 
             <p className="text-xs text-slate-300 leading-relaxed mb-4">
-              Paste your workout in any format (emojis, bullets, 3x10, timed sets, or finisher blocks). One line equals one exercise.
+              Paste your workout in any format: emojis, bullets, 3x10, timed sets or finisher blocks.
             </p>
 
             <form onSubmit={handleParseText} className="space-y-4">
               <textarea
                 value={rawText}
                 onChange={(e) => setRawText(e.target.value)}
-                placeholder="Day 1: HEAVY PRESSING, PULLING & ABS&#10;1. Incline Barbell Press (58.5 kg - 8 reps)&#10;2. Pull-Ups (Bodyweight - 8 Reps/10 kg - 4 reps)..."
+                placeholder="Push day&#10;Bench press 4x6&#10;Overhead press 3x8&#10;&#10;Pull day&#10;Rows 4x8&#10;Pull-ups 3 sets to failure"
                 rows={8}
                 disabled={loading}
                 className="w-full rounded-2xl p-3 text-sm text-white placeholder-slate-400 bg-white/5 border border-white/15 focus:outline-none focus:border-amber-500 font-sans resize-none"
@@ -273,14 +273,14 @@ export const AIRoutineBuilderModal: React.FC<AIRoutineBuilderModalProps> = ({
                 </div>
               )}
 
-              {/* Importer footer has only the "Generate Routine" button */}
+              {/* Importer footer has only the "Generate routine" button */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 rounded-xl text-black font-black text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-3.5 rounded-xl text-black font-black text-xs tracking-wider transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
                 style={{ backgroundColor: 'var(--accent-primary, #10b981)' }}
               >
-                {loading ? 'Parsing Workout...' : 'Generate Routine'}
+                {loading ? 'Parsing routine...' : 'Generate routine'}
               </button>
             </form>
           </>
@@ -318,10 +318,10 @@ export const AIRoutineBuilderModal: React.FC<AIRoutineBuilderModalProps> = ({
             <div className="max-h-[300px] overflow-y-auto space-y-3 pr-1">
               {previewResult.parsedDays.map((day, dIdx) => (
                 <div key={dIdx} className="rounded-xl bg-white/5 border border-white/10 p-3 space-y-2">
-                  {/* Day header: shows exact dayTitle and only "{count} exercises" */}
-                  <div className="flex items-center justify-between pb-1 border-b border-white/10">
-                    <h4 className="text-xs font-black text-white uppercase tracking-wider">{day.dayTitle}</h4>
-                    <span className="text-[10px] font-mono text-slate-400 font-bold">{day.exercises.length} exercises</span>
+                  {/* Day header: shows exact dayTitle with count directly below */}
+                  <div className="pb-1.5 border-b border-white/10">
+                    <h4 className="text-xs font-black text-white tracking-wider break-words">{day.dayTitle}</h4>
+                    <span className="text-[10px] font-mono text-slate-400 font-semibold block mt-0.5">{day.exercises.length} exercises</span>
                   </div>
 
                   {/* Exercises Rows */}
@@ -559,7 +559,7 @@ export const AIRoutineBuilderModal: React.FC<AIRoutineBuilderModalProps> = ({
               <button
                 type="button"
                 onClick={handleConfirmSave}
-                className="flex-1 py-2.5 px-4 rounded-xl text-black font-black text-xs shadow-lg uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer"
+                className="flex-1 py-2.5 px-4 rounded-xl text-black font-black text-xs shadow-lg flex items-center justify-center gap-1.5 cursor-pointer"
                 style={{ backgroundColor: 'var(--accent-primary, #10b981)' }}
               >
                 <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />

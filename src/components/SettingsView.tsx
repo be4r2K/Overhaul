@@ -15,6 +15,7 @@ import {
   RotateCcw,
   Loader2,
   Settings as SettingsIcon,
+  Bot,
 } from 'lucide-react';
 import { Toast } from '@capacitor/toast';
 import { AccentColor, AppThemeSettings, ThemeMode } from '../types/aiWorkout';
@@ -22,6 +23,7 @@ import { ACCENT_COLOR_FAMILIES, ACCENT_THEMES } from '../utils/theme';
 import { getAccurateDeviceGPS } from '../utils/weather';
 import { UserProfile } from '../types/fitness';
 import { units } from '../utils/calculations';
+import { testAIConnection } from '../utils/geminiService';
 import {
   checkHealthConnectPermissionsGranted,
   requestHealthConnectPermissions,
@@ -60,6 +62,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [gpsStatus, setGpsStatus] = useState<string | null>(null);
   const [googleSyncLoading, setGoogleSyncLoading] = useState(false);
   const [lastScrollY, setLastScrollY] = useState(0);
+
+  // Test AI Connection Diagnostic state
+  const [aiTesting, setAiTesting] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState<{
+    keyPresent: boolean;
+    modelUsed: string;
+    success: boolean;
+    message: string;
+    details?: string;
+  } | null>(null);
+
+  const handleTestAIConnection = async () => {
+    setAiTesting(true);
+    try {
+      const res = await testAIConnection();
+      setAiTestResult(res);
+    } catch (err: any) {
+      setAiTestResult({
+        keyPresent: false,
+        modelUsed: 'gemini-2.5-flash',
+        success: false,
+        message: 'Connection Failed',
+        details: err?.message || String(err),
+      });
+    } finally {
+      setAiTesting(false);
+    }
+  };
 
   // Restore bottom nav when leaving Settings
   useEffect(() => {
@@ -728,7 +758,70 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </section>
 
-        {/* SECTION 4: STORAGE, CACHE, AND CACHE INVALIDATION (Direct on Canvas) */}
+        {/* SECTION 4: AI COACH & CLOUD DIAGNOSTICS (Direct on Canvas) */}
+        <section className="space-y-2 bg-transparent">
+          <div className="flex items-center gap-2 px-1 pb-1 border-b border-black/10 dark:border-white/10">
+            <Bot className="w-4 h-4 accent-text" />
+            <h2 className="text-xs font-black uppercase text-inherit">AI Coach & API Diagnostics</h2>
+          </div>
+
+          <div className="card dashboard-item ig-glass-card glass-card-light p-3 rounded-2xl space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h3 className="text-xs font-bold text-inherit">Test AI connection</h3>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Verify API key presence and live Google Generative Language API connectivity.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleTestAIConnection}
+                disabled={aiTesting}
+                className="py-1.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-inherit border border-white/20 text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95 transition-all"
+              >
+                {aiTesting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Testing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 accent-text" />
+                    <span>Test AI connection</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {aiTestResult && (
+              <div className="p-2.5 rounded-xl bg-black/40 border border-white/10 space-y-1.5 text-xs font-mono">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">API Key Present:</span>
+                  <span className={`font-bold ${aiTestResult.keyPresent ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {aiTestResult.keyPresent ? 'Yes' : 'No'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Model ID Used:</span>
+                  <span className="text-cyan-300 font-bold">{aiTestResult.modelUsed}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Ping Result:</span>
+                  <span className={`font-bold ${aiTestResult.success ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {aiTestResult.message}
+                  </span>
+                </div>
+                {aiTestResult.details && (
+                  <div className="pt-1 border-t border-white/10 text-[10px] text-rose-300 break-words font-sans">
+                    {aiTestResult.details}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* SECTION 5: STORAGE, CACHE, AND CACHE INVALIDATION (Direct on Canvas) */}
         <section className="space-y-2 bg-transparent">
           <div className="flex items-center gap-2 px-1 pb-1 border-b border-rose-500/20">
             <RotateCcw className="w-4 h-4 text-rose-500" />

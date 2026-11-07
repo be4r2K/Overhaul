@@ -73,7 +73,7 @@ import { AIWorkoutAnalysisResult, AIBodyVisionData } from '../types/aiWorkout';
 import { calculate1RM, units } from '../utils/calculations';
 import { playPRFanfare } from '../utils/audio';
 import { AIRoutineBuilderModal } from './AIRoutineBuilderModal';
-import { formatExerciseRow } from '../utils/workoutParser';
+import { formatExerciseRow, isBodyweightMovement } from '../utils/workoutParser';
 import { getActiveUserUid, saveToStorage } from '../utils/storage';
 import { syncRoutinesToCloud } from '../utils/cloudSyncService';
 
@@ -198,6 +198,7 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
   // Rename Day State
   const [renamingDayIdx, setRenamingDayIdx] = useState<number | null>(null);
   const [renamingDayTitle, setRenamingDayTitle] = useState<string>('');
+  const [openDayMenuIdx, setOpenDayMenuIdx] = useState<number | null>(null);
 
   // Move Exercise to Day Modal State
   const [moveExerciseState, setMoveExerciseState] = useState<{ dayIdx: number; exIdx: number } | null>(null);
@@ -364,8 +365,7 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
   };
 
   const isBodyweightExercise = (ex: any) => {
-    const text = `${ex.name || ''} ${ex.weight || ''}`.toLowerCase();
-    return text.includes('bodyweight') || text.includes('bw') || text.includes('calisthenic') || ex.weight === '0' || ex.weight === 0 || !ex.weight || ex.weight === '-';
+    return isBodyweightMovement(ex.name || '', `${ex.weight || ''} ${ex.notes || ''}`);
   };
 
   const getExerciseLogsThisWeek = (exerciseName: string) => {
@@ -673,7 +673,7 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
       } else {
         const wMatch = (ex.weight || '').match(/(\d+(?:\.\d+)?)/);
         const rMatch = (ex.reps_or_duration || '').match(/(\d+)/);
-        setInlineWeight(wMatch ? parseFloat(wMatch[1]) : 60);
+        setInlineWeight(wMatch ? parseFloat(wMatch[1]) : 0);
         setInlineReps(rMatch ? parseInt(rMatch[1], 10) : 8);
       }
     }
@@ -706,8 +706,8 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
       finalWeightKg = isMetric ? inlineBodyweightAdded : units.lbsToKg(inlineBodyweightAdded);
       finalReps = inlineReps;
     } else {
-      if (inlineWeight <= 0 || inlineReps <= 0) return;
-      finalWeightKg = isMetric ? inlineWeight : units.lbsToKg(inlineWeight);
+      if (inlineReps <= 0) return;
+      finalWeightKg = inlineWeight > 0 ? (isMetric ? inlineWeight : units.lbsToKg(inlineWeight)) : 0;
       finalReps = inlineReps;
     }
 
@@ -873,7 +873,11 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                     Workout
                   </h3>
                   <p className="text-xs text-slate-300 font-medium mt-0.5">
-                    Today: {aiWorkoutAnalysis.parsedDays?.[0]?.dayTitle || 'Day 1'} · {aiWorkoutAnalysis.parsedDays?.[0]?.exercises?.length || 0} exercises
+                    Today: {(() => {
+                      const rawTitle = aiWorkoutAnalysis.parsedDays?.[0]?.dayTitle || 'Day 1';
+                      const match = rawTitle.match(/^day\s*\d+/i);
+                      return match ? match[0].replace(/day\s*(\d+)/i, 'Day $1') : (rawTitle.split(/[:\-–]/)[0].trim() || 'Day 1');
+                    })()} · {aiWorkoutAnalysis.parsedDays?.[0]?.exercises?.length || 0} exercises
                   </p>
                 </div>
 
@@ -1162,14 +1166,14 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
 
       {/* MODAL 1: ACTIVE WORKOUT ROUTINE & LIVE EXECUTION DRAWER */}
       {activeModal === 'live-execution' && (
-        <div className="fixed inset-0 z-50 bg-black/45 p-3 sm:p-6 overflow-y-auto backdrop-blur-md flex items-center justify-center animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-black/60 p-2 sm:p-4 backdrop-blur-md flex items-center justify-center animate-in fade-in zoom-in-95 duration-200">
           <div 
-            className="active-routine-modal glass-modal modal-content dialog-sheet liquid-glass-enabled bg-slate-900/60 border border-white/25 rounded-3xl p-4 sm:p-6 max-w-2xl w-full shadow-2xl space-y-4"
-            style={{ marginTop: '28px', maxHeight: '82vh' }}
+            className="active-routine-modal glass-modal modal-content dialog-sheet liquid-glass-enabled bg-slate-900/85 border border-white/20 rounded-3xl p-3.5 sm:p-5 max-w-2xl w-full shadow-2xl flex flex-col my-auto overflow-hidden text-white"
+            style={{ maxHeight: 'calc(100dvh - 140px)' }}
           >
             
-            {/* DRAWER HEADER WITH NON-TRUNCATING TITLE, + NEW, DELETE SPLIT & 'X' */}
-            <div className="flex items-center justify-between border-b border-white/10 pb-3 shrink-0 gap-2">
+            {/* DRAWER HEADER WITH NON-TRUNCATING TITLE, + NEW, DELETE SPLIT & BORDERLESS 'X' */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-2.5 shrink-0 gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <Dumbbell className="w-5 h-5 text-amber-400 shrink-0" />
                 <h3 className="text-base sm:text-lg font-black text-white truncate">Workout</h3>
@@ -1203,22 +1207,22 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                     triggerLightHaptic();
                     setActiveModal(null);
                   }}
-                  className="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  className="p-1 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
                   title="Close"
                 >
-                  <X className="w-5 h-5" />
+                  <span className="text-xl font-light leading-none">✕</span>
                 </button>
               </div>
             </div>
 
             {/* WEEKLY SESSION AUTO-REFRESH STATUS BANNER */}
-            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs shrink-0">
+            <div className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs shrink-0">
               <div className="space-y-0.5">
-                <div className="flex items-center gap-1.5 text-white font-bold">
+                <div className="flex items-center gap-1.5 text-white font-bold text-[11px]">
                   <Calendar className="w-3.5 h-3.5 text-amber-400" />
                   <span>Weekly Session Cycle: {weekCycleLabel}</span>
                 </div>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[10px] text-slate-400">
                   Resets every Monday. PRs and logs are kept.
                 </p>
               </div>
@@ -1228,7 +1232,7 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
             </div>
 
             {/* COLLAPSIBLE ACCORDION WORKOUT SPLITS */}
-            <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1 flex-1">
+            <div className="space-y-3 flex-1 min-h-0 overflow-y-auto pr-1 py-1 scrollbar-none">
               {aiWorkoutAnalysis && Array.isArray(aiWorkoutAnalysis.parsedDays) && aiWorkoutAnalysis.parsedDays.length > 0 ? (
                 aiWorkoutAnalysis.parsedDays.map((day, dayIdx) => {
                   const isDayExpanded = expandedDays[`day${dayIdx + 1}` as keyof typeof expandedDays] || false;
@@ -1246,16 +1250,35 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                             [`day${dayIdx + 1}`]: !isDayExpanded
                           }));
                         }}
-                        className="w-full p-3.5 flex items-center justify-between gap-2 text-left hover:bg-white/5 transition-colors cursor-pointer"
+                        className="w-full p-3 flex items-center justify-between gap-2 text-left hover:bg-white/5 transition-colors cursor-pointer"
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dayIdx === 0 ? 'bg-amber-400' : 'bg-cyan-400'}`} />
-                          <h4 className="routine-day-header text-xs sm:text-sm font-black text-white uppercase tracking-wider truncate">
-                            {day.dayTitle} · {dayExercises.length} exercises
-                          </h4>
-                        </div>
+                        {(() => {
+                          const fullTitle = day.dayTitle || `Day ${dayIdx + 1}`;
+                          const dayMatch = fullTitle.match(/^(day\s*\d+)(?:[:\-–]\s*(.*))?$/i);
+                          const boldDay = dayMatch ? dayMatch[1].toUpperCase() : (fullTitle.length <= 10 ? fullTitle.toUpperCase() : `DAY ${dayIdx + 1}`);
+                          const restOfTitle = dayMatch && dayMatch[2] ? dayMatch[2].trim() : (!dayMatch && fullTitle.length > 10 ? fullTitle : '');
+
+                          return (
+                            <div className="flex-1 min-w-0 pr-2">
+                              <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${dayIdx === 0 ? 'bg-amber-400' : 'bg-cyan-400'}`} />
+                                <h4 className="text-xs sm:text-sm font-black text-white tracking-wider">
+                                  {boldDay}
+                                </h4>
+                              </div>
+                              {restOfTitle && (
+                                <p className="text-[11px] text-slate-300/80 font-normal mt-0.5 pl-4 break-words">
+                                  {restOfTitle}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] font-mono text-slate-400 font-semibold hidden sm:inline">
+                            {dayExercises.length} exercises
+                          </span>
                           <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border shrink-0 ${
                             dayIdx === 0 
                               ? 'text-amber-300 bg-amber-500/20 border-amber-500/30' 
@@ -1275,43 +1298,68 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                       {isDayExpanded && (
                         <div className="p-3 pt-0 border-t border-white/10 divide-y divide-white/10 animate-in fade-in duration-200">
                           
-                          {/* Day Actions Bar */}
-                          <div className="py-2 flex items-center justify-between gap-2 flex-wrap">
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  triggerLightHaptic();
-                                  setAddingExerciseDayIdx(dayIdx);
-                                }}
-                                className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-white font-bold text-[11px] transition-colors flex items-center gap-1 cursor-pointer"
-                              >
-                                <Plus className="w-3 h-3 text-amber-400" />
-                                <span>Add exercise</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  triggerLightHaptic();
-                                  setRenamingDayIdx(dayIdx);
-                                  setRenamingDayTitle(day.dayTitle || '');
-                                }}
-                                className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-[11px] transition-colors flex items-center gap-1 cursor-pointer"
-                              >
-                                <Edit2 className="w-3 h-3" />
-                                <span>Rename day</span>
-                              </button>
-                            </div>
+                          {/* Day Actions Bar: Add exercise + ⋯ Menu */}
+                          <div className="py-2 flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                triggerLightHaptic();
+                                setAddingExerciseDayIdx(dayIdx);
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-white font-bold text-[11px] transition-colors flex items-center gap-1 cursor-pointer"
+                            >
+                              <Plus className="w-3 h-3 text-amber-400" />
+                              <span>Add exercise</span>
+                            </button>
 
-                            {(aiWorkoutAnalysis.parsedDays?.length || 0) > 1 && (
+                            {/* ⋯ Day Actions Menu */}
+                            <div className="relative">
                               <button
                                 type="button"
-                                onClick={() => handleDeleteDay(dayIdx)}
-                                className="px-2 py-1 rounded-lg text-rose-400 hover:bg-rose-500/10 font-bold text-[11px] transition-colors cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  triggerLightHaptic();
+                                  setOpenDayMenuIdx(openDayMenuIdx === dayIdx ? null : dayIdx);
+                                }}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer"
+                                title="Day options"
                               >
-                                Delete day
+                                <MoreHorizontal className="w-4 h-4" />
                               </button>
-                            )}
+
+                              {openDayMenuIdx === dayIdx && (
+                                <div className="absolute right-0 top-8 z-30 w-36 rounded-xl bg-slate-900 border border-white/20 shadow-xl p-1.5 space-y-0.5 text-xs animate-in fade-in duration-150">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      triggerLightHaptic();
+                                      setRenamingDayIdx(dayIdx);
+                                      setRenamingDayTitle(day.dayTitle || '');
+                                      setOpenDayMenuIdx(null);
+                                    }}
+                                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white font-medium flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                    <span>Rename day</span>
+                                  </button>
+
+                                  {(aiWorkoutAnalysis.parsedDays?.length || 0) > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        triggerMediumHaptic();
+                                        handleDeleteDay(dayIdx);
+                                        setOpenDayMenuIdx(null);
+                                      }}
+                                      className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 text-rose-400 font-medium flex items-center gap-2 cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      <span>Delete day</span>
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
 
                           {dayExercises.map((ex, exIdx) => {
@@ -1329,30 +1377,29 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                             return (
                               <div
                                 key={exIdx}
-                                className={`transition-all overflow-hidden ${
+                                className={`transition-all overflow-hidden rounded-xl p-2.5 ${
                                   isInlineOpen
                                     ? dayIdx === 0 
-                                      ? 'bg-amber-500/10 border-amber-500/50 shadow-md ring-1 ring-amber-500/30 my-1 rounded-xl'
-                                      : 'bg-cyan-500/10 border-cyan-500/50 shadow-md ring-1 ring-cyan-500/30 my-1 rounded-xl'
+                                      ? 'bg-amber-500/10 border border-amber-500/40 shadow-md ring-1 ring-amber-500/20 my-1'
+                                      : 'bg-cyan-500/10 border border-cyan-500/40 shadow-md ring-1 ring-cyan-500/20 my-1'
                                     : 'hover:bg-white/[0.04]'
                                 }`}
-                                style={{ padding: '10px 6px' }}
                               >
-                                <div className="flex items-center justify-between gap-2">
-                                  <div 
-                                    className="min-w-0 flex-1 cursor-pointer"
-                                    onClick={() => handleToggleInlineLog(ex)}
-                                  >
+                                {/* LINE 1: Full name (wraps to 2 lines, never cut with "…") + ⋯ menu on right */}
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="text-xs font-bold text-white truncate block max-w-full">{ex.name}</span>
+                                      <h5 className="text-xs sm:text-sm font-bold text-white leading-snug line-clamp-2 break-words">
+                                        {ex.name}
+                                      </h5>
                                       {isDone && (
-                                        <span className="text-[9px] font-mono font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.2 rounded border border-emerald-500/30 flex items-center gap-0.5">
+                                        <span className="text-[9px] font-mono font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/30 flex items-center gap-0.5">
                                           <CheckCircle2 className="w-2.5 h-2.5" />
                                           <span>Done</span>
                                         </span>
                                       )}
                                       {prevRecord && (
-                                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border ${
+                                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${
                                           dayIdx === 0
                                             ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
                                             : 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20'
@@ -1362,16 +1409,16 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                                       )}
                                     </div>
                                     
-                                    {/* Line 2: formatted exercise details */}
-                                    <span className="text-[11px] text-slate-400 font-mono block mt-0.5">
+                                    {/* LINE 2: formatted exercise details */}
+                                    <p className="text-[11px] text-slate-400 font-mono mt-0.5">
                                       {formattedSummary}
-                                    </span>
+                                    </p>
 
-                                    {/* Primary muscle tags only (max 2) */}
+                                    {/* LINE 3: Primary muscle chips (max 2) */}
                                     {Array.isArray((ex as any).muscles) && (ex as any).muscles.length > 0 && (
-                                      <div className="flex items-center gap-1 mt-1">
+                                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
                                         {(ex as any).muscles.slice(0, 2).map((m: string, mi: number) => (
-                                          <span key={mi} className="text-[9px] font-mono font-bold text-cyan-300 bg-cyan-500/15 border border-cyan-500/25 px-1.5 py-0.2 rounded">
+                                          <span key={mi} className="text-[9px] font-mono font-bold text-cyan-300 bg-cyan-500/15 border border-cyan-500/25 px-1.5 py-0.5 rounded">
                                             {m}
                                           </span>
                                         ))}
@@ -1380,139 +1427,128 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
 
                                     {/* Muted Secondary Muscles line */}
                                     {Array.isArray((ex as any).secondaryMuscles) && (ex as any).secondaryMuscles.length > 0 && (
-                                      <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                      <p className="text-[10px] text-slate-400 font-medium mt-0.5">
                                         Also: {(ex as any).secondaryMuscles.join(', ')}
-                                      </div>
+                                      </p>
                                     )}
 
                                     {/* Expandable Notes */}
                                     {(ex as any).notes && (
-                                      <div className="text-[10px] text-amber-300/90 font-mono mt-0.5">
+                                      <p className="text-[10px] text-amber-300/90 font-mono mt-0.5">
                                         Note: {(ex as any).notes}
-                                      </div>
+                                      </p>
                                     )}
                                   </div>
 
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    {/* Mark Done quick toggle */}
+                                  {/* ⋯ Three Dots Menu Button on right of Line 1 */}
+                                  <div className="relative shrink-0">
                                     <button
                                       type="button"
-                                      onClick={() => {
+                                      onClick={(e) => {
+                                        e.stopPropagation();
                                         triggerLightHaptic();
-                                        toggleMarkDone(ex.name);
+                                        setOpenExerciseMenu(isMenuOpen ? null : { dayIdx, exIdx });
                                       }}
-                                      className={`p-1.5 rounded-xl border text-xs transition-colors cursor-pointer ${
-                                        isDone
-                                          ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                                          : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
-                                      }`}
-                                      title={isDone ? "Mark incomplete" : "Mark done"}
+                                      className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer"
+                                      title="Exercise options"
                                     >
-                                      <Check className="w-3.5 h-3.5" />
+                                      <MoreHorizontal className="w-4 h-4" />
                                     </button>
 
-                                    {/* Log set button (no plus sign) */}
-                                    <button
-                                      type="button"
-                                      onClick={() => handleToggleInlineLog(ex)}
-                                      className={`px-2.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer flex items-center gap-1 active:scale-95 ${
-                                        isInlineOpen
-                                          ? dayIdx === 0 
-                                            ? 'bg-amber-500 text-black shadow-md'
-                                            : 'bg-cyan-400 text-black shadow-md'
-                                          : dayIdx === 0
-                                            ? 'bg-white/10 hover:bg-amber-500 hover:text-black text-white'
-                                            : 'bg-white/10 hover:bg-cyan-400 hover:text-black text-white'
-                                      }`}
-                                    >
-                                      {isInlineOpen ? <X className="w-3.5 h-3.5" /> : null}
-                                      <span>{isInlineOpen ? 'Close' : 'Log set'}</span>
-                                    </button>
+                                    {/* Dropdown Menu */}
+                                    {isMenuOpen && (
+                                      <div className="absolute right-0 top-8 z-30 w-36 rounded-2xl bg-slate-900 border border-white/20 shadow-xl p-1.5 space-y-0.5 text-xs animate-in fade-in duration-150">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditingExercise({
+                                              dayIdx,
+                                              exIdx,
+                                              name: ex.name,
+                                              sets: String((ex as any).sets || '3'),
+                                              reps: String((ex as any).reps_or_duration || '8'),
+                                              weight: String((ex as any).weight || ''),
+                                              notes: String((ex as any).notes || ''),
+                                            });
+                                            setOpenExerciseMenu(null);
+                                          }}
+                                          className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white font-medium flex items-center gap-2 cursor-pointer"
+                                        >
+                                          <Edit2 className="w-3.5 h-3.5 text-amber-400" />
+                                          <span>Edit</span>
+                                        </button>
 
-                                    {/* ⋯ Three Dots Menu Button */}
-                                    <div className="relative">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          triggerLightHaptic();
-                                          setOpenExerciseMenu(isMenuOpen ? null : { dayIdx, exIdx });
-                                        }}
-                                        className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer"
-                                        title="Exercise options"
-                                      >
-                                        <MoreHorizontal className="w-4 h-4" />
-                                      </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setMoveExerciseState({ dayIdx, exIdx });
+                                            setOpenExerciseMenu(null);
+                                          }}
+                                          className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white font-medium flex items-center gap-2 cursor-pointer"
+                                        >
+                                          <ArrowRight className="w-3.5 h-3.5 text-cyan-400" />
+                                          <span>Move to day</span>
+                                        </button>
 
-                                      {/* Dropdown Menu */}
-                                      {isMenuOpen && (
-                                        <div className="absolute right-0 top-8 z-30 w-36 rounded-2xl bg-slate-900 border border-white/20 shadow-xl p-1.5 space-y-0.5 text-xs animate-in fade-in duration-150">
+                                        {exIdx > 0 && (
                                           <button
                                             type="button"
-                                            onClick={() => {
-                                              setEditingExercise({
-                                                dayIdx,
-                                                exIdx,
-                                                name: ex.name,
-                                                sets: String((ex as any).sets || '3'),
-                                                reps: String((ex as any).reps_or_duration || '8'),
-                                                weight: String((ex as any).weight || ''),
-                                                notes: String((ex as any).notes || ''),
-                                              });
-                                              setOpenExerciseMenu(null);
-                                            }}
+                                            onClick={() => handleMoveExerciseUpDown(dayIdx, exIdx, 'up')}
                                             className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white font-medium flex items-center gap-2 cursor-pointer"
                                           >
-                                            <Edit2 className="w-3.5 h-3.5 text-amber-400" />
-                                            <span>Edit</span>
+                                            <ArrowUp className="w-3.5 h-3.5 text-slate-300" />
+                                            <span>Move up</span>
                                           </button>
+                                        )}
 
+                                        {exIdx < dayExercises.length - 1 && (
                                           <button
                                             type="button"
-                                            onClick={() => {
-                                              setMoveExerciseState({ dayIdx, exIdx });
-                                              setOpenExerciseMenu(null);
-                                            }}
+                                            onClick={() => handleMoveExerciseUpDown(dayIdx, exIdx, 'down')}
                                             className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white font-medium flex items-center gap-2 cursor-pointer"
                                           >
-                                            <ArrowRight className="w-3.5 h-3.5 text-cyan-400" />
-                                            <span>Move to day</span>
+                                            <ArrowDown className="w-3.5 h-3.5 text-slate-300" />
+                                            <span>Move down</span>
                                           </button>
+                                        )}
 
-                                          {exIdx > 0 && (
-                                            <button
-                                              type="button"
-                                              onClick={() => handleMoveExerciseUpDown(dayIdx, exIdx, 'up')}
-                                              className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white font-medium flex items-center gap-2 cursor-pointer"
-                                            >
-                                              <ArrowUp className="w-3.5 h-3.5 text-slate-300" />
-                                              <span>Move up</span>
-                                            </button>
-                                          )}
-
-                                          {exIdx < dayExercises.length - 1 && (
-                                            <button
-                                              type="button"
-                                              onClick={() => handleMoveExerciseUpDown(dayIdx, exIdx, 'down')}
-                                              className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-white font-medium flex items-center gap-2 cursor-pointer"
-                                            >
-                                              <ArrowDown className="w-3.5 h-3.5 text-slate-300" />
-                                              <span>Move down</span>
-                                            </button>
-                                          )}
-
-                                          <button
-                                            type="button"
-                                            onClick={() => handleDeleteExercise(dayIdx, exIdx)}
-                                            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 text-rose-400 font-medium flex items-center gap-2 cursor-pointer"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                            <span>Remove</span>
-                                          </button>
-                                        </div>
-                                      )}
-                                    </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteExercise(dayIdx, exIdx)}
+                                          className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 text-rose-400 font-medium flex items-center gap-2 cursor-pointer"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                          <span>Remove</span>
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
+                                </div>
+
+                                {/* LINE 4: [Log set] and [Mark done] side-by-side */}
+                                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-white/5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleInlineLog(ex)}
+                                    className="flex-1 py-1.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                                  >
+                                    <span>{isInlineOpen ? 'Cancel' : 'Log set'}</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      triggerLightHaptic();
+                                      toggleMarkDone(ex.name);
+                                    }}
+                                    className={`flex-1 py-1.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 ${
+                                      isDone
+                                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                                        : 'bg-white/5 border-white/10 text-slate-300 hover:text-white hover:bg-white/10'
+                                    }`}
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>{isDone ? 'Done' : 'Mark done'}</span>
+                                  </button>
                                 </div>
 
                                 {/* LIST LOGGED SETS UNDER EXERCISE */}
@@ -1554,7 +1590,7 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                                 {isInlineOpen && (
                                   <form
                                     onSubmit={(e) => handleSaveInlineSet(e, ex)}
-                                    className="set-logging-card-expanded mt-2 p-3 bg-slate-950/90 rounded-xl border border-white/15 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-150"
+                                    className="set-logging-card-expanded mt-2.5 p-3 bg-slate-950/90 rounded-2xl border border-white/15 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-150"
                                   >
                                     <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 border-b border-white/10 pb-1.5">
                                       <span>Logging Set: {ex.name}</span>
@@ -1605,8 +1641,9 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                                             type="number"
                                             step="0.5"
                                             min="0"
-                                            value={inlineBodyweightAdded}
+                                            value={inlineBodyweightAdded || ''}
                                             onChange={(e) => setInlineBodyweightAdded(parseFloat(e.target.value) || 0)}
+                                            placeholder="0"
                                             className="w-full bg-slate-900 border border-white/20 rounded-xl px-2.5 py-1.5 text-white text-sm font-mono font-bold outline-none focus:border-amber-400"
                                           />
                                         </div>
@@ -1616,16 +1653,16 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                                       <div className="grid grid-cols-2 gap-2.5">
                                         <div>
                                           <label className="block text-[10px] font-bold text-slate-300 mb-1">
-                                            Weight ({isMetric ? 'kg' : 'lbs'})
+                                            Weight ({isMetric ? 'kg' : 'lbs'}) <span className="text-slate-500 font-normal">(Optional)</span>
                                           </label>
                                           <input
                                             type="number"
                                             step="0.5"
                                             min="0"
-                                            value={inlineWeight}
+                                            value={inlineWeight || ''}
                                             onChange={(e) => setInlineWeight(parseFloat(e.target.value) || 0)}
+                                            placeholder="0"
                                             className="w-full bg-slate-900 border border-white/20 rounded-xl px-2.5 py-1.5 text-white text-sm font-mono font-bold outline-none focus:border-amber-400"
-                                            required
                                             autoFocus
                                           />
                                         </div>
@@ -1654,18 +1691,11 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
                                       </button>
                                       <button
                                         type="submit"
-                                        className="flex-1 py-1.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs shadow-md active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                                        className="flex-1 py-2 px-3 rounded-xl text-black font-black text-xs shadow-md active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                                        style={{ backgroundColor: 'var(--accent-primary, #10b981)' }}
                                       >
-                                        <Check className="w-3.5 h-3.5" />
-                                        <span>
-                                          {isTimedExercise(ex)
-                                            ? `Save Set (${inlineDuration} sec)`
-                                            : isBodyweightExercise(ex)
-                                              ? inlineBodyweightAdded > 0
-                                                ? `Save Set (BW + ${inlineBodyweightAdded}${isMetric ? 'kg' : 'lbs'} × ${inlineReps})`
-                                                : `Save Set (BW × ${inlineReps})`
-                                              : `Save Set (${inlineWeight}${isMetric ? 'kg' : 'lbs'} × ${inlineReps})`}
-                                        </span>
+                                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                                        <span>Save set</span>
                                       </button>
                                     </div>
                                   </form>
@@ -1700,17 +1730,18 @@ export const GymProgressView: React.FC<GymProgressViewProps> = ({
               )}
             </div>
 
-            {/* DRAWER FOOTER: ANCHORED PROMINENT 'DONE' BUTTON */}
-            <div className="pt-2 border-t border-white/10">
+            {/* DRAWER FOOTER: ANCHORED PROMINENT 'DONE' BUTTON PINNED INSIDE CARD */}
+            <div className="pt-3 border-t border-white/10 shrink-0 mt-auto">
               <button
                 type="button"
                 onClick={() => {
                   triggerLightHaptic();
                   setActiveModal(null);
                 }}
-                className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-sm shadow-lg active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-xl text-black font-black text-sm shadow-lg active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
+                style={{ backgroundColor: 'var(--accent-primary, #10b981)' }}
               >
-                <Check className="w-4 h-4" />
+                <Check className="w-4 h-4 stroke-[2.5]" />
                 <span>Done</span>
               </button>
             </div>

@@ -80,10 +80,41 @@ export function formatExerciseRow(ex: {
   return formatted || '-';
 }
 
+export const KNOWN_BODYWEIGHT_EXERCISES = [
+  'pull-up', 'pull up', 'pullup',
+  'chin-up', 'chin up', 'chinup',
+  'push-up', 'push up', 'pushup',
+  'dip', 'dips',
+  'hanging leg raise', 'hanging leg raises',
+  'hanging raise', 'hanging raises',
+  'handstand', 'handstand hold', 'handstand push-up', 'handstand pushup',
+  'plank', 'side plank',
+  'l-sit', 'lsit',
+  'muscle-up', 'muscle up', 'muscleup'
+];
+
+/**
+ * Checks if an exercise is strictly bodyweight:
+ * Only returns true if text explicitly includes 'bodyweight' or 'bw', or matches known bodyweight exercises.
+ * Missing weight does NOT make an exercise bodyweight.
+ */
+export function isBodyweightMovement(name: string, textHint: string = ''): boolean {
+  const combined = `${name || ''} ${textHint || ''}`.toLowerCase();
+  if (/\b(?:bodyweight|bw|calisthenic|calisthenics)\b/i.test(combined)) {
+    return true;
+  }
+  const cleanName = (name || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').trim();
+  return KNOWN_BODYWEIGHT_EXERCISES.some((kw) => {
+    const regex = new RegExp(`\\b${kw.replace('-', '[- ]?')}\\b`, 'i');
+    return regex.test(cleanName);
+  });
+}
+
 /**
  * Parses muscle annotations with proper parenthesis handling:
  * e.g. "Upper Chest (Front Delts, Triceps)" ->
  * primary: ["Upper Chest"], secondary: ["Front Delts", "Triceps"]
+ * Everything inside parentheses on a target line goes to secondaryMuscles, never to notes.
  */
 export function parseMusclesWithSecondary(lineText: string): {
   primary: string[];
@@ -98,22 +129,12 @@ export function parseMusclesWithSecondary(lineText: string): {
   const parenMatch = cleanLine.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
   let primaryStr = cleanLine;
   let secondaryStr = '';
-  let extraNotes = '';
+  const extraNotes = '';
 
   if (parenMatch) {
     primaryStr = parenMatch[1].trim();
-    const inside = parenMatch[2].trim();
-
-    // Determine if inside parentheses is secondary muscles or notes
-    const isMuscleRelated = /delts?|deltoids?|chest|back|lats?|biceps?|triceps?|legs?|quads?|hamstrings?|glutes?|calves?|core|abs?|forearms?|traps?|rhomboids?|rotator|hip flexors?/i.test(
-      inside
-    );
-
-    if (isMuscleRelated) {
-      secondaryStr = inside;
-    } else {
-      extraNotes = inside;
-    }
+    // Everything in parentheses on a 🎯 line goes to secondaryMuscles (e.g. "Wrist Flexors", "Muscle-Up Power")
+    secondaryStr = parenMatch[2].trim();
   }
 
   // Primary: split by & or / or , (only on outer string)
@@ -131,6 +152,54 @@ export function parseMusclesWithSecondary(lineText: string): {
     : [];
 
   return { primary, secondary, extraNotes };
+}
+
+/**
+ * Splits a line that lists multiple exercises separated by commas or semicolons
+ * (e.g. "Bench 4x5, Rows 4x6"), while protecting commas inside parentheses.
+ */
+export function splitMultiExerciseLine(line: string): string[] {
+  if (!line || !line.trim()) return [];
+
+  // Check for semicolons first
+  if (line.includes(';')) {
+    const semiParts = line.split(';').map((p) => p.trim()).filter(Boolean);
+    if (semiParts.length > 1) {
+      return semiParts;
+    }
+  }
+
+  // If comma is present, split outside parentheses
+  if (line.includes(',')) {
+    const parts: string[] = [];
+    let current = '';
+    let parenDepth = 0;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '(') parenDepth++;
+      else if (char === ')') parenDepth = Math.max(0, parenDepth - 1);
+
+      if (char === ',' && parenDepth === 0) {
+        if (current.trim()) parts.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    if (current.trim()) parts.push(current.trim());
+
+    // Only treat as multiple exercises if at least two parts contain exercise patterns
+    // (e.g. sets/reps indicators or distinct exercise names)
+    const exerciseLikeCount = parts.filter(
+      (p) => /[a-zA-Z]{2,}/.test(p) && (/\d+\s*[x×]\s*\d+|\d+\s*reps?|\d+\s*(?:kg|lbs)|sets?/i.test(p) || p.length > 4)
+    ).length;
+
+    if (parts.length > 1 && exerciseLikeCount >= 2) {
+      return parts;
+    }
+  }
+
+  return [line];
 }
 
 export function parseWorkoutTextFormatAgnostic(rawText: string, defaultUnit: string = 'kg'): ParseResult {
@@ -220,8 +289,12 @@ export function parseWorkoutTextFormatAgnostic(rawText: string, defaultUnit: str
     const cleanLine = line.replace(/^[#\-*•\d.)\s🏋️‍♂️💪]+/, '').trim();
     if (!cleanLine) continue;
 
-    const parsedEx = parseSingleExerciseLine(cleanLine, defaultUnit);
-    currentDay.exercises.push(parsedEx);
+    // Handle lines that list multiple exercises separated by commas or semicolons ("Bench 4x5, Rows 4x6")
+    const subExercises = splitMultiExerciseLine(cleanLine);
+    for (const subEx of subExercises) {
+      const parsedEx = parseSingleExerciseLine(subEx.trim(), defaultUnit);
+      currentDay.exercises.push(parsedEx);
+    }
   }
 
   const totalExercises = parsedDays.reduce((sum, d) => sum + d.exercises.length, 0);

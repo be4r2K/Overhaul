@@ -66,7 +66,12 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
   const [inputMsg, setInputMsg] = useState<string>('');
   const [chatLoading, setChatLoading] = useState<boolean>(false);
   const [selectedModel, setSelectedModel] = useState<'gemini-2.5-flash' | 'gemini-2.5-pro' | 'gemini-2.5-flash-lite'>('gemini-2.5-flash');
+  const [expandedErrorIds, setExpandedErrorIds] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const toggleErrorDetails = (id: string) => {
+    setExpandedErrorIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -179,12 +184,13 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
       setChatMessages((prev) => [...prev, assistantMsg]);
     } catch (err: any) {
       console.error('AI Coach Error:', err);
-      // Clean user-facing error message instead of raw parser or HTML errors
+      // Clean user-facing error message with detailed diagnostics available via toggle
       const errorMsg: AIChatMessage = {
         id: 'msg-err-' + Date.now(),
         role: 'assistant',
         content: '⚠️ Coach is unreachable. Check your connection.',
         timestamp: 'Just now',
+        errorDetails: err?.details || err?.message || String(err),
       };
       setChatMessages((prev) => [...prev, errorMsg]);
     } finally {
@@ -348,6 +354,39 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
               >
                 <p className="whitespace-pre-line break-words font-sans">{msg.content || ''}</p>
 
+                {/* Show details toggle for coach errors */}
+                {isErr && (
+                  <div className="mt-2 pt-1.5 border-t border-rose-500/20">
+                    <button
+                      type="button"
+                      onClick={() => toggleErrorDetails(msg.id || '')}
+                      className="text-[10px] text-rose-300 hover:text-rose-200 underline font-semibold cursor-pointer"
+                    >
+                      {expandedErrorIds[msg.id || ''] ? 'Hide details' : 'Show details'}
+                    </button>
+                    {expandedErrorIds[msg.id || ''] && (
+                      <div className="mt-1.5 p-2 rounded-lg bg-black/50 border border-rose-500/30 font-mono text-[9px] text-rose-200 break-words select-text">
+                        {msg.errorDetails || 'HTTP status / connection details unavailable. Verify VITE_GEMINI_API_KEY in build.'}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Undo Button on messages that modified routine */}
+                {msg.didModifyRoutine && undoState && (
+                  <div className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-emerald-400 font-semibold">Split modified</span>
+                    <button
+                      type="button"
+                      onClick={handleUndo}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-bold cursor-pointer transition-all active:scale-95"
+                    >
+                      <Undo2 className="w-3 h-3" />
+                      <span>Undo</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Confirmation Card for Destructive Actions */}
                 {proposal && (
                   <div className="pill mt-3 p-3 rounded-xl bg-white/[0.08] border border-amber-400/40 space-y-2">
@@ -411,23 +450,31 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
       {/* Input Dock & Suggestion Chips */}
       <div className="ai-coach-bottom-panel shrink-0 p-3">
         <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-none shrink-0">
-          {[
-            'delete exercise Pull-Ups from Day 1',
-            'move Incline Barbell Press to Day 2',
-            'rename Day 1 to Heavy Upper',
-            'delete all',
-          ].map((promptText) => (
-            <button
-              key={promptText}
-              type="button"
-              onClick={() => executeSendMessage(promptText)}
-              disabled={chatLoading}
-              className="ai-quick-chip text-xs font-semibold whitespace-nowrap px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-white hover:bg-white/20 transition-all cursor-pointer shrink-0 disabled:opacity-50"
-            >
-              <Zap className="w-3 h-3 text-emerald-400 inline-block mr-1" />
-              <span>{promptText}</span>
-            </button>
-          ))}
+          {(() => {
+            const firstEx = currentRoutine?.parsedDays?.[0]?.exercises?.[0]?.name || 'Bench Press';
+            const secondDay = currentRoutine?.parsedDays?.[1]?.dayTitle
+              ? (currentRoutine.parsedDays[1].dayTitle.split(/[:\-–]/)[0].trim() || 'Day 2')
+              : 'Day 2';
+            const dynamicChips = [
+              `Swap ${firstEx}`,
+              `Add an exercise to ${secondDay}`,
+              'Why this split?',
+              'Make Day 1 shorter',
+            ];
+
+            return dynamicChips.map((promptText) => (
+              <button
+                key={promptText}
+                type="button"
+                onClick={() => executeSendMessage(promptText)}
+                disabled={chatLoading}
+                className="ai-quick-chip text-xs font-semibold whitespace-nowrap px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-white hover:bg-white/20 transition-all cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                <Zap className="w-3 h-3 text-emerald-400 inline-block mr-1" />
+                <span>{promptText}</span>
+              </button>
+            ));
+          })()}
         </div>
 
         <form onSubmit={handleSendMessage} className="flex items-center gap-2 mt-2">
@@ -435,7 +482,7 @@ export const AICoachChatSection: React.FC<AICoachChatSectionProps> = ({
             type="text"
             value={inputMsg}
             onChange={(e) => setInputMsg(e.target.value)}
-            placeholder="Type any message to coach e.g. 'delete Pull-Ups from Day 1'..."
+            placeholder="Ask coach to modify split, swap exercises, or ask a training question..."
             className="flex-1 text-xs rounded-full bg-white/10 border border-white/15 px-4 py-2.5 text-white placeholder-slate-400 focus:outline-none focus:border-white/30 font-sans"
           />
 
