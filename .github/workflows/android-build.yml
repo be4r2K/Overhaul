@@ -27,34 +27,49 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: 'gradle'
 
       - name: Build Web Bundle
         env:
           VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: bun run build
 
-      - name: Ensure Dummy google-services.json Exists for CI
+      - name: Ensure google-services.json Exists
         run: |
+          mkdir -p android/app
           if [ ! -f "android/app/google-services.json" ]; then
             echo '{
-              "project_info": { "project_number": "000000000000", "project_id": "overhaul-app", "storage_bucket": "overhaul-app.appspot.com" },
-              "client": [{
-                "client_info": { "mobilesdk_app_id": "1:000000000000:android:0000000000000000", "android_client_info": { "package_name": "com.overhaul.app" } },
-                "oauth_client": [],
-                "api_key": [{ "current_key": "dummy_key_for_ci" }],
-                "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
-              }],
+              "project_info": {
+                "project_number": "1234567890",
+                "project_id": "overhaul-app",
+                "storage_bucket": "overhaul-app.appspot.com"
+              },
+              "client": [
+                {
+                  "client_info": {
+                    "mobilesdk_app_id": "1:1234567890:android:1234567890",
+                    "android_client_info": {
+                      "package_name": "com.overhaul.app"
+                    }
+                  },
+                  "oauth_client": [],
+                  "api_key": [
+                    {
+                      "current_key": "AIzaSyDummyKeyForCI123456789"
+                    }
+                  ],
+                  "services": {
+                    "appinvite_service": {
+                      "other_platform_oauth_client": []
+                    }
+                  }
+                }
+              ],
               "configuration_version": "1"
             }' > android/app/google-services.json
           fi
 
       - name: Sync Capacitor Android
         run: npx cap sync android
-
-      - name: Configure Android SDK Location
-        run: |
-          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
       - name: Build Android Debug APK
         run: |
