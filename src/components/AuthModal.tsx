@@ -27,12 +27,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       await onGoogleSignIn();
     } catch (err: any) {
-      const msg = err?.message || String(err);
-      const formattedErr = `Google Auth Error: ${msg}`;
+      console.error("Google Sign-In Error:", err);
+      const msg = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err)) || 'Google Auth Failed';
+      const formattedErr = `Google Auth Failed: ${msg}`;
       setLocalError(formattedErr);
       try {
         await Toast.show({ text: formattedErr, duration: 'long' });
       } catch (tErr) {}
+      alert(formattedErr);
     }
   };
 

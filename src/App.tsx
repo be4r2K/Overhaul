@@ -649,6 +649,7 @@ export default function App() {
         (user.email ? user.email.toLowerCase().replace(/[^a-z0-9]/g, '_') : `user_${Date.now()}`);
       updateActiveUserUid(uid);
       setIsAuthenticated(true);
+      setCurrentTab('dashboard');
       if (!localStorage.getItem('hasCompletedTour')) {
         setIsTourOpen(true);
       }
@@ -818,12 +819,14 @@ export default function App() {
         }
       }
     } catch (error: any) {
-      console.warn("Google Sign-In Error:", error);
-      const errMsg = error?.message || error?.toString() || 'Google Authentication Failed';
-      setAuthError(`Google Auth Error: ${errMsg}`);
+      console.error("Google Sign-In Error:", error);
+      const errMsg = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error)) || 'Google Authentication Failed';
+      const fullAuthErr = `Google Auth Failed: ${errMsg}`;
+      setAuthError(fullAuthErr);
       try {
-        Toast.show({ text: `Google Auth Error: ${errMsg}`, duration: 'long' });
+        await Toast.show({ text: fullAuthErr, duration: 'long' });
       } catch (e) {}
+      alert(fullAuthErr);
     } finally {
       setAuthLoading(false);
     }
