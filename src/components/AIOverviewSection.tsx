@@ -13,6 +13,7 @@ import {
 import { AIOverviewData, OverviewPeriod } from '../types/aiWorkout';
 import { DailyNutritionLog, DailyStepLog, LiftRecord, SleepLog, SportActivity, UserProfile } from '../types/fitness';
 import { getAndUpdateDailyStreak } from '../utils/streak';
+import { generateAIOverview } from '../utils/geminiService';
 import confetti from 'canvas-confetti';
 
 interface AIOverviewSectionProps {
@@ -59,32 +60,21 @@ export const AIOverviewSection: React.FC<AIOverviewSectionProps> = ({
     generatedAt: 'Just now'
   });
 
-  const handleManualRefresh = () => {
+  const handleManualRefresh = async () => {
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const data = await generateAIOverview(period, profile, { streakCount: realStreak });
       setOverview({
+        ...data,
         period,
-        headline: 'AI Coach Briefing Refreshed',
-        coachVerdict: `All training logs and recovery metrics analyzed successfully for ${period}. Keep pushing forward!`,
-        completionRate: 95,
-        streakStatus: {
-          currentStreak: 4,
-          status: 'on_fire',
-          message: 'Momentum is peaking!'
-        },
-        recommendations: [
-          'Maintain clean nutrition and caloric surplus for muscle repair.',
-          'Incorporate 10 minutes of mobility work post-workout.',
-          'Protect sleep consistency.'
-        ],
-        focusAreas: ['Back & Biceps', 'Hydration', 'Mobility'],
-        recoveryAdvice: 'Recovery status is green.',
-        skippedAdvice: 'None — flawless execution.',
         generatedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       });
-      setLoading(false);
       confetti({ particleCount: 35, spread: 50, origin: { y: 0.6 } });
-    }, 400);
+    } catch (err) {
+      console.error('Failed to refresh AI overview:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const briefing = overview || {

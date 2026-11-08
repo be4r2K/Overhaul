@@ -139,6 +139,14 @@ ${rawNotes}
   }
 });
 
+// AI Connection Test Endpoint
+app.get('/api/ai/test', async (req: Request, res: Response) => {
+  if (!apiKey) {
+    return res.status(500).json({ success: false, message: 'API Key Missing on Server' });
+  }
+  return res.json({ success: true, message: 'Operational' });
+});
+
 // AI Overview Endpoint
 app.post('/api/ai/overview', async (req: Request, res: Response) => {
   try {

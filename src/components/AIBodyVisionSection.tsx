@@ -23,6 +23,7 @@ import { AIBodyVisionData, AIWorkoutAnalysisResult, BodyMuscleRating } from '../
 import { UserProfile } from '../types/fitness';
 import confetti from 'canvas-confetti';
 import { playPRFanfare } from '../utils/audio';
+import { analyzeBodyVision } from '../utils/geminiService';
 
 interface AIBodyVisionSectionProps {
   profile: UserProfile;
@@ -143,56 +144,21 @@ export const AIBodyVisionSection: React.FC<AIBodyVisionSectionProps> = ({
     setAnalyzingPhoto(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 400));
-      throw new Error('Use local physique analysis');
-    } catch (err: any) {
-      // Brutally honest fallback result
-      const fallbackResult: AIBodyVisionData = {
+      const result = await analyzeBodyVision(activeScanPhoto, profile.goal || 'Hypertrophy');
+      const finalResult: AIBodyVisionData = {
+        ...result,
         id: 'scan-' + Date.now(),
         date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        photoUrl: activeScanPhoto || '',
-        overallRating: 8.2,
-        bodyFatEstimate: '13-15%',
-        postureAssessment: 'Slight anterior pelvic tilt; high clavicle frame symmetry.',
-        physiquePotential: {
-          geneticScore: 9.0,
-          potentialCeiling: 'High V-Taper Frame Potential. Clavicle width provides a wide shoulder base.',
-          projectedGainsKg: '+3.5kg to +5.0kg lean muscle tissue',
-          topGeneticAdvantages: [
-            'Broad Clavicle Width / Natural V-Taper Frame',
-            'High Neuromuscular Hypertrophy Responsiveness',
-            'Symmetrical Rectus Abdominis Tendon Inscriptions',
-          ],
-          laggingPotentialUnlocks: [
-            'Increase weekly posterior chain volume with Romanian deadlifts',
-            'Add seated calf raises for soleus thickness',
-          ],
-          progressForecast: 'Rapid acceleration phase. High responsiveness expected.'
-        },
-        muscleRatings: [
-          { muscle: 'Chest (Upper & Mid)', rating: 8.5, status: 'peak', notes: 'High sternal density and defined clavicular head.' },
-          { muscle: 'Lats & Upper Back', rating: 8.8, status: 'peak', notes: 'Visible V-taper taper down to waist.' },
-          { muscle: 'Delts (Shoulders)', rating: 8.2, status: 'balanced', notes: 'Lateral head well-capped; rear delts need volume.' },
-          { muscle: 'Biceps & Triceps', rating: 8.0, status: 'balanced', notes: 'Good tricep sweep; prominent bicep peak.' },
-          { muscle: 'Abs & Core', rating: 7.9, status: 'balanced', notes: 'Visible rectus abdominis; obliques tight.' },
-          { muscle: 'Quads & Hamstrings', rating: 7.4, status: 'needs_improvement', notes: 'Prioritize hamstrings with RDLs.' },
-          { muscle: 'Calves', rating: 6.8, status: 'lagging', notes: 'High insertion; increase calf frequency.' },
-        ],
-        keyImprovements: [
-          'Prioritize rear delt flyes and face pulls to balance shoulder caps.',
-          'Add Romanian Deadlifts (RDL) 3x8 for posterior chain and hamstring thickness.',
-        ],
-        weeklyProgression: {
-          hasPreviousComparison: Boolean(previousImage),
-          improved: ['Upper chest fullness', 'Waist taper tightness'],
-          stagnant: ['Bicep peak'],
-          backwards: [],
-          summary: 'Visible positive hypertrophy trend over the past week! Core definition is sharper.',
-        },
+        photoUrl: activeScanPhoto,
       };
-      setVisionResult(fallbackResult);
-      setHistoryLogs((prev) => [fallbackResult, ...(Array.isArray(prev) ? prev : [])]);
+      setVisionResult(finalResult);
+      setHistoryLogs((prev) => [finalResult, ...(Array.isArray(prev) ? prev : [])]);
       setActiveModal('ratings-detail');
+      playPRFanfare();
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    } catch (err: any) {
+      console.error('AI Body Vision failed:', err);
+      setPhotoError('Physique scan failed. Please try again or check connection.');
     } finally {
       setAnalyzingPhoto(false);
     }
